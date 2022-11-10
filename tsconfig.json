@@ -1,0 +1,27 @@
+{
+  "compilerOptions": {
+    "skipLibCheck": true,
+    "moduleResolution": "Node16",
+    "target": "ES2020",
+    "module": "Node16",
+    "outDir": "build",
+    "noEmitOnError": true,
+    "sourceMap": true,
+    "strict": true,
+    "noImplicitAny": false,
+    "esModuleInterop": false,
+    "removeComments": true,
+    "noUnusedLocals": true,
+    "typeRoots": [
+      "./node_modules/@types",
+      "./typings"
+    ]
+  },
+  "include": [
+    "./src/**/*.ts",
+    "./test/**/*.ts"
+  ],
+  "exclude": [
+    "./node_modules"
+  ]
+}

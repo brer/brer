@@ -1,0 +1,7 @@
+.*
+!.gitignore
+!.helmignore
+!.prettierrc.json
+build
+node_modules
+package-lock.json
