@@ -1,7 +1,7 @@
-import { FastifyRequest, RouteOptions } from 'fastify'
+import type { FastifyRequest, RouteOptions } from 'fastify'
 import { default as S } from 'fluent-json-schema'
 
-import { getLabelSelector } from '../lib/kubernetes.js'
+import { getPodByInvocationId } from '../lib/kubernetes.js'
 
 interface RouteGeneric {
   Params: {
@@ -17,6 +17,11 @@ const route: RouteOptions = {
       .additionalProperties(false)
       .prop('invocationId', S.string().format('uuid'))
       .required(),
+    response: {
+      404: S.object()
+        .prop('error', S.ref('https://brer.io/schema/v1/error.json'))
+        .required(),
+    },
   },
   async handler(request, reply) {
     const { database, kubernetes } = this
@@ -27,23 +32,12 @@ const route: RouteOptions = {
       .unwrap()
 
     if (!invocation) {
-      // TODO: 404
-      throw new Error('Invocation not found')
+      return reply.code(404).error()
     }
-
-    const result = await kubernetes.api.CoreV1Api.listNamespacedPod(
-      kubernetes.namespace,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      getLabelSelector({ invocationId: invocation._id }),
-      1,
-    )
 
     let logs = ''
 
-    const pod = result.body.items[0]
+    const pod = await getPodByInvocationId(kubernetes, invocation._id!)
     if (pod) {
       const { body } = await kubernetes.api.CoreV1Api.readNamespacedPodLog(
         pod.metadata!.name!,
@@ -53,7 +47,7 @@ const route: RouteOptions = {
     }
 
     reply.type('text/html')
-    return logs
+    return logs || 'not found'
   },
 }
 

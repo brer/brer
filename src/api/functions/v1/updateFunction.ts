@@ -1,13 +1,11 @@
-import { FastifyRequest, RouteOptions } from 'fastify'
+import type { FastifyRequest, RouteOptions } from 'fastify'
 import { default as S } from 'fluent-json-schema'
 import * as uuid from 'uuid'
 
 interface RouteGeneric {
   Body: {
-    image: string
     env?: any[]
-    backoffLimit?: number
-    historyLimit?: number
+    image: string
   }
   Params: {
     functionName: string
@@ -35,7 +33,7 @@ const route: RouteOptions = {
       .prop(
         'env',
         S.array()
-          .maxItems(100)
+          .maxItems(20)
           .items(
             S.object()
               .additionalProperties(false)
@@ -48,29 +46,15 @@ const route: RouteOptions = {
               )
               .required()
               .prop('value', S.string().maxLength(4096))
-              .prop(
-                'valueFrom',
-                S.object()
-                  .additionalProperties(false)
-                  .prop(
-                    'secretKeyRef',
-                    S.object()
-                      .additionalProperties(false)
-                      .prop('name', S.string().minLength(3).maxLength(256))
-                      .required()
-                      .prop('key', S.string().minLength(3).maxLength(256))
-                      .required(),
-                  )
-                  .required(),
-              ),
+              .required(),
           ),
-      )
-      .prop('backoffLimit', S.integer().default(1).minimum(0).maximum(10))
-      .prop('historyLimit', S.integer().default(5).minimum(0).maximum(20)),
+      ),
     response: {
       200: S.object()
-        .additionalProperties(false)
         .prop('function', S.ref('https://brer.io/schema/v1/function.json'))
+        .required(),
+      404: S.object()
+        .prop('error', S.ref('https://brer.io/schema/v1/error.json'))
         .required(),
     },
   },

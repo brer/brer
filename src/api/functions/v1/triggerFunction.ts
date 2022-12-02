@@ -1,13 +1,9 @@
+import type { FnEnv } from '@brer/types'
 import * as textCase from 'case'
 import { FastifyRequest, RouteOptions } from 'fastify'
 import { default as S } from 'fluent-json-schema'
-import * as uuid from 'uuid'
 
-import { reserveInvocation } from '../../invocations/lib/invocation.js'
-import { getPodTemplate } from '../../invocations/lib/kubernetes.js'
-import { writePayload } from '../../invocations/lib/payload.js'
-import { InvocationStatus } from '../../invocations/lib/types.js'
-import { FnEnv } from '../lib/types.js'
+import { createInvocation } from '../../invocations/lib/invocation.js'
 
 interface RouteGeneric {
   Params: {
@@ -17,7 +13,7 @@ interface RouteGeneric {
 
 const route: RouteOptions = {
   method: 'POST',
-  url: '/api/v1/functions/:functionName/trigger',
+  url: '/api/v1/functions/:functionName',
   schema: {
     params: S.object()
       .additionalProperties(false)
@@ -42,23 +38,24 @@ const route: RouteOptions = {
         .required()
         .prop('invocation', S.ref('https://brer.io/schema/v1/invocation.json'))
         .required(),
+      404: S.object()
+        .prop('error', S.ref('https://brer.io/schema/v1/error.json'))
+        .required(),
     },
   },
   async handler(request, reply) {
-    const { database, kubernetes } = this
-    const { body, headers, log, params } =
-      request as FastifyRequest<RouteGeneric>
+    const { database } = this
+    const { body, headers, params } = request as FastifyRequest<RouteGeneric>
 
     const fn = await database.functions
       .find({ name: params.functionName })
       .unwrap()
 
     if (!fn) {
-      // TODO: 404
-      throw new Error('Function not found')
+      return reply.code(404).error()
     }
 
-    // TODO: override default envs, ensure env name uniqueness, and prevent usage of "BRER_" prefix
+    // TODO: override default envs, ensure env name uniqueness
     const env: FnEnv[] = [...fn.env]
     const keys = Object.keys(headers).filter(key => /^x-brer-env-/.test(key))
     for (const key of keys) {
@@ -67,38 +64,41 @@ const route: RouteOptions = {
         value: request.headers[key] + '',
       })
     }
+    for (const obj of env) {
+      if (/^BRER_/i.test(obj.name)) {
+        // TODO: 400
+        throw new Error('Reserved env name')
+      }
+    }
 
-    const invocationId = uuid.v4()
+    const contentType = headers['content-type'] || 'application/octet-stream'
+    const payload = Buffer.from(JSON.stringify(body)) // TODO: get raw body, and add support for non-JSON body
 
-    // TODO: get raw body
-    const payload = Buffer.from(JSON.stringify(body))
-    await writePayload(invocationId, payload)
-
-    const date = new Date().toISOString()
-    const status = InvocationStatus.Pending
     const invocation = await database.invocations
-      .create({
-        _id: invocationId,
-        status: InvocationStatus.Pending,
-        phases: [{ date, status }],
-        env,
-        image: fn.image,
-        functionName: fn.name,
-        contentType: headers['content-type'] || 'application/octet-stream',
-        payloadSize: payload.byteLength,
-        createdAt: date,
-      })
+      .create(
+        createInvocation({
+          env,
+          functionName: fn.name,
+          image: fn.image,
+        }),
+      )
       .commit()
-      .update(reserveInvocation)
-      .commit()
-      .tap(async data => {
-        const result = await kubernetes.api.CoreV1Api.createNamespacedPod(
-          kubernetes.namespace,
-          getPodTemplate(data),
-        )
-        log.debug({ pod: result.body.metadata?.name }, 'pod created')
+      .update(doc =>
+        database.invocations.adapter.attach(doc, {
+          data: payload,
+          name: 'payload',
+          contentType,
+        }),
+      )
+      .tap(doc => {
+        // Ingore pending Promise
+        this.pendingInvocations.push(doc)
       })
-      .unwrap()
+      .unwrap({
+        mutent: {
+          commitMode: 'MANUAL',
+        },
+      })
 
     reply.code(202)
     return {

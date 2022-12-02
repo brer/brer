@@ -20,6 +20,11 @@ const closeListeners = closeWithGrace(
   },
 )
 
+fastify.addHook('onClose', (_, done) => {
+  closeListeners.uninstall()
+  done()
+})
+
 fastify
   .listen({
     host: process.env.SERVER_HOST,

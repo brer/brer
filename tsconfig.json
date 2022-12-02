@@ -1,17 +1,20 @@
 {
   "compilerOptions": {
-    "skipLibCheck": true,
-    "moduleResolution": "Node16",
-    "target": "ES2020",
+    "esModuleInterop": false,
     "module": "Node16",
-    "outDir": "build",
+    "moduleResolution": "Node16",
     "noEmitOnError": true,
+    "noImplicitAny": false,
+    "noUnusedLocals": true,
+    "outDir": "./build",
+    "paths": {
+      "@brer/types": ["./src/types/export.js"]
+    },
+    "removeComments": true,
+    "skipLibCheck": true,
     "sourceMap": true,
     "strict": true,
-    "noImplicitAny": false,
-    "esModuleInterop": false,
-    "removeComments": true,
-    "noUnusedLocals": true,
+    "target": "ES2020",
     "typeRoots": [
       "./node_modules/@types",
       "./typings"
@@ -22,6 +25,7 @@
     "./test/**/*.ts"
   ],
   "exclude": [
-    "./node_modules"
+    "./node_modules",
+    "./**/*.spec.ts"
   ]
 }

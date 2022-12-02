@@ -1,4 +1,4 @@
-import { FastifyRequest, RouteOptions } from 'fastify'
+import type { FastifyRequest, RouteOptions } from 'fastify'
 import { default as S } from 'fluent-json-schema'
 
 interface RouteGeneric {
@@ -12,7 +12,6 @@ const route: RouteOptions = {
   url: '/api/v1/functions/:functionName',
   schema: {
     params: S.object()
-      .additionalProperties(false)
       .prop(
         'functionName',
         S.string()
@@ -23,8 +22,10 @@ const route: RouteOptions = {
       .required(),
     response: {
       200: S.object()
-        .additionalProperties(false)
         .prop('function', S.ref('https://brer.io/schema/v1/function.json'))
+        .required(),
+      404: S.object()
+        .prop('error', S.ref('https://brer.io/schema/v1/error.json'))
         .required(),
     },
   },
@@ -37,8 +38,7 @@ const route: RouteOptions = {
       .unwrap()
 
     if (!fn) {
-      // TODO: 404
-      throw new Error('Function not found')
+      return reply.code(404).error()
     }
 
     return { function: fn }

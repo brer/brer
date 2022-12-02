@@ -1,4 +1,4 @@
-import type { CouchDocument } from '../../../lib/store.js'
+import type { CouchDocument } from '../lib/adapter.js'
 
 export interface Fn extends CouchDocument {
   /**

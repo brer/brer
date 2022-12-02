@@ -1,6 +1,6 @@
-import { V1Pod } from '@kubernetes/client-node'
-
-import { Invocation } from './types.js'
+import type { Invocation } from '@brer/types'
+import type { V1Pod } from '@kubernetes/client-node'
+import type { FastifyInstance } from 'fastify'
 
 function getDateSuffix(): string {
   return Math.round(Date.now() / 1000).toString(16)
@@ -14,12 +14,16 @@ const labelNames = {
 
 const managedBy = 'brer.io'
 
-export function getPodTemplate(invocation: Invocation): V1Pod {
+export function getPodTemplate(
+  invocation: Invocation,
+  url: string,
+  token: string,
+): V1Pod {
   return {
     apiVersion: 'v1',
     kind: 'Pod',
     metadata: {
-      name: `${invocation.functionName}-${getDateSuffix()}`,
+      name: `fn-${invocation.functionName}-${getDateSuffix()}`,
       labels: {
         [labelNames.managedBy]: managedBy,
         [labelNames.functionName]: invocation.functionName,
@@ -35,14 +39,9 @@ export function getPodTemplate(invocation: Invocation): V1Pod {
           image: invocation.image,
           imagePullPolicy: 'IfNotPresent',
           env: [
-            {
-              name: 'BRER_URL',
-              value: process.env.BRER_URL || 'http://brer-backend',
-            },
-            {
-              name: 'BRER_TOKEN',
-              value: invocation._id,
-            },
+            { name: 'BRER_URL', value: url },
+            { name: 'BRER_TOKEN', value: token },
+            { name: 'BRER_INVOCATION_ID', value: invocation._id },
             ...invocation.env,
           ],
           // TODO: secrets?
@@ -103,4 +102,20 @@ function serializeLabelSelector(key: string, value: string | string[]): string {
     }
     return `${key}=${value}`
   }
+}
+
+export async function getPodByInvocationId(
+  kubernetes: FastifyInstance['kubernetes'],
+  invocationId: string,
+): Promise<V1Pod | null> {
+  const result = await kubernetes.api.CoreV1Api.listNamespacedPod(
+    kubernetes.namespace,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    getLabelSelector({ invocationId }),
+    1,
+  )
+  return result.body.items[0] || null
 }

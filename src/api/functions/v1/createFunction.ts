@@ -1,12 +1,12 @@
-import { FastifyRequest, RouteOptions } from 'fastify'
+import type { FastifyRequest, RouteOptions } from 'fastify'
 import { default as S } from 'fluent-json-schema'
 import * as uuid from 'uuid'
 
 interface RouteGeneric {
   Body: {
-    name: string
-    image: string
     env?: any[]
+    image: string
+    name: string
   }
 }
 

@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 
 import v1CreateFunction from './v1/createFunction.js'
 import v1ReadFunction from './v1/readFunction.js'

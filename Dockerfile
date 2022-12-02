@@ -11,10 +11,8 @@ WORKDIR /home/app/node
 
 # copy sources
 COPY package*.json ./
-COPY .npmrc ./
 COPY tsconfig.json ./
 COPY src src/
-# COPY static static/
 
 # build app
 RUN npm install \

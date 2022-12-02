@@ -1,4 +1,4 @@
-import { FastifyInstance } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 import { default as plugin } from 'fastify-plugin'
 
 async function probesPlugin(fastify: FastifyInstance) {

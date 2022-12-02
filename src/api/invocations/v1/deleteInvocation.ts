@@ -1,7 +1,7 @@
-import { FastifyRequest, RouteOptions } from 'fastify'
+import type { FastifyRequest, RouteOptions } from 'fastify'
 import { default as S } from 'fluent-json-schema'
 
-import { getLabelSelector } from '../lib/kubernetes.js'
+import { getPodByInvocationId } from '../lib/kubernetes.js'
 
 interface RouteGeneric {
   Params: {
@@ -14,11 +14,13 @@ const route: RouteOptions = {
   url: '/api/v1/invocations/:invocationId',
   schema: {
     params: S.object()
-      .additionalProperties(false)
       .prop('invocationId', S.string().format('uuid'))
       .required(),
     response: {
       204: S.null(),
+      404: S.object()
+        .prop('error', S.ref('https://brer.io/schema/v1/error.json'))
+        .required(),
     },
   },
   async handler(request, reply) {
@@ -27,25 +29,24 @@ const route: RouteOptions = {
 
     const invocation = await database.invocations
       .find(params.invocationId)
-      .delete()
       .unwrap()
 
     if (!invocation) {
-      // TODO: 404
-      throw new Error('Invocation not found')
+      return reply.code(404).error()
     }
 
-    await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
-      kubernetes.namespace,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      getLabelSelector({ invocationId: invocation._id }),
-    )
+    const pod = await getPodByInvocationId(kubernetes, invocation._id!)
+    if (pod) {
+      await kubernetes.api.CoreV1Api.deleteNamespacedPod(
+        pod.metadata?.name!,
+        kubernetes.namespace,
+      )
+    }
+
+    await database.invocations.from(invocation).delete().unwrap()
 
     reply.code(204)
+    return null
   },
 }
 

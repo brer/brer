@@ -2,10 +2,13 @@ import Fastify from 'fastify'
 import kubernetes from 'fastify-kubernetes'
 import noAdditionalProperties from 'fastify-no-additional-properties'
 
-import database from './lib/database.js'
-import probes from './lib/probes.js'
-
 import api from './api/plugin.js'
+
+import controller from './lib/controller.js'
+import database from './lib/database.js'
+import error from './lib/error.js'
+import probes from './lib/probes.js'
+import queue from './lib/queue.js'
 
 export default function createServer() {
   const fastify = Fastify.default({
@@ -25,6 +28,8 @@ export default function createServer() {
     },
   })
 
+  fastify.register(error)
+
   fastify.register(noAdditionalProperties)
 
   fastify.register(kubernetes, {
@@ -42,7 +47,10 @@ export default function createServer() {
   })
 
   fastify.register(probes)
+
   fastify.register(api)
+  fastify.register(queue)
+  fastify.register(controller)
 
   return fastify
 }

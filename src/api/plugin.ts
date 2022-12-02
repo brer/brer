@@ -1,11 +1,10 @@
-import { FastifyInstance } from 'fastify'
+import type { FastifyInstance } from 'fastify'
 
 import auth from '../lib/auth.js'
 
 import functionSchema from './functions/schema.js'
 import invocationSchema from './invocations/schema.js'
 
-import internalRoutes from './_internal/plugin.js'
 import functionsRoutes from './functions/plugin.js'
 import invocationsRoutes from './invocations/plugin.js'
 
@@ -18,7 +17,6 @@ export default async function apiPlugin(fastify: FastifyInstance) {
   invocationSchema(fastify)
 
   // Register the actual routes
-  fastify.register(internalRoutes)
   fastify.register(functionsRoutes)
   fastify.register(invocationsRoutes)
 }
