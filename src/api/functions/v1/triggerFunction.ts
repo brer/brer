@@ -1,5 +1,5 @@
 import type { FnEnv } from '@brer/types'
-import * as textCase from 'case'
+import { constantCase } from 'case-anything'
 import { FastifyRequest, RouteOptions } from 'fastify'
 import { default as S } from 'fluent-json-schema'
 
@@ -60,7 +60,7 @@ const route: RouteOptions = {
     const keys = Object.keys(headers).filter(key => /^x-brer-env-/.test(key))
     for (const key of keys) {
       env.push({
-        name: textCase.constant(key.substring(11)),
+        name: constantCase(key.substring(11)),
         value: request.headers[key] + '',
       })
     }
@@ -71,8 +71,7 @@ const route: RouteOptions = {
       }
     }
 
-    const contentType = headers['content-type'] || 'application/octet-stream'
-    const payload = Buffer.from(JSON.stringify(body)) // TODO: get raw body, and add support for non-JSON body
+    const rawBody = Buffer.from(JSON.stringify(body)) // TODO: get raw body, and add support for non-JSON body
 
     const invocation = await database.invocations
       .create(
@@ -80,25 +79,15 @@ const route: RouteOptions = {
           env,
           functionName: fn.name,
           image: fn.image,
+          payload: {
+            data: rawBody,
+            contentType: headers['content-type'],
+          },
         }),
       )
-      .commit()
-      .update(doc =>
-        database.invocations.adapter.attach(doc, {
-          data: payload,
-          name: 'payload',
-          contentType,
-        }),
-      )
-      .tap(doc => {
-        // Ingore pending Promise
-        this.pendingInvocations.push(doc)
-      })
-      .unwrap({
-        mutent: {
-          commitMode: 'MANUAL',
-        },
-      })
+      .unwrap()
+
+    this.producer.push(invocation)
 
     reply.code(202)
     return {

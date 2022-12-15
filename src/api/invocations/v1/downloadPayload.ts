@@ -38,7 +38,7 @@ const route: RouteOptions = {
       'payload',
     )
 
-    reply.type(attachment.content_type)
+    reply.type(attachment.content_type!)
     return payload
   },
 }

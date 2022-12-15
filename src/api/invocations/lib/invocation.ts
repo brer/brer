@@ -5,12 +5,17 @@ export interface CreateInvocationOptions {
   env?: FnEnv[]
   functionName: string
   image: string
+  payload: {
+    contentType?: string
+    data: Buffer
+  }
 }
 
 export function createInvocation({
   env = [],
   functionName,
   image,
+  payload,
 }: CreateInvocationOptions): Invocation {
   const date = new Date().toISOString()
   const status = 'pending'
@@ -22,6 +27,12 @@ export function createInvocation({
     image,
     functionName,
     createdAt: date,
+    _attachments: {
+      payload: {
+        content_type: payload.contentType || 'application/octet-stream',
+        data: payload.data.toString('base64'),
+      },
+    },
   }
 }
 
@@ -86,35 +97,4 @@ export function failInvocation(
     throw new Error()
   }
   return pushInvocationStatus({ ...invocation, reason }, 'failed')
-}
-
-export interface PatchInvocationOptions {
-  status?: InvocationStatus
-  result?: any
-  reason?: any
-}
-
-/**
- * This function just update the status.
- */
-export function patchInvocation(
-  invocation: Invocation,
-  options: PatchInvocationOptions,
-): Invocation {
-  if (!options.status || options.status === invocation.status) {
-    // Nothing to do
-    return invocation
-  }
-  switch (options.status) {
-    case 'completed':
-      return completeInvocation(invocation, options.result)
-    case 'failed':
-      return failInvocation(invocation, options.reason)
-    case 'pending':
-      return handleInvocation(invocation)
-    case 'running':
-      return runInvocation(invocation)
-    default:
-      return invocation
-  }
 }

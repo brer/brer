@@ -1,5 +1,5 @@
 import { default as got, Got } from 'got'
-import type { Adapter, Generics, Store } from 'mutent'
+import { Adapter, Generics, MutentError, Store } from 'mutent'
 
 export interface CouchDocument {
   /**
@@ -33,11 +33,15 @@ export interface CouchDocument {
 }
 
 export interface CouchDocumentAttachment {
-  content_type: string
-  revpos: number
-  digest: string
-  length: number
-  stub: true
+  /**
+   * Base-64 file content
+   */
+  data?: string
+  content_type?: string
+  revpos?: number
+  digest?: string
+  length?: number
+  stub?: true
 }
 
 /**
@@ -103,13 +107,20 @@ export class CouchAdapter<T extends CouchDocument>
       url: id,
       throwHttpErrors: false,
     })
+
     if (response.statusCode === 200) {
       return response.body
     } else if (response.statusCode === 404) {
       return null
     } else {
-      // TODO
-      throw new Error()
+      throw new MutentError(
+        'COUCHDB_READ_ERROR',
+        Object(response.body).reason || 'Error while reading',
+        {
+          body: response.body,
+          statusCode: response.statusCode,
+        },
+      )
     }
   }
 
@@ -118,10 +129,6 @@ export class CouchAdapter<T extends CouchDocument>
    * Set `_deleted: true` to delete a document.
    */
   async write(document: T, options?: CouchOptions): Promise<T> {
-    if (options?.fields?.length) {
-      // TODO
-      throw new Error()
-    }
     const response = await this.got<{ id: string; rev: string }>({
       method: document._id ? 'PUT' : 'POST',
       url: document._id || '.',
@@ -131,40 +138,23 @@ export class CouchAdapter<T extends CouchDocument>
         'if-match': document._rev,
       },
     })
-    if (response.statusCode !== 201) {
-      // TODO
-      throw new Error()
+
+    if (response.statusCode !== 201 && response.statusCode !== 202) {
+      throw new MutentError(
+        'COUCHDB_WRITE_ERROR',
+        Object(response.body).reason || 'Error while writing',
+        {
+          body: response.body,
+          statusCode: response.statusCode,
+        },
+      )
     }
+
     return {
       ...document,
       _id: response.body.id,
       _rev: response.body.rev,
     }
-  }
-
-  async attach(
-    document: T,
-    attachment: { name: string; contentType?: string; data: Buffer },
-  ): Promise<T> {
-    const response = await this.got<{ id: string; rev: string }>({
-      method: 'PUT',
-      url: `${document._id}/${attachment.name}`,
-      headers: {
-        'content-type': attachment.contentType || 'application/octet-stream',
-        'if-match': document._rev,
-      },
-      body: attachment.data,
-      throwHttpErrors: false,
-    })
-    if (response.statusCode !== 201) {
-      // TODO
-      throw new Error()
-    }
-
-    // TODO: hack, the "attach" does not return the "_attachaments" field
-    document = (await this.read(document._id!))!
-
-    return document
   }
 
   async readAttachment(document: T, attachmentName: string) {

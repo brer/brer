@@ -17,7 +17,7 @@
   "license": "MIT",
   "dependencies": {
     "@kubernetes/client-node": "0.16.3",
-    "case": "^1.6.3",
+    "case-anything": "^2.1.10",
     "close-with-grace": "^1.1.0",
     "fastify": "^4.10.2",
     "fastify-kubernetes": "0.12.0",
@@ -27,9 +27,11 @@
     "fluent-json-schema": "^4.0.0",
     "got": "^12.5.3",
     "mutent": "^5.0.1",
+    "nsqjs": "^0.13.0",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
+    "@types/nsqjs": "^0.12.1",
     "@types/uuid": "^8.3.4",
     "dotenv": "^16.0.3",
     "nodemon": "^2.0.20",

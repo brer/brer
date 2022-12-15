@@ -13,7 +13,7 @@ The whole point of this project is to be a simple and effective task runner with
 - [ ] Invocation init timeout
 - [ ] Previous Invocations history limit
 - [ ] Max running Invocations limit
-- [ ] Kafka / RabbitMQ / AMQP 1.0 / XXXX for Invocations spawn
+- [x] [NSQ](https://nsq.io/) for Invocations spawn
 - [ ] Function image validation after an update
 - [ ] Store logs somewhere (pods will be deleted)
 - [ ] Swagger / OpenAPI
@@ -23,13 +23,12 @@ The whole point of this project is to be a simple and effective task runner with
 - [ ] Configure pod resources (cpu and memory)
 - [ ] Make auth configurable
 - [ ] Helm chart
-- [ ] Retry on failure
+- [ ] Invocation attempts (retry)
 - [ ] Arbitrary payload for Invocations
+- [ ] Callback URL
+- [ ] Function concurrency (max pending/running Invocations allowed)
+- [ ] Recover running Invocations without Pod
 
 ## Related projects
 
 - [brer-nodejs](https://github.com/brer/brer-nodejs) Node.js bindings for Brer.
-
-## Flow Chart (current version)
-
-![Brer function and invocation flow](./docs/flow.jpg)

@@ -41,7 +41,6 @@ export function getPodTemplate(
           env: [
             { name: 'BRER_URL', value: url },
             { name: 'BRER_TOKEN', value: token },
-            { name: 'BRER_INVOCATION_ID', value: invocation._id },
             ...invocation.env,
           ],
           // TODO: secrets?
@@ -67,7 +66,7 @@ export interface Filters {
   invocationId?: string | string[]
 }
 
-export function getLabelSelector(filters: Filters): string {
+export function getLabelSelector(filters: Filters = {}): string {
   const selectors = [serializeLabelSelector(labelNames.managedBy, managedBy)]
   if (filters.invocationId !== undefined) {
     selectors.push(
@@ -78,10 +77,6 @@ export function getLabelSelector(filters: Filters): string {
     selectors.push(
       serializeLabelSelector(labelNames.functionName, filters.functionName),
     )
-  }
-  if (selectors.length <= 1) {
-    // Prevent slow actions
-    throw new Error('Expected at least one filter')
   }
   return selectors.join(',')
 }

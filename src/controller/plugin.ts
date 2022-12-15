@@ -1,23 +1,26 @@
-import type { CouchGenerics, Invocation } from '@brer/types'
 import { V1Pod, Watch } from '@kubernetes/client-node'
 import type { FastifyInstance } from 'fastify'
 import { default as plugin } from 'fastify-plugin'
 import Queue from 'fastq'
-import * as Mutent from 'mutent'
 
+import { failInvocation } from '../api/invocations/lib/invocation.js'
 import {
-  completeInvocation,
-  failInvocation,
-} from '../api/invocations/lib/invocation.js'
-import { getPodByInvocationId } from '../api/invocations/lib/kubernetes.js'
+  getLabelSelector,
+  getPodByInvocationId,
+} from '../api/invocations/lib/kubernetes.js'
 
 interface WatchEvent {
   phase: 'ADDED' | 'MODIFIED' | 'DELETED'
-  resource: V1Pod
+  pod: V1Pod
+}
+
+function getPodId(pod: V1Pod) {
+  return pod.metadata?.name || pod.metadata?.uid || 'unknown'
 }
 
 async function controllerPlugin(fastify: FastifyInstance) {
   const { database, kubernetes, log } = fastify
+  log.debug('controller plugin is enabled')
 
   const queue = Queue.promise(watchWorker, 1)
   const watcher = new Watch(kubernetes.config)
@@ -25,9 +28,9 @@ async function controllerPlugin(fastify: FastifyInstance) {
   let closed = false
   let request: any
 
-  async function watchWorker({ phase, resource }: WatchEvent) {
+  async function watchWorker({ phase, pod }: WatchEvent) {
     // Detects Brer's pods
-    const invocationId = resource.metadata?.labels?.['brer.io/invocation-id']
+    const invocationId = pod.metadata?.labels?.['brer.io/invocation-id']
 
     if (invocationId) {
       switch (phase) {
@@ -35,11 +38,14 @@ async function controllerPlugin(fastify: FastifyInstance) {
         case 'MODIFIED':
           // "added" is NOT "created"
           // at startup all pods are "added" to this watching list
-          return onPodEvent(fastify, invocationId, resource)
+          return onPodEvent(fastify, invocationId, pod)
         case 'DELETED':
-          return onPodDeletion(fastify, invocationId)
+          return onPodDeletion(fastify, invocationId, pod)
         default:
-          return log.warn({ phase, resource }, 'unkown watch phase')
+          return log.warn(
+            { podId: getPodId(pod), phase },
+            'unexpected watch phase',
+          )
       }
     }
   }
@@ -48,12 +54,16 @@ async function controllerPlugin(fastify: FastifyInstance) {
     watcher
       .watch(
         `/api/v1/namespaces/${kubernetes.namespace}/pods`,
-        {},
-        (phase: any, resource) => {
-          log.trace({ phase, resource }, 'watch event received')
-          queue
-            .push({ phase, resource })
-            .catch(err => log.error({ err }, 'error while watching'))
+        {
+          labelSelector: getLabelSelector(), // only manged-by=brer pods
+        },
+        (phase: any, pod: V1Pod) => {
+          const podId = getPodId(pod)
+          log.info({ podId, phase }, 'watch event received')
+          queue.push({ phase, pod }).then(
+            () => log.info({ podId }, 'watch event consumed'),
+            err => log.error({ podId, err }, 'watch event error'),
+          )
         },
         exit,
       )
@@ -72,7 +82,7 @@ async function controllerPlugin(fastify: FastifyInstance) {
               // TODO: improve fake pod
               queue.push({
                 phase: 'DELETED',
-                resource: {
+                pod: {
                   metadata: {
                     labels: {
                       'brer.io/invocation-id': invocation._id!,
@@ -95,7 +105,7 @@ async function controllerPlugin(fastify: FastifyInstance) {
         } else {
           log.warn('the watcher has stopped')
         }
-        setTimeout(autoWatch, 1000)
+        process.nextTick(autoWatch)
       }
     })
   }
@@ -114,7 +124,7 @@ async function controllerPlugin(fastify: FastifyInstance) {
 
     // Wait for processing tasks
     if (!queue.idle()) {
-      log.debug('waiting for remained watch events')
+      log.info('drain watch events')
       await queue.drained()
     }
   })
@@ -137,44 +147,30 @@ async function onPodEvent(
     )
   }
 
-  // List of wanted mutations to apply to the current invocation
-  const mutators: Array<Mutent.Mutator<CouchGenerics<Invocation>>> = []
+  const failure = database.invocations
+    .from(invocation)
+    .update(doc => failInvocation(doc, 'unhandled exit'))
 
   const podStatus = pod.status?.phase as PodStatus
-  if (invocation.status === 'initializing') {
-    // Pod is starting (no user code is executed)
-    if (podStatus !== 'Pending' && podStatus !== 'Running') {
-      // The pod status is "already" in the future somehow
-      log.debug({ invocationId }, 'pod has failed before startup')
-      mutators.push(Mutent.update(doc => failInvocation(doc)))
-    }
-  } else if (invocation.status === 'running') {
-    // Invocation has started (payload fetched and code is ready)
-    if (podStatus === 'Succeeded') {
-      log.debug({ invocationId }, 'pod has succeeded')
-      mutators.push(Mutent.update(doc => completeInvocation(doc)))
-    } else if (podStatus === 'Failed' || podStatus === 'Unknown') {
-      log.debug({ invocationId }, 'pod has failed')
-      mutators.push(Mutent.update(doc => failInvocation(doc)))
-    }
-  }
 
-  if (mutators.length > 0) {
-    await database.invocations
-      .from(invocation)
-      .pipe(...mutators)
-      .unwrap()
+  if (invocation.status === 'initializing' || invocation.status === 'running') {
+    // The invocation is alive
+    if (podStatus === 'Succeeded' || podStatus === 'Failed') {
+      // The pod has completed its task, but the Invocation didn't receive any result, this is a failure
+      await failure.unwrap()
+    }
   }
 }
 
 async function onPodDeletion(
   { database }: FastifyInstance,
   invocationId: string,
+  pod: V1Pod,
 ) {
   await database.invocations
     .find(invocationId)
-    .filter(doc => doc.status !== 'failed') // avoid update if already failed
-    .update(failInvocation)
+    .filter(doc => doc.status !== 'completed' && doc.status !== 'failed')
+    .update(doc => failInvocation(doc, `pod ${getPodId(pod)} was deleted`))
     .unwrap()
 }
 

@@ -2,20 +2,20 @@ import Fastify from 'fastify'
 import kubernetes from 'fastify-kubernetes'
 import noAdditionalProperties from 'fastify-no-additional-properties'
 
-import api from './api/plugin.js'
-
-import controller from './lib/controller.js'
 import database from './lib/database.js'
 import error from './lib/error.js'
 import probes from './lib/probes.js'
-import queue from './lib/queue.js'
+
+import api from './api/plugin.js'
+import controller from './controller/plugin.js'
+import invoker from './invoker/plugin.js'
 
 export default function createServer() {
   const fastify = Fastify.default({
     ajv: {
       customOptions: {
         allErrors: process.env.NODE_ENV !== 'production',
-        coerceTypes: true,
+        coerceTypes: false,
         removeAdditional: true,
         useDefaults: true,
       },
@@ -48,9 +48,16 @@ export default function createServer() {
 
   fastify.register(probes)
 
-  fastify.register(api)
-  fastify.register(queue)
-  fastify.register(controller)
+  const mode = process.env.SERVER_MODE || null
+  if (!mode || mode === 'api') {
+    fastify.register(api)
+  }
+  if (!mode || mode === 'controller') {
+    fastify.register(controller)
+  }
+  if (!mode || mode === 'invoker') {
+    fastify.register(invoker)
+  }
 
   return fastify
 }
