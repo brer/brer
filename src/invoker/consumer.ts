@@ -44,9 +44,11 @@ async function consumerPlugin(fastify: FastifyInstance) {
   async function messageHandler(message: Message) {
     const payload: Invocation = JSON.parse(message.body.toString())
 
+    log.debug({ msgId: message.id }, 'download invocation')
     let invocation = await database.invocations.find(payload._id!).unwrap()
 
     if (invocation?.status === 'pending' && invocation._rev === payload._rev) {
+      log.debug({ msgId: message.id }, 'handle invocation')
       invocation = await database.invocations
         .from(invocation)
         .update(handleInvocation)
@@ -60,11 +62,13 @@ async function consumerPlugin(fastify: FastifyInstance) {
 
       const template = getPodTemplate(invocation, url, token)
 
+      log.debug({ msgId: message.id }, 'spawn pod')
       await kubernetes.api.CoreV1Api.createNamespacedPod(
         kubernetes.namespace,
         template,
       )
     } else if (invocation?.status === 'initializing') {
+      log.debug({ msgId: message.id }, 'fail invocation')
       await database.invocations
         .from(invocation)
         .update(doc => failInvocation(doc, 'failed to spawn the pod'))

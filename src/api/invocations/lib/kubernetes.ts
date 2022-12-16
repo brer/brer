@@ -1,9 +1,10 @@
 import type { Invocation } from '@brer/types'
 import type { V1Pod } from '@kubernetes/client-node'
 import type { FastifyInstance } from 'fastify'
+import { randomBytes } from 'node:crypto'
 
-function getDateSuffix(): string {
-  return Math.round(Date.now() / 1000).toString(16)
+function getSuffix(): string {
+  return randomBytes(4).readUInt32LE().toString(36)
 }
 
 const labelNames = {
@@ -23,7 +24,7 @@ export function getPodTemplate(
     apiVersion: 'v1',
     kind: 'Pod',
     metadata: {
-      name: `fn-${invocation.functionName}-${getDateSuffix()}`,
+      name: `fn-${invocation.functionName}-${getSuffix()}`,
       labels: {
         [labelNames.managedBy]: managedBy,
         [labelNames.functionName]: invocation.functionName,
