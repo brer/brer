@@ -139,11 +139,22 @@ export class CouchAdapter<T extends CouchDocument>
       },
     })
 
+    const attempts = document[Symbol.for('attempts')] || 0
+
+    // TODO: Sometimes a 412 error is returnes, but the data is correct, just retry here, but I'm not sure if makes sense
+    if (response.statusCode === 412) {
+      if (attempts < 3) {
+        document[Symbol.for('attempts')] = attempts + 1
+        return this.write(document, options)
+      }
+    }
+
     if (response.statusCode !== 201 && response.statusCode !== 202) {
       throw new MutentError(
         'COUCHDB_WRITE_ERROR',
         Object(response.body).reason || 'Error while writing',
         {
+          attempts,
           body: response.body,
           statusCode: response.statusCode,
         },
