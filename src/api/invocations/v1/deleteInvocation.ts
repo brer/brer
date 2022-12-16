@@ -1,7 +1,7 @@
 import type { FastifyRequest, RouteOptions } from 'fastify'
 import { default as S } from 'fluent-json-schema'
 
-import { getPodByInvocationId } from '../lib/kubernetes.js'
+import { getLabelSelector } from '../lib/kubernetes.js'
 
 interface RouteGeneric {
   Params: {
@@ -35,13 +35,15 @@ const route: RouteOptions = {
       return reply.code(404).error()
     }
 
-    const pod = await getPodByInvocationId(kubernetes, invocation._id!)
-    if (pod) {
-      await kubernetes.api.CoreV1Api.deleteNamespacedPod(
-        pod.metadata?.name!,
-        kubernetes.namespace,
-      )
-    }
+    await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
+      kubernetes.namespace,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      getLabelSelector({ invocationId: invocation._id }),
+    )
 
     await database.invocations.from(invocation).delete().unwrap()
 

@@ -1,8 +1,12 @@
+import type { Invocation } from '@brer/types'
 import type { FastifyInstance } from 'fastify'
 import { default as plugin } from 'fastify-plugin'
 import { Message, Reader } from 'nsqjs'
 
-import { handleInvocation } from '../api/invocations/lib/invocation.js'
+import {
+  failInvocation,
+  handleInvocation,
+} from '../api/invocations/lib/invocation.js'
 import { getPodTemplate } from '../api/invocations/lib/kubernetes.js'
 import { encodeToken } from '../lib/token.js'
 
@@ -38,21 +42,34 @@ async function consumerPlugin(fastify: FastifyInstance) {
   })
 
   async function messageHandler(message: Message) {
-    const invocation = await database.invocations
-      .from(JSON.parse(message.body.toString()))
-      .update(handleInvocation)
-      .unwrap()
+    const payload: Invocation = JSON.parse(message.body.toString())
 
-    const token = encodeToken(invocation._id!)
+    let invocation = await database.invocations.find(payload._id!).unwrap()
 
-    const url =
-      process.env.BRER_URL ||
-      `http://brer-invoker.${kubernetes.namespace}.svc.cluster.local/`
+    if (invocation?.status === 'pending' && invocation._rev === payload._rev) {
+      invocation = await database.invocations
+        .from(invocation)
+        .update(handleInvocation)
+        .unwrap()
 
-    await kubernetes.api.CoreV1Api.createNamespacedPod(
-      kubernetes.namespace,
-      getPodTemplate(invocation, url, token),
-    )
+      const token = encodeToken(invocation._id!)
+
+      const url =
+        process.env.BRER_URL ||
+        `http://brer-invoker.${kubernetes.namespace}.svc.cluster.local/`
+
+      const template = getPodTemplate(invocation, url, token)
+
+      await kubernetes.api.CoreV1Api.createNamespacedPod(
+        kubernetes.namespace,
+        template,
+      )
+    } else if (invocation?.status === 'initializing') {
+      await database.invocations
+        .from(invocation)
+        .update(doc => failInvocation(doc, 'failed to spawn the pod'))
+        .unwrap()
+    }
   }
 
   fastify.addHook('onReady', async () => {

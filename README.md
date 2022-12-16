@@ -15,7 +15,7 @@ The whole point of this project is to be a simple and effective task runner with
 - [ ] Max running Invocations limit
 - [x] [NSQ](https://nsq.io/) for Invocations spawn
 - [ ] Function image validation after an update
-- [ ] Store logs somewhere (pods will be deleted)
+- [x] Store logs as attachment
 - [ ] Swagger / OpenAPI
 - [ ] Support secrets (CRUD)
 - [ ] Tests
@@ -28,6 +28,7 @@ The whole point of this project is to be a simple and effective task runner with
 - [ ] Callback URL
 - [ ] Function concurrency (max pending/running Invocations allowed)
 - [ ] Recover running Invocations without Pod
+- [ ] Web UI
 
 ## Related projects
 

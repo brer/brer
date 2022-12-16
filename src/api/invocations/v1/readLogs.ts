@@ -1,8 +1,6 @@
 import type { FastifyRequest, RouteOptions } from 'fastify'
 import { default as S } from 'fluent-json-schema'
 
-import { getPodByInvocationId } from '../lib/kubernetes.js'
-
 interface RouteGeneric {
   Params: {
     invocationId: string
@@ -24,7 +22,7 @@ const route: RouteOptions = {
     },
   },
   async handler(request, reply) {
-    const { database, kubernetes } = this
+    const { database } = this
     const { params } = request as FastifyRequest<RouteGeneric>
 
     const invocation = await database.invocations
@@ -35,19 +33,16 @@ const route: RouteOptions = {
       return reply.code(404).error()
     }
 
-    let logs = ''
-
-    const pod = await getPodByInvocationId(kubernetes, invocation._id!)
-    if (pod) {
-      const { body } = await kubernetes.api.CoreV1Api.readNamespacedPodLog(
-        pod.metadata!.name!,
-        kubernetes.namespace,
+    let logs = Buffer.from('')
+    if (invocation._attachments?.logs) {
+      logs = await database.invocations.adapter.readAttachment(
+        invocation,
+        'logs',
       )
-      logs = body
     }
 
     reply.type('text/html')
-    return logs || 'not found'
+    return logs
   },
 }
 

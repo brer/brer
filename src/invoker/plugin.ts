@@ -32,7 +32,7 @@ export default async function invokerPlugin(fastify: FastifyInstance) {
       const { database } = this
       const { invocationId } = request
 
-      const invocation = database.invocations
+      const invocation = await database.invocations
         .read(invocationId)
         .update(runInvocation)
         .unwrap()
@@ -78,7 +78,7 @@ export default async function invokerPlugin(fastify: FastifyInstance) {
       const { database } = this
       const { body, invocationId } = request as FastifyRequest<RouteGeneric>
 
-      const invocation = database.invocations
+      const invocation = await database.invocations
         .read(invocationId)
         .update(doc => completeInvocation(doc, body.result))
         .unwrap()
@@ -97,7 +97,7 @@ export default async function invokerPlugin(fastify: FastifyInstance) {
       const { database } = this
       const { body, invocationId } = request as FastifyRequest<RouteGeneric>
 
-      const invocation = database.invocations
+      const invocation = await database.invocations
         .read(invocationId)
         .update(doc => failInvocation(doc, body.reason))
         .unwrap()

@@ -1,7 +1,8 @@
-import { V1Pod, Watch } from '@kubernetes/client-node'
+import { Log, V1Pod, Watch } from '@kubernetes/client-node'
 import type { FastifyInstance } from 'fastify'
 import { default as plugin } from 'fastify-plugin'
 import Queue from 'fastq'
+import { PassThrough } from 'stream'
 
 import { failInvocation } from '../api/invocations/lib/invocation.js'
 import {
@@ -137,7 +138,7 @@ async function onPodEvent(
   invocationId: string,
   pod: V1Pod,
 ) {
-  const invocation = await database.invocations.find(invocationId).unwrap()
+  let invocation = await database.invocations.find(invocationId).unwrap()
 
   if (!invocation) {
     log.debug({ invocationId }, 'delete pod without invocation')
@@ -152,13 +153,54 @@ async function onPodEvent(
     .update(doc => failInvocation(doc, 'unhandled exit'))
 
   const podStatus = pod.status?.phase as PodStatus
+  const podDead = podStatus === 'Succeeded' || podStatus === 'Failed'
 
   if (invocation.status === 'initializing' || invocation.status === 'running') {
     // The invocation is alive
-    if (podStatus === 'Succeeded' || podStatus === 'Failed') {
+    if (podDead) {
       // The pod has completed its task, but the Invocation didn't receive any result, this is a failure
-      await failure.unwrap()
+      invocation = await failure.unwrap()
     }
+  }
+
+  if (!invocation._attachments?.logs && podDead) {
+    const logs = new Log(kubernetes.config)
+    const stream = new PassThrough()
+
+    await Promise.all([
+      database.invocations.adapter.got({
+        url: `${invocation._id}/logs`,
+        method: 'PUT',
+        body: stream,
+        headers: {
+          'content-type': 'text/plain',
+        },
+        searchParams: {
+          rev: invocation._rev,
+        },
+        retry: {
+          limit: 0,
+        },
+      }),
+      logs.log(
+        kubernetes.namespace,
+        pod.metadata!.name!,
+        pod.spec!.containers[0].name,
+        stream,
+        { follow: true },
+      ),
+    ])
+  }
+
+  if (
+    podDead &&
+    (invocation.status === 'completed' || invocation.status === 'failed')
+  ) {
+    // Logs are saved and the Invocation is closed
+    await kubernetes.api.CoreV1Api.deleteNamespacedPod(
+      pod.metadata!.name!,
+      kubernetes.namespace,
+    )
   }
 }
 
