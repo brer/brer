@@ -15,6 +15,7 @@ function v1Schema() {
     .prop('functionName', S.string())
     .description('The name of the Function that generated this Invocation.')
     .required()
+    .prop('secretName', S.string())
     .prop('status', status())
     .description('Current Invocation status.')
     .required()

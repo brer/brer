@@ -1,11 +1,13 @@
 import type { FastifyRequest, RouteOptions } from 'fastify'
 import { default as S } from 'fluent-json-schema'
 import * as uuid from 'uuid'
+import { getDefaultSecretName, purgeSecrets } from '../lib/function.js'
 
 interface RouteGeneric {
   Body: {
-    env?: any[]
+    env?: { name: string; value: string; secretKey?: string }[]
     image: string
+    secretName?: string
   }
   Params: {
     functionName: string
@@ -45,10 +47,12 @@ const route: RouteOptions = {
                   .pattern(/^[0-9A-Za-z_]+$/),
               )
               .required()
-              .prop('value', S.string().maxLength(4096))
-              .required(),
+              .prop('value', S.string().maxLength(4096).default(''))
+              .required()
+              .prop('secretKey', S.string().maxLength(256)),
           ),
-      ),
+      )
+      .prop('secretName', S.string().maxLength(256)),
     response: {
       200: S.object()
         .prop('function', S.ref('https://brer.io/schema/v1/function.json'))
@@ -59,13 +63,67 @@ const route: RouteOptions = {
     },
   },
   async handler(request, reply) {
-    const { database } = this
+    const { database, kubernetes } = this
     const { body, params } = request as FastifyRequest<RouteGeneric>
 
     const id = uuid.v4()
 
-    // TODO: ensure function name uniqueness
     // TODO: ensure env name uniqueness and prevent usage of "BRER_" prefix
+    const env = body.env || []
+
+    const secretName =
+      body.secretName || getDefaultSecretName(params.functionName)
+
+    const secrets = env.filter(item => item.secretKey && item.value)
+    if (secrets.length > 0) {
+      const template = {
+        apiVersion: 'v1',
+        kind: 'Secret',
+        type: 'Opaque',
+        metadata: {
+          name: secretName,
+          labels: {
+            'app.kubernetes.io/managed-by': 'brer.io',
+            'brer.io/function-name': params.functionName,
+          },
+        },
+        stringData: secrets.reduce((acc, item) => {
+          acc[item.secretKey!] = item.value
+          return acc
+        }, {}),
+      }
+
+      const exists = await kubernetes.api.CoreV1Api.readNamespacedSecret(
+        secretName,
+        kubernetes.namespace,
+        undefined,
+      ).catch(err =>
+        err?.response?.statusCode === 404 ? null : Promise.reject(err),
+      )
+      if (exists) {
+        await kubernetes.api.CoreV1Api.patchNamespacedSecret(
+          secretName,
+          kubernetes.namespace,
+          template,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          {
+            headers: {
+              'content-type': 'application/merge-patch+json',
+            },
+          },
+        )
+      } else {
+        await kubernetes.api.CoreV1Api.createNamespacedSecret(
+          kubernetes.namespace,
+          template,
+        )
+      }
+    }
+
+    // TODO: ensure function name uniqueness
     const fn = await database.functions
       .read({ name: params.functionName })
       .ensure({
@@ -76,7 +134,8 @@ const route: RouteOptions = {
       })
       .assign({
         image: body.image,
-        env: body.env ?? [],
+        secretName: body.secretName,
+        env: purgeSecrets(env),
       })
       .unwrap()
 

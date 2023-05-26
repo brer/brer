@@ -1,7 +1,9 @@
 import type { Invocation } from '@brer/types'
-import type { V1Pod } from '@kubernetes/client-node'
+import type { V1EnvVar, V1Pod } from '@kubernetes/client-node'
 import type { FastifyInstance } from 'fastify'
 import { randomBytes } from 'node:crypto'
+
+import { getDefaultSecretName } from '../../functions/lib/function.js'
 
 function getSuffix(): string {
   return randomBytes(4).readUInt32LE().toString(36)
@@ -20,6 +22,33 @@ export function getPodTemplate(
   url: string,
   token: string,
 ): V1Pod {
+  const env: V1EnvVar[] = [
+    { name: 'BRER_URL', value: url },
+    { name: 'BRER_TOKEN', value: token },
+  ]
+
+  const secretName =
+    invocation.secretName || getDefaultSecretName(invocation.functionName)
+
+  for (const item of invocation.env) {
+    env.push(
+      item.secretKey
+        ? {
+            name: item.name,
+            valueFrom: {
+              secretKeyRef: {
+                name: secretName,
+                key: item.secretKey,
+              },
+            },
+          }
+        : {
+            name: item.name,
+            value: item.value,
+          },
+    )
+  }
+
   return {
     apiVersion: 'v1',
     kind: 'Pod',
@@ -39,12 +68,7 @@ export function getPodTemplate(
           name: 'job',
           image: invocation.image,
           imagePullPolicy: 'IfNotPresent',
-          env: [
-            { name: 'BRER_URL', value: url },
-            { name: 'BRER_TOKEN', value: token },
-            ...invocation.env,
-          ],
-          // TODO: secrets?
+          env,
           // TODO: resources?
           // resources: {
           //   requests: {

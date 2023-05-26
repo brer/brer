@@ -13,15 +13,15 @@ export interface Fn extends CouchDocument {
    * Environment variables (value or secret).
    */
   env: FnEnv[]
+  /**
+   * Name of the secret from which this function will load.
+   * Defaults to `"fn-{function-name}"`.
+   */
+  secretName?: string
 }
-
-// export enum FnStatus {
-//   Verifying = 'verifying',
-//   Ready = 'ready',
-//   Rejected = 'rejected',
-// }
 
 export interface FnEnv {
   name: string
   value: string
+  secretKey?: string
 }

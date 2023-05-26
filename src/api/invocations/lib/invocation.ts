@@ -5,6 +5,7 @@ export interface CreateInvocationOptions {
   env?: FnEnv[]
   functionName: string
   image: string
+  secretName: string
   payload: {
     contentType?: string
     data: Buffer
@@ -16,6 +17,7 @@ export function createInvocation({
   functionName,
   image,
   payload,
+  secretName,
 }: CreateInvocationOptions): Invocation {
   const date = new Date().toISOString()
   const status = 'pending'
@@ -26,6 +28,7 @@ export function createInvocation({
     env,
     image,
     functionName,
+    secretName,
     createdAt: date,
     _attachments: {
       payload: {

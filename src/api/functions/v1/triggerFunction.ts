@@ -4,6 +4,7 @@ import { FastifyRequest, RouteOptions } from 'fastify'
 import { default as S } from 'fluent-json-schema'
 
 import { createInvocation } from '../../invocations/lib/invocation.js'
+import { getDefaultSecretName } from '../lib/function.js'
 
 interface RouteGeneric {
   Params: {
@@ -78,6 +79,7 @@ const route: RouteOptions = {
         createInvocation({
           env,
           functionName: fn.name,
+          secretName: fn.secretName || getDefaultSecretName(fn.name),
           image: fn.image,
           payload: {
             data: rawBody,
