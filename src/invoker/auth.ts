@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { default as plugin } from 'fastify-plugin'
+import plugin from 'fastify-plugin'
 
 import { decodeToken } from '../lib/token.js'
 

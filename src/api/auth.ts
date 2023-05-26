@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { default as plugin } from 'fastify-plugin'
+import plugin from 'fastify-plugin'
 
 async function authPlugin(fastify: FastifyInstance) {
   fastify.decorateRequest('invocationId', null)

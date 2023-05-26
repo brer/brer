@@ -17,29 +17,29 @@
   "license": "MIT",
   "dependencies": {
     "@kubernetes/client-node": "0.16.3",
-    "case-anything": "^2.1.10",
-    "close-with-grace": "^1.1.0",
-    "fastify": "^4.10.2",
-    "fastify-kubernetes": "0.12.0",
+    "case-anything": "^2.1.13",
+    "close-with-grace": "^1.2.0",
+    "fastify": "^4.17.0",
+    "fastify-kubernetes": "^0.12.0",
     "fastify-no-additional-properties": "^2.3.0",
-    "fastify-plugin": "^4.3.0",
-    "fastq": "^1.13.0",
-    "fluent-json-schema": "^4.0.0",
-    "got": "^12.5.3",
+    "fastify-plugin": "^4.5.0",
+    "fastq": "^1.15.0",
+    "fluent-json-schema-es": "^4.1.0",
+    "got": "^12.6.0",
     "mutent": "^5.0.1",
     "nsqjs": "^0.13.0",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
     "@types/nsqjs": "^0.12.1",
-    "@types/uuid": "^8.3.4",
+    "@types/uuid": "^9.0.1",
     "dotenv": "^16.0.3",
-    "nodemon": "^2.0.20",
-    "pino-pretty": "^9.1.1",
-    "prettier": "^2.8.0",
-    "rimraf": "^3.0.2",
+    "nodemon": "^2.0.22",
+    "pino-pretty": "^10.0.0",
+    "prettier": "^2.8.8",
+    "rimraf": "^5.0.1",
     "source-map-support": "^0.5.21",
     "ts-node": "^10.9.1",
-    "typescript": "~4.7.0"
+    "typescript": "^5.0.4"
   }
 }

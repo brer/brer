@@ -1,6 +1,6 @@
 import type { Fn, Invocation } from '@brer/types'
 import type { FastifyInstance } from 'fastify'
-import { default as plugin } from 'fastify-plugin'
+import plugin from 'fastify-plugin'
 import { Entity, Store } from 'mutent'
 
 import { CouchAdapter, CouchDocument, CouchStore } from './adapter.js'

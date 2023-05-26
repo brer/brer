@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify'
-import { default as S } from 'fluent-json-schema'
+import S from 'fluent-json-schema-es'
 
 import auth from './auth.js'
 import consumer from './consumer.js'

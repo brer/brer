@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
-import { default as plugin } from 'fastify-plugin'
-import { default as S } from 'fluent-json-schema'
+import plugin from 'fastify-plugin'
+import S from 'fluent-json-schema-es'
 
 declare module 'fastify' {
   interface FastifyReply {

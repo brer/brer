@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { default as S } from 'fluent-json-schema'
+import S from 'fluent-json-schema-es'
 
 export default function (fastify: FastifyInstance) {
   fastify.addSchema(v1Schema())

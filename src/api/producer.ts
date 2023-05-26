@@ -1,6 +1,6 @@
 import type { Invocation } from '@brer/types'
 import type { FastifyInstance } from 'fastify'
-import { default as plugin } from 'fastify-plugin'
+import plugin from 'fastify-plugin'
 import { ConnectionConfigOptions, Writer } from 'nsqjs'
 
 import { failInvocation } from './invocations/lib/invocation.js'

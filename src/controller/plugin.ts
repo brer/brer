@@ -1,6 +1,6 @@
 import { Log, V1Pod, Watch } from '@kubernetes/client-node'
 import type { FastifyInstance } from 'fastify'
-import { default as plugin } from 'fastify-plugin'
+import plugin from 'fastify-plugin'
 import Queue from 'fastq'
 import { PassThrough } from 'stream'
 

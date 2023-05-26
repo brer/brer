@@ -1,5 +1,5 @@
 import type { FastifyRequest, RouteOptions } from 'fastify'
-import { default as S } from 'fluent-json-schema'
+import S from 'fluent-json-schema-es'
 import * as uuid from 'uuid'
 import { getDefaultSecretName, purgeSecrets } from '../lib/function.js'
 

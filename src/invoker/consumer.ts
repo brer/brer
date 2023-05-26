@@ -1,6 +1,6 @@
 import type { Invocation } from '@brer/types'
 import type { FastifyInstance } from 'fastify'
-import { default as plugin } from 'fastify-plugin'
+import plugin from 'fastify-plugin'
 import { Message, Reader } from 'nsqjs'
 
 import {
