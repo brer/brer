@@ -17,6 +17,7 @@
   "license": "MIT",
   "dependencies": {
     "@kubernetes/client-node": "0.16.3",
+    "amqplib": "^0.10.3",
     "case-anything": "^2.1.13",
     "close-with-grace": "^1.2.0",
     "fastify": "^4.17.0",
@@ -27,11 +28,10 @@
     "fluent-json-schema-es": "^4.1.0",
     "got": "^12.6.0",
     "mutent": "^5.0.1",
-    "nsqjs": "^0.13.0",
     "uuid": "^9.0.0"
   },
   "devDependencies": {
-    "@types/nsqjs": "^0.12.1",
+    "@types/amqplib": "^0.10.1",
     "@types/uuid": "^9.0.1",
     "dotenv": "^16.0.3",
     "nodemon": "^2.0.22",

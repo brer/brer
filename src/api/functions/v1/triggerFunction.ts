@@ -74,27 +74,25 @@ const route: RouteOptions = {
 
     const rawBody = Buffer.from(JSON.stringify(body)) // TODO: get raw body, and add support for non-JSON body
 
-    const invocation = await database.invocations
-      .create(
-        createInvocation({
-          env,
-          functionName: fn.name,
-          secretName: fn.secretName || getDefaultSecretName(fn.name),
-          image: fn.image,
-          payload: {
-            data: rawBody,
-            contentType: headers['content-type'],
-          },
-        }),
-      )
-      .unwrap()
+    const data = createInvocation({
+      env,
+      functionName: fn.name,
+      secretName: fn.secretName || getDefaultSecretName(fn.name),
+      image: fn.image,
+      payload: {
+        data: rawBody,
+        contentType: headers['content-type'],
+      },
+    })
 
-    this.producer.push(invocation)
+    await this.producer.push(data._id!)
+
+    const invocation = await database.invocations.create(data).unwrap()
 
     reply.code(202)
     return {
       function: fn,
-      invocation: invocation,
+      invocation,
     }
   },
 }

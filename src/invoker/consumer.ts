@@ -1,93 +1,115 @@
-import type { Invocation } from '@brer/types'
+import type { ConsumeMessage } from 'amqplib'
 import type { FastifyInstance } from 'fastify'
 import plugin from 'fastify-plugin'
-import { Message, Reader } from 'nsqjs'
+import Queue from 'fastq'
 
+import { handleInvocation } from '../api/invocations/lib/invocation.js'
 import {
-  failInvocation,
-  handleInvocation,
-} from '../api/invocations/lib/invocation.js'
-import { getPodTemplate } from '../api/invocations/lib/kubernetes.js'
+  getLabelSelector,
+  getPodTemplate,
+} from '../api/invocations/lib/kubernetes.js'
 import { encodeToken } from '../lib/token.js'
 
+interface Payload {
+  invocationId: string
+}
+
 async function consumerPlugin(fastify: FastifyInstance) {
-  const { database, kubernetes, log } = fastify
+  const { amqp, database, kubernetes, log } = fastify
 
-  const host = process.env.NSQLOOKUPD_HOST || '127.0.0.1'
-  const port = parseInt(process.env.NSQLOOKUPD_PORT || '4161')
-  const topic = process.env.NSQ_TOPIC || 'invocation'
-  const channel = process.env.NSQ_CHANNEL || 'brer'
+  const queue = 'invocations_q'
+  let closed = false
 
-  const reader = new Reader(topic, channel, {
-    lookupdHTTPAddresses: `${host}:${port}`,
-    maxInFlight: 10,
-  })
+  log.debug({ queue }, 'check for queue')
+  await amqp.channel.checkQueue(queue)
 
-  // TODO: connection logs?
-  // reader.on('nsqd_connected', cleanAndReconnect)
-  // reader.on('nsqd_closed', cleanAndReconnect)
+  const worker = async (message: ConsumeMessage) => {
+    const { invocationId }: Payload = JSON.parse(message.content.toString())
 
-  reader.on('message', message => {
-    log.info({ msgId: message.id }, 'nsq message received')
-    messageHandler(message).then(
-      () => {
-        log.debug({ msgId: message.id }, 'nsq message consumed')
-        message.finish()
-      },
-      err => {
-        log.error({ msgId: message.id, err }, 'requeue nsq message')
-        message.requeue()
-      },
+    const invocation = await database.invocations
+      .find(invocationId)
+      .update(obj => (obj.status === 'pending' ? handleInvocation(obj) : obj))
+      .unwrap()
+
+    if (invocation?.status !== 'initializing') {
+      log.debug({ invocationId }, 'ignore invocation')
+      return
+    }
+
+    const response = await kubernetes.api.CoreV1Api.listNamespacedPod(
+      kubernetes.namespace,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      getLabelSelector({ invocationId: invocation._id }),
+      1,
     )
-  })
 
-  async function messageHandler(message: Message) {
-    const payload: Invocation = JSON.parse(message.body.toString())
-
-    log.debug({ msgId: message.id }, 'download invocation')
-    let invocation = await database.invocations.find(payload._id!).unwrap()
-
-    if (invocation?.status === 'pending' && invocation._rev === payload._rev) {
-      log.debug({ msgId: message.id }, 'handle invocation')
-      invocation = await database.invocations
-        .from(invocation)
-        .update(handleInvocation)
-        .unwrap()
-
-      const token = encodeToken(invocation._id!)
+    if (!response.body.items.length) {
+      const token = encodeToken(invocationId)
 
       const url =
-        process.env.BRER_URL ||
+        process.env.PUBLIC_URL ||
         `http://brer-invoker.${kubernetes.namespace}.svc.cluster.local/`
 
-      const template = getPodTemplate(invocation, url, token)
-
-      log.debug({ msgId: message.id }, 'spawn pod')
+      log.debug({ invocationId }, 'spawn pod')
       await kubernetes.api.CoreV1Api.createNamespacedPod(
         kubernetes.namespace,
-        template,
+        getPodTemplate(invocation, url, token),
       )
-    } else if (invocation?.status === 'initializing') {
-      log.debug({ msgId: message.id }, 'fail invocation')
-      await database.invocations
-        .from(invocation)
-        .update(doc => failInvocation(doc, 'failed to spawn the pod'))
-        .unwrap()
+    } else {
+      log.debug({ invocationId }, 'skip pod creation')
     }
   }
 
+  const jobs = Queue.promise(worker, 16)
+
+  // start queue after fastify
+  jobs.pause()
+
+  const { consumerTag } = await amqp.channel.consume(queue, message => {
+    if (message && !closed) {
+      log.info(
+        { queue, deliveryTag: message.fields.deliveryTag },
+        'message received',
+      )
+      jobs.push(message).then(
+        () => {
+          log.info(
+            { queue, deliveryTag: message.fields.deliveryTag },
+            'message consumed',
+          )
+          amqp.channel.ack(message, false)
+        },
+        err => {
+          log.error(
+            { queue, deliveryTag: message.fields.deliveryTag, err },
+            'error while consuming a message',
+          )
+          amqp.channel.nack(message, false, true)
+        },
+      )
+    }
+  })
+  log.debug({ queue, consumerTag }, 'consumer is ready')
+
   fastify.addHook('onReady', async () => {
-    reader.connect()
+    jobs.resume()
   })
 
   fastify.addHook('onClose', async () => {
-    reader.close()
+    closed = true
+    if (!jobs.idle()) {
+      log.debug({ queue }, 'wait for processing messages')
+      await jobs.drained()
+    }
   })
 }
 
 export default plugin(consumerPlugin, {
   name: 'consumer',
   decorators: {
-    fastify: ['database', 'kubernetes'],
+    fastify: ['amqp', 'database', 'kubernetes'],
   },
 })
