@@ -2,6 +2,7 @@ import type { FnEnv } from '@brer/types'
 import { constantCase } from 'case-anything'
 import { FastifyRequest, RouteOptions } from 'fastify'
 import S from 'fluent-json-schema-es'
+import got from 'got'
 
 import { createInvocation } from '../../invocations/lib/invocation.js'
 import { getDefaultSecretName } from '../lib/function.js'
@@ -45,8 +46,9 @@ const route: RouteOptions = {
     },
   },
   async handler(request, reply) {
-    const { database } = this
-    const { body, headers, params } = request as FastifyRequest<RouteGeneric>
+    const { database, kubernetes } = this
+    const { body, headers, log, params } =
+      request as FastifyRequest<RouteGeneric>
 
     const fn = await database.functions
       .find({ name: params.functionName })
@@ -74,20 +76,35 @@ const route: RouteOptions = {
 
     const rawBody = Buffer.from(JSON.stringify(body)) // TODO: get raw body, and add support for non-JSON body
 
-    const data = createInvocation({
-      env,
-      functionName: fn.name,
-      secretName: fn.secretName || getDefaultSecretName(fn.name),
-      image: fn.image,
-      payload: {
-        data: rawBody,
-        contentType: headers['content-type'],
-      },
-    })
+    const invocation = await database.invocations
+      .create(
+        createInvocation({
+          env,
+          functionName: fn.name,
+          secretName: fn.secretName || getDefaultSecretName(fn.name),
+          image: fn.image,
+          payload: {
+            data: rawBody,
+            contentType: headers['content-type'],
+          },
+        }),
+      )
+      .unwrap()
 
-    await this.producer.push(data._id!)
-
-    const invocation = await database.invocations.create(data).unwrap()
+    try {
+      await got({
+        method: 'POST',
+        url: 'rpc/v1/invoke',
+        prefixUrl:
+          process.env.PUBLIC_URL ||
+          `http://brer-invoker.${kubernetes.namespace}.svc.cluster.local/`,
+        json: {
+          invocationId: invocation._id,
+        },
+      })
+    } catch (err) {
+      log.warn({ err }, 'failed to contact the invoker')
+    }
 
     reply.code(202)
     return {

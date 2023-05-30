@@ -27,6 +27,11 @@ async function authPlugin(fastify: FastifyInstance) {
   }
 
   fastify.addHook('onRequest', async (request, reply) => {
+    if (request.url === '/rpc/v1/invoke') {
+      // ignore "invoke" route
+      return
+    }
+
     const { headers, log } = request
 
     const token =

@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify'
 import S from 'fluent-json-schema-es'
 
 import auth from './auth.js'
-import consumer from './consumer.js'
+import watch from './watch.js'
 import {
   completeInvocation,
   failInvocation,
@@ -20,7 +20,7 @@ export default async function invokerPlugin(fastify: FastifyInstance) {
   fastify.log.debug('invoker plugin is enabled')
 
   fastify.register(auth)
-  fastify.register(consumer)
+  fastify.register(watch)
 
   fastify.route({
     method: 'POST',

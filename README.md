@@ -13,7 +13,6 @@ The whole point of this project is to be a simple and effective task runner with
 - [ ] Invocation init timeout
 - [ ] Previous Invocations history limit
 - [ ] Max running Invocations limit
-- [x] Use a queue system for Invocations spawn
 - [ ] Function image validation after an update
 - [x] Store logs as attachment
 - [ ] Swagger / OpenAPI

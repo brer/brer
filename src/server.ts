@@ -2,7 +2,6 @@ import Fastify from 'fastify'
 import kubernetes from 'fastify-kubernetes'
 import noAdditionalProperties from 'fastify-no-additional-properties'
 
-import amqp from './lib/amqp.js'
 import database from './lib/database.js'
 import error from './lib/error.js'
 import probes from './lib/probes.js'
@@ -45,10 +44,6 @@ export default function createServer() {
     url: process.env.COUCH_URL,
     username: process.env.COUCH_USERNAME,
     password: process.env.COUCH_PASSWORD,
-  })
-
-  fastify.register(amqp, {
-    url: process.env.AMQP_URL,
   })
 
   fastify.register(probes)
