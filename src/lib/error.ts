@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
-import { default as plugin } from 'fastify-plugin'
-import { default as S } from 'fluent-json-schema'
+import plugin from 'fastify-plugin'
+import S from 'fluent-json-schema-es'
 
 declare module 'fastify' {
   interface FastifyReply {
@@ -52,10 +52,8 @@ function getDefaultErrorCode(statusCode: number): string {
       return 'DOCUMENT_NOT_FOUND'
     case 409:
       return 'CONFLICTING_REQUEST'
-    case 500:
-      return 'INTERNAL_ERROR'
     default:
-      return 'UNKNOWN_ERROR'
+      return 'INTERNAL_ERROR'
   }
 }
 

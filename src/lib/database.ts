@@ -1,15 +1,22 @@
-import type { Fn, Invocation } from '@brer/types'
+import type { Fn, Invocation, InvocationLog } from '@brer/types'
 import type { FastifyInstance } from 'fastify'
-import { default as plugin } from 'fastify-plugin'
-import { Entity, Store } from 'mutent'
+import plugin from 'fastify-plugin'
+import { Entity, MutentError, Store, StoreOptions } from 'mutent'
 
-import { CouchAdapter, CouchDocument, CouchStore } from './adapter.js'
+import {
+  CouchAdapter,
+  CouchDocument,
+  CouchGenerics,
+  CouchStore,
+} from './adapter.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
     database: {
+      transaction<T>(fn: (attempt: number) => Promise<T>): Promise<T>
       functions: CouchStore<Fn>
       invocations: CouchStore<Invocation>
+      invocationLogs: CouchStore<InvocationLog>
     }
   }
 }
@@ -24,18 +31,25 @@ async function databasePlugin(
   fastify: FastifyInstance,
   options: PluginOptions,
 ) {
-  const hooks = {
+  const hooks: StoreOptions<CouchGenerics<any>>['hooks'] = {
     beforeCreate(entity: Entity<CouchDocument>) {
-      const now = entity.valueOf().createdAt || new Date().toISOString()
-      entity.valueOf().createdAt = now
-      entity.valueOf().updatedAt = now
+      if (!entity.target.createdAt) {
+        entity.target.createdAt =
+          entity.target.updatedAt || new Date().toISOString()
+      }
+      if (!entity.target.updatedAt) {
+        entity.target.updatedAt = entity.target.createdAt
+      }
     },
     beforeUpdate(entity: Entity<CouchDocument>) {
-      entity.valueOf().updatedAt = new Date().toISOString()
+      if (entity.target.updatedAt === entity.source!.updatedAt) {
+        entity.target.updatedAt = new Date().toISOString()
+      }
     },
   }
 
   const decorator: FastifyInstance['database'] = {
+    transaction,
     invocations: new Store({
       adapter: new CouchAdapter<Invocation>({
         ...options,
@@ -50,6 +64,13 @@ async function databasePlugin(
       }),
       hooks,
     }),
+    invocationLogs: new Store({
+      adapter: new CouchAdapter<Invocation>({
+        ...options,
+        database: 'invocation-logs',
+      }),
+      hooks,
+    }),
   }
 
   fastify.decorate('database', decorator)
@@ -57,6 +78,7 @@ async function databasePlugin(
   fastify.log.debug('prepare databases')
   await Promise.all([
     ensureDatabase(decorator.functions.adapter),
+    ensureDatabase(decorator.invocationLogs.adapter),
     ensureDatabase(decorator.invocations.adapter),
   ])
 }
@@ -74,6 +96,29 @@ async function ensureDatabase(adapter: CouchAdapter<any>) {
     // TODO
     throw new Error()
   }
+}
+
+function transaction<T>(fn: (attempt: number) => Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    let attempt = 0
+
+    const run = () => {
+      fn(attempt++).then(resolve, err => {
+        if (
+          err instanceof MutentError &&
+          err.code === 'COUCHDB_WRITE_ERROR' &&
+          err.info.statusCode === 409 &&
+          attempt < 3
+        ) {
+          process.nextTick(run)
+        } else {
+          reject(err)
+        }
+      })
+    }
+
+    run()
+  })
 }
 
 export default plugin(databasePlugin, {

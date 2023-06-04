@@ -1,5 +1,5 @@
 import type { FastifyInstance } from 'fastify'
-import { default as S } from 'fluent-json-schema'
+import S from 'fluent-json-schema-es'
 
 export default function (fastify: FastifyInstance) {
   fastify.addSchema(v1Schema())
@@ -36,10 +36,12 @@ function v1Schema() {
                 .pattern(/^[A-Za-z][0-9A-Za-z_\-]+$/),
             )
             .required()
-            .prop('value', S.string().minLength(1).maxLength(4096))
-            .required(),
+            .prop('value', S.string().maxLength(4096))
+            .required()
+            .prop('secretKey', S.string()),
         ),
     )
+    .prop('secretName', S.string())
     .prop('createdAt', S.string().format('date-time'))
     .readOnly()
     .required()

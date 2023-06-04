@@ -17,22 +17,15 @@ export interface Invocation extends CouchDocument {
    * Available when status is "failed".
    */
   reason?: any
-  /**
-   *
-   */
   phases: InvocationPhase[]
-  /**
-   *
-   */
   functionName: string
-  /**
-   *
-   */
+  secretName?: string
   image: string
-  /**
-   *
-   */
   env: FnEnv[]
+  /**
+   * Current token signature.
+   */
+  tokenSignature: string
 }
 
 /**

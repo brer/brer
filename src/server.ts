@@ -8,7 +8,6 @@ import probes from './lib/probes.js'
 
 import api from './api/plugin.js'
 import controller from './controller/plugin.js'
-import invoker from './invoker/plugin.js'
 
 export default function createServer() {
   const fastify = Fastify.default({
@@ -54,9 +53,6 @@ export default function createServer() {
   }
   if (!mode || mode === 'controller') {
     fastify.register(controller)
-  }
-  if (!mode || mode === 'invoker') {
-    fastify.register(invoker)
   }
 
   return fastify

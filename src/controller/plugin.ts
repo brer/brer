@@ -1,219 +1,174 @@
-import { Log, V1Pod, Watch } from '@kubernetes/client-node'
+import { V1Pod, Watch } from '@kubernetes/client-node'
 import type { FastifyInstance } from 'fastify'
-import { default as plugin } from 'fastify-plugin'
-import Queue from 'fastq'
-import { PassThrough } from 'stream'
+import plugin from 'fastify-plugin'
+import { hostname } from 'node:os'
 
-import { failInvocation } from '../api/invocations/lib/invocation.js'
+import { getLabelSelector } from '../lib/kubernetes.js'
+import { getRandomInt } from '../lib/util.js'
+import rpcPlugin from './rpc.js'
 import {
-  getLabelSelector,
-  getPodByInvocationId,
-} from '../api/invocations/lib/kubernetes.js'
-
-interface WatchEvent {
-  phase: 'ADDED' | 'MODIFIED' | 'DELETED'
-  pod: V1Pod
-}
-
-function getPodId(pod: V1Pod) {
-  return pod.metadata?.name || pod.metadata?.uid || 'unknown'
-}
+  handleDeletedPod,
+  reloadPodAndHandle,
+  syncLivingInvocationById,
+} from './sync.js'
 
 async function controllerPlugin(fastify: FastifyInstance) {
   const { database, kubernetes, log } = fastify
   log.debug('controller plugin is enabled')
 
-  const queue = Queue.promise(watchWorker, 1)
+  let fieldSelector: string | undefined
+  try {
+    const thisPod = await kubernetes.api.CoreV1Api.readNamespacedPod(
+      hostname(),
+      kubernetes.namespace,
+    )
+    if (thisPod.body.spec?.nodeName) {
+      // TODO: avoid this if there is just one controller
+      fieldSelector = `spec.nodeName=${thisPod.body.spec.nodeName}`
+    }
+  } catch (err) {
+    log.warn({ err }, 'cannot load local pod info')
+  }
+
+  const controller = new AbortController()
+  const jobs = new Map<string, Promise<any>>()
   const watcher = new Watch(kubernetes.config)
 
-  let closed = false
-  let request: any
+  let request: any = null
+  let timer: any = null
 
-  async function watchWorker({ phase, pod }: WatchEvent) {
-    // Detects Brer's pods
-    const invocationId = pod.metadata?.labels?.['brer.io/invocation-id']
+  const pushJob = (invocationId: string, fn: () => Promise<any>) => {
+    let promise = jobs.get(invocationId) || Promise.resolve()
 
-    if (invocationId) {
-      switch (phase) {
-        case 'ADDED':
-        case 'MODIFIED':
-          // "added" is NOT "created"
-          // at startup all pods are "added" to this watching list
-          return onPodEvent(fastify, invocationId, pod)
-        case 'DELETED':
-          return onPodDeletion(fastify, invocationId, pod)
-        default:
-          return log.warn(
-            { podId: getPodId(pod), phase },
-            'unexpected watch phase',
-          )
+    promise = promise.then(() =>
+      fn().catch(err =>
+        log.error({ invocationId, err }, 'error while watching invocation'),
+      ),
+    )
+
+    promise.then(() => {
+      if (jobs.get(invocationId) === promise) {
+        log.trace({ invocationId }, 'pull invocation job')
+        jobs.delete(invocationId)
       }
-    }
+    })
+
+    log.trace({ invocationId }, 'push invocation job')
+    jobs.set(invocationId, promise)
   }
 
-  function watchPods(exit: (err: any) => void) {
-    watcher
-      .watch(
-        `/api/v1/namespaces/${kubernetes.namespace}/pods`,
-        {
-          labelSelector: getLabelSelector(), // only manged-by=brer pods
-        },
-        (phase: any, pod: V1Pod) => {
-          const podId = getPodId(pod)
-          log.info({ podId, phase }, 'watch event received')
-          queue.push({ phase, pod }).then(
-            () => log.info({ podId }, 'watch event consumed'),
-            err => log.error({ podId, err }, 'watch event error'),
-          )
-        },
-        exit,
-      )
-      .then(result => {
-        // Save the current request to be aborted at the server close
-        request = result
-        log.debug('watching for pods events')
-      })
-      .then(() =>
-        // Ensure that "running" invocations have their pods
-        database.invocations
-          .filter({ status: 'running' })
-          .tap(async invocation => {
-            const pod = await getPodByInvocationId(kubernetes, invocation._id!)
-            if (!pod) {
-              // TODO: improve fake pod
-              queue.push({
-                phase: 'DELETED',
-                pod: {
-                  metadata: {
-                    labels: {
-                      'brer.io/invocation-id': invocation._id!,
-                    },
-                  },
-                },
-              })
+  fastify.register(rpcPlugin, {
+    callback: invocation =>
+      pushJob(invocation._id, () =>
+        syncLivingInvocationById(fastify, invocation._id, controller.signal),
+      ),
+  })
+
+  const watchPods = () => {
+    return new Promise<void>((resolve, reject) => {
+      watcher
+        .watch(
+          `/api/v1/namespaces/${kubernetes.namespace}/pods`,
+          {
+            fieldSelector, // this node pods
+            labelSelector: getLabelSelector(), // only manged-by=brer pods
+          },
+          (phase: string, pod: V1Pod) => {
+            // Detects Brer's pods
+            const invocationId = pod.metadata?.labels?.['brer.io/invocation-id']
+
+            if (invocationId) {
+              log.trace({ invocationId, phase }, 'received kubernetes event')
+              switch (phase) {
+                // "added" is NOT "created"
+                // at startup all pods are "added" to this watching list
+                case 'ADDED':
+                case 'MODIFIED':
+                  pushJob(invocationId, () =>
+                    reloadPodAndHandle(fastify, pod, controller.signal),
+                  )
+                  break
+                case 'DELETED':
+                  pushJob(invocationId, () =>
+                    handleDeletedPod(fastify, pod, controller.signal),
+                  )
+                  break
+              }
             }
-          })
-          .consume(),
-      )
-      .catch(exit)
-  }
-
-  function autoWatch() {
-    watchPods(err => {
-      if (!closed) {
-        if (err) {
-          log.error({ err }, 'an error has stopped the watcher')
-        } else {
-          log.warn('the watcher has stopped')
-        }
-        process.nextTick(autoWatch)
-      }
+          },
+          err => {
+            if (err) {
+              reject(err)
+            } else {
+              resolve()
+            }
+          },
+        )
+        .then(result => {
+          // Save the current request to be aborted at the server close
+          request = result
+        }, reject)
     })
   }
 
-  autoWatch()
+  const autoWatch = () => {
+    watchPods().then(
+      () => {
+        if (!controller.signal.aborted) {
+          log.error('pods watcher has been closed')
+          process.nextTick(autoWatch)
+        } else {
+          log.debug('pods watch closed')
+        }
+      },
+      err => {
+        if (!controller.signal.aborted) {
+          log.error({ err }, 'pods watcher has failed')
+          process.nextTick(autoWatch)
+        } else {
+          log.debug('pods watch closed')
+        }
+      },
+    )
+  }
+
+  fastify.addHook('onReady', async () => {
+    autoWatch()
+
+    timer = setInterval(() => {
+      log.debug('sync living invocations')
+      database.invocations
+        .filter({
+          status: {
+            $in: ['pending', 'initializing', 'running'],
+          },
+        })
+        .tap(invocation =>
+          pushJob(invocation._id, () =>
+            syncLivingInvocationById(
+              fastify,
+              invocation._id,
+              controller.signal,
+            ),
+          ),
+        )
+        .consume()
+        .catch(err => log.error({ err }, 'failed to sync invocations status'))
+    }, getRandomInt(60000, 300000))
+  })
 
   fastify.addHook('onClose', async () => {
-    // Stop "auto restart" and close the current one
-    closed = true
+    controller.abort()
     if (request) {
       request.destroy()
     }
-
-    // Removes all tasks waiting to be processed (unacked messages will be recovered later)
-    queue.kill()
-
-    // Wait for processing tasks
-    if (!queue.idle()) {
-      log.info('drain watch events')
-      await queue.drained()
+    if (timer) {
+      clearInterval(timer)
     }
+
+    // wait for current jobs to close
+    await Promise.allSettled(jobs.values())
   })
-}
-
-type PodStatus = 'Pending' | 'Running' | 'Succeeded' | 'Failed' | 'Unknown'
-
-async function onPodEvent(
-  { database, kubernetes, log }: FastifyInstance,
-  invocationId: string,
-  pod: V1Pod,
-) {
-  let invocation = await database.invocations.find(invocationId).unwrap()
-
-  if (!invocation) {
-    log.debug({ invocationId }, 'delete pod without invocation')
-    return kubernetes.api.CoreV1Api.deleteNamespacedPod(
-      pod.metadata?.name!,
-      kubernetes.namespace,
-    )
-  }
-
-  const failure = database.invocations
-    .from(invocation)
-    .update(doc => failInvocation(doc, 'unhandled exit'))
-
-  const podStatus = pod.status?.phase as PodStatus
-  const podDead = podStatus === 'Succeeded' || podStatus === 'Failed'
-
-  if (invocation.status === 'initializing' || invocation.status === 'running') {
-    // The invocation is alive
-    if (podDead) {
-      // The pod has completed its task, but the Invocation didn't receive any result, this is a failure
-      invocation = await failure.unwrap()
-    }
-  }
-
-  if (!invocation._attachments?.logs && podDead) {
-    const logs = new Log(kubernetes.config)
-    const stream = new PassThrough()
-
-    await Promise.all([
-      database.invocations.adapter.got({
-        url: `${invocation._id}/logs`,
-        method: 'PUT',
-        body: stream,
-        headers: {
-          'content-type': 'text/plain',
-        },
-        searchParams: {
-          rev: invocation._rev,
-        },
-        retry: {
-          limit: 0,
-        },
-      }),
-      logs.log(
-        kubernetes.namespace,
-        pod.metadata!.name!,
-        pod.spec!.containers[0].name,
-        stream,
-        { follow: true },
-      ),
-    ])
-  }
-
-  if (
-    podDead &&
-    (invocation.status === 'completed' || invocation.status === 'failed')
-  ) {
-    // Logs are saved and the Invocation is closed
-    await kubernetes.api.CoreV1Api.deleteNamespacedPod(
-      pod.metadata!.name!,
-      kubernetes.namespace,
-    )
-  }
-}
-
-async function onPodDeletion(
-  { database }: FastifyInstance,
-  invocationId: string,
-  pod: V1Pod,
-) {
-  await database.invocations
-    .find(invocationId)
-    .filter(doc => doc.status !== 'completed' && doc.status !== 'failed')
-    .update(doc => failInvocation(doc, `pod ${getPodId(pod)} was deleted`))
-    .unwrap()
 }
 
 export default plugin(controllerPlugin, {
@@ -221,4 +176,5 @@ export default plugin(controllerPlugin, {
   decorators: {
     fastify: ['database', 'kubernetes'],
   },
+  encapsulate: true,
 })
