@@ -2,6 +2,7 @@
 !.gitignore
 !.helmignore
 !.prettierrc.json
+!.taprc
 build
 node_modules
 package-lock.json

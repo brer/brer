@@ -1,5 +1,7 @@
-import type { FastifyRequest, RouteOptions } from 'fastify'
+import type { Invocation } from '@brer/types'
+import type { FastifyInstance, FastifyRequest, RouteOptions } from 'fastify'
 import S from 'fluent-json-schema-es'
+import { Readable } from 'node:stream'
 
 interface RouteGeneric {
   Params: {
@@ -33,17 +35,28 @@ const route: RouteOptions = {
       return reply.code(404).error()
     }
 
-    let logs = Buffer.from('')
-    if (invocation._attachments?.logs) {
-      logs = await database.invocations.adapter.readAttachment(
-        invocation,
-        'logs',
-      )
-    }
-
     reply.type('text/html')
-    return logs
+    return Readable.from(iterateLogs(this, invocation))
   },
+}
+
+async function* iterateLogs(
+  { database }: FastifyInstance,
+  invocation: Invocation,
+): AsyncGenerator<Buffer> {
+  if (invocation._attachments?.logs) {
+    yield database.invocations.adapter.readAttachment(invocation, 'logs')
+  } else {
+    const log = await database.invocationLogs.find(invocation._id).unwrap()
+    if (log) {
+      for (const page of log.pages) {
+        yield database.invocationLogs.adapter.readAttachment(
+          log,
+          page.attachment,
+        )
+      }
+    }
+  }
 }
 
 export default route

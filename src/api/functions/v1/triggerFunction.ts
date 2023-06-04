@@ -3,9 +3,10 @@ import { constantCase } from 'case-anything'
 import { FastifyRequest, RouteOptions } from 'fastify'
 import S from 'fluent-json-schema-es'
 import got from 'got'
+import * as uuid from 'uuid'
 
-import { createInvocation } from '../../invocations/lib/invocation.js'
-import { getDefaultSecretName } from '../lib/function.js'
+import { getDefaultSecretName } from '../../../lib/function.js'
+import { encodeToken } from '../../../lib/token.js'
 
 interface RouteGeneric {
   Params: {
@@ -74,21 +75,35 @@ const route: RouteOptions = {
       }
     }
 
-    const rawBody = Buffer.from(JSON.stringify(body)) // TODO: get raw body, and add support for non-JSON body
+    const invocationId = uuid.v4()
+    const now = new Date()
+    const payload = Buffer.from(JSON.stringify(body)) // TODO: get raw body, and add support for non-JSON body
+    const status = 'pending'
+    const token = encodeToken(invocationId)
 
     const invocation = await database.invocations
-      .create(
-        createInvocation({
-          env,
-          functionName: fn.name,
-          secretName: fn.secretName || getDefaultSecretName(fn.name),
-          image: fn.image,
-          payload: {
-            data: rawBody,
-            contentType: headers['content-type'],
+      .create({
+        _id: invocationId,
+        status,
+        phases: [
+          {
+            date: now.toISOString(),
+            status,
           },
-        }),
-      )
+        ],
+        env,
+        image: fn.image,
+        functionName: fn.name,
+        secretName: fn.secretName || getDefaultSecretName(fn.name),
+        tokenSignature: token.signature,
+        _attachments: {
+          payload: {
+            content_type: headers['content-type'] || 'application/octet-stream',
+            data: payload.toString('base64'),
+          },
+        },
+        createdAt: now.toISOString(),
+      })
       .unwrap()
 
     try {
@@ -98,12 +113,14 @@ const route: RouteOptions = {
         prefixUrl:
           process.env.PUBLIC_URL ||
           `http://brer-invoker.${kubernetes.namespace}.svc.cluster.local/`,
-        json: {
-          invocationId: invocation._id,
+        headers: {
+          authorization: `Bearer ${token.value}`,
         },
+        json: {},
       })
     } catch (err) {
-      log.warn({ err }, 'failed to contact the invoker')
+      // the controller will recover later (if alive), just print a warning
+      log.warn({ err }, 'failed to contact the controller')
     }
 
     reply.code(202)

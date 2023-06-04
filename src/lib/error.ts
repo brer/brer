@@ -52,10 +52,8 @@ function getDefaultErrorCode(statusCode: number): string {
       return 'DOCUMENT_NOT_FOUND'
     case 409:
       return 'CONFLICTING_REQUEST'
-    case 500:
-      return 'INTERNAL_ERROR'
     default:
-      return 'UNKNOWN_ERROR'
+      return 'INTERNAL_ERROR'
   }
 }
 

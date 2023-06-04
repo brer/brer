@@ -4,8 +4,9 @@ import { Adapter, Generics, MutentError, Store } from 'mutent'
 export interface CouchDocument {
   /**
    * Document identifier.
+   * This is the only "unique" field, choose with care.
    */
-  _id?: string
+  _id: string
   /**
    * Document revision identifier.
    */
@@ -95,6 +96,9 @@ export class CouchAdapter<T extends CouchDocument>
       username,
       password,
       responseType: 'json',
+      timeout: {
+        request: 30000, // CouchDB should be fast :)
+      },
     })
   }
 

@@ -22,6 +22,6 @@ export interface Fn extends CouchDocument {
 
 export interface FnEnv {
   name: string
-  value: string
+  value?: string
   secretKey?: string
 }

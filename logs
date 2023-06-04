@@ -1,0 +1,2005 @@
+
+> brer@0.0.0 watch
+> npm run clean && nodemon -w src -e ts --exec 'npm run watch:build && npm run watch:start'
+
+
+> brer@0.0.0 clean
+> rimraf build
+
+[33m[nodemon] 2.0.22[39m
+[33m[nodemon] to restart at any time, enter `rs`[39m
+[33m[nodemon] watching path(s): src/**/*[39m
+[33m[nodemon] watching extensions: ts[39m
+[32m[nodemon] starting `npm run watch:build && npm run watch:start`[39m
+
+> brer@0.0.0 watch:build
+> tsc --incremental -p tsconfig.json
+
+
+> brer@0.0.0 watch:start
+> node --inspect -r source-map-support/register -r dotenv/config build/start.js dotenv_config_path=$npm_config_env | pino-pretty -t
+
+[13:58:21.544] DEBUG (12978): prepare databases
+[13:58:21.575] DEBUG (12978): api plugin is enabled
+[13:58:21.585] DEBUG (12978): controller plugin is enabled
+[13:58:21.780] WARN (12978): cannot load local pod info
+    err: {
+      "type": "HttpError",
+      "message": "HTTP request failed",
+      "stack":
+          HttpError: HTTP request failed
+              at Request._callback (/home/greguz/dev/brer/brer/node_modules/@kubernetes/client-node/dist/gen/api/coreV1Api.js:14618:36)
+              at Request.self.callback (/home/greguz/dev/brer/brer/node_modules/request/request.js:185:22)
+              at Request.emit (node:events:511:28)
+              at Request.<anonymous> (/home/greguz/dev/brer/brer/node_modules/request/request.js:1154:10)
+              at Request.emit (node:events:511:28)
+              at IncomingMessage.<anonymous> (/home/greguz/dev/brer/brer/node_modules/request/request.js:1076:12)
+              at Object.onceWrapper (node:events:625:28)
+              at IncomingMessage.emit (node:events:523:35)
+              at endReadableNT (node:internal/streams/readable:1367:12)
+              at processTicksAndRejections (node:internal/process/task_queues:82:21)
+      "response": {
+        "statusCode": 404,
+        "body": {
+          "kind": "Status",
+          "apiVersion": "v1",
+          "metadata": {},
+          "status": "Failure",
+          "message": "pods \"lindell\" not found",
+          "reason": "NotFound",
+          "details": {
+            "name": "lindell",
+            "kind": "pods"
+          },
+          "code": 404
+        },
+        "headers": {
+          "audit-id": "2c41f5b6-221a-4eef-b2f8-80d2349bf926",
+          "cache-control": "no-cache, private",
+          "content-type": "application/json",
+          "x-kubernetes-pf-flowschema-uid": "07ff5b98-597a-4c73-a7b5-de01d5f70132",
+          "x-kubernetes-pf-prioritylevel-uid": "9eea4696-5cb6-41e9-b93c-a58be72d0c35",
+          "date": "Sun, 04 Jun 2023 11:58:21 GMT",
+          "content-length": "182",
+          "connection": "close"
+        },
+        "request": {
+          "uri": {
+            "protocol": "https:",
+            "slashes": true,
+            "auth": null,
+            "host": "evologi-st-evologi-staging-431b85-929ddd4e.hcp.westeurope.azmk8s.io:443",
+            "port": "443",
+            "hostname": "evologi-st-evologi-staging-431b85-929ddd4e.hcp.westeurope.azmk8s.io",
+            "hash": null,
+            "search": null,
+            "query": null,
+            "pathname": "/api/v1/namespaces/default/pods/lindell",
+            "path": "/api/v1/namespaces/default/pods/lindell",
+            "href": "https://evologi-st-evologi-staging-431b85-929ddd4e.hcp.westeurope.azmk8s.io:443/api/v1/namespaces/default/pods/lindell"
+          },
+          "method": "GET",
+          "headers": {
+            "Accept": "application/json",
+            "Authorization": "Bearer a8ad59f76a6ac016d1bfe51bcb6b9208f5855dfa3f284ec720dc7055894c7d3d3f402f92acdc987dd8bd51e7ad238493489a62c21028d0af53a6e8f17fdf52fb"
+          }
+        }
+      },
+      "body": {
+        "type": "Object",
+        "message": "pods \"lindell\" not found",
+        "stack":
+            
+        "kind": "Status",
+        "apiVersion": "v1",
+        "metadata": {},
+        "status": "Failure",
+        "reason": "NotFound",
+        "details": {
+          "name": "lindell",
+          "kind": "pods"
+        },
+        "code": 404
+      },
+      "statusCode": 404,
+      "name": "HttpError"
+    }
+[13:58:21.876] INFO (12978): Server listening at http://127.0.0.1:3000
+[13:58:27.790] INFO (12978): incoming request
+    reqId: "req-1"
+    req: {
+      "method": "POST",
+      "url": "/api/v1/functions/op-test-function",
+      "hostname": "127.0.0.1:3000",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 45904
+    }
+[13:58:27.950] INFO (12978): incoming request
+    reqId: "req-2"
+    req: {
+      "method": "POST",
+      "url": "/rpc/v1/invoke",
+      "hostname": "488f-87-14-176-165.eu.ngrok.io",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 45914
+    }
+[13:58:27.959] TRACE (12978): push invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:27.959] INFO (12978): handle invocation
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:27.962] INFO (12978): request completed
+    reqId: "req-2"
+    res: {
+      "statusCode": 202
+    }
+    responseTime: 11.37843200005591
+[13:58:27.975] DEBUG (12978): spawn invocation pod
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:27.996] INFO (12978): request completed
+    reqId: "req-1"
+    res: {
+      "statusCode": 202
+    }
+    responseTime: 205.3449430000037
+[13:58:28.173] TRACE (12978): pull invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:28.176] TRACE (12978): received kubernetes event
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    phase: "ADDED"
+    pod: {
+      "kind": "Pod",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "fn-op-test-function-nhktj7",
+        "namespace": "default",
+        "uid": "409dd9db-3361-4bb7-aa31-6a9435d6a204",
+        "resourceVersion": "163106543",
+        "creationTimestamp": "2023-06-04T11:58:28Z",
+        "labels": {
+          "app.kubernetes.io/managed-by": "brer.io",
+          "brer.io/function-name": "op-test-function",
+          "brer.io/invocation-id": "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+        },
+        "managedFields": [
+          {
+            "manager": "unknown",
+            "operation": "Update",
+            "apiVersion": "v1",
+            "time": "2023-06-04T11:58:28Z",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:metadata": {
+                "f:labels": {
+                  ".": {},
+                  "f:app.kubernetes.io/managed-by": {},
+                  "f:brer.io/function-name": {},
+                  "f:brer.io/invocation-id": {}
+                }
+              },
+              "f:spec": {
+                "f:automountServiceAccountToken": {},
+                "f:containers": {
+                  "k:{\"name\":\"job\"}": {
+                    ".": {},
+                    "f:env": {
+                      ".": {},
+                      "k:{\"name\":\"BRER_TOKEN\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"BRER_URL\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"NODE_ENV\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      }
+                    },
+                    "f:image": {},
+                    "f:imagePullPolicy": {},
+                    "f:name": {},
+                    "f:resources": {},
+                    "f:terminationMessagePath": {},
+                    "f:terminationMessagePolicy": {}
+                  }
+                },
+                "f:dnsPolicy": {},
+                "f:enableServiceLinks": {},
+                "f:restartPolicy": {},
+                "f:schedulerName": {},
+                "f:securityContext": {},
+                "f:terminationGracePeriodSeconds": {}
+              }
+            }
+          }
+        ]
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "job",
+            "image": "evologidev.azurecr.io/orderpod-functions:1671196021",
+            "env": [
+              {
+                "name": "BRER_URL",
+                "value": "https://488f-87-14-176-165.eu.ngrok.io"
+              },
+              {
+                "name": "BRER_TOKEN",
+                "value": "ZHx8ZCSybR0wysFbXaBFlpv+rE2jEW0A0cFHFYWUDiz1XSYGqysUVn9VK8a6K2yPbFxjul7MWis="
+              },
+              {
+                "name": "NODE_ENV",
+                "value": "test"
+              }
+            ],
+            "resources": {},
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ],
+        "restartPolicy": "Never",
+        "terminationGracePeriodSeconds": 30,
+        "dnsPolicy": "ClusterFirst",
+        "serviceAccountName": "default",
+        "serviceAccount": "default",
+        "automountServiceAccountToken": false,
+        "securityContext": {},
+        "schedulerName": "default-scheduler",
+        "tolerations": [
+          {
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          },
+          {
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          }
+        ],
+        "priority": 0,
+        "enableServiceLinks": true,
+        "preemptionPolicy": "PreemptLowerPriority"
+      },
+      "status": {
+        "phase": "Pending",
+        "qosClass": "BestEffort"
+      }
+    }
+[13:58:28.176] TRACE (12978): push invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:28.179] TRACE (12978): pull invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:28.193] TRACE (12978): received kubernetes event
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    phase: "MODIFIED"
+    pod: {
+      "kind": "Pod",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "fn-op-test-function-nhktj7",
+        "namespace": "default",
+        "uid": "409dd9db-3361-4bb7-aa31-6a9435d6a204",
+        "resourceVersion": "163106544",
+        "creationTimestamp": "2023-06-04T11:58:28Z",
+        "labels": {
+          "app.kubernetes.io/managed-by": "brer.io",
+          "brer.io/function-name": "op-test-function",
+          "brer.io/invocation-id": "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+        },
+        "managedFields": [
+          {
+            "manager": "unknown",
+            "operation": "Update",
+            "apiVersion": "v1",
+            "time": "2023-06-04T11:58:28Z",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:metadata": {
+                "f:labels": {
+                  ".": {},
+                  "f:app.kubernetes.io/managed-by": {},
+                  "f:brer.io/function-name": {},
+                  "f:brer.io/invocation-id": {}
+                }
+              },
+              "f:spec": {
+                "f:automountServiceAccountToken": {},
+                "f:containers": {
+                  "k:{\"name\":\"job\"}": {
+                    ".": {},
+                    "f:env": {
+                      ".": {},
+                      "k:{\"name\":\"BRER_TOKEN\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"BRER_URL\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"NODE_ENV\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      }
+                    },
+                    "f:image": {},
+                    "f:imagePullPolicy": {},
+                    "f:name": {},
+                    "f:resources": {},
+                    "f:terminationMessagePath": {},
+                    "f:terminationMessagePolicy": {}
+                  }
+                },
+                "f:dnsPolicy": {},
+                "f:enableServiceLinks": {},
+                "f:restartPolicy": {},
+                "f:schedulerName": {},
+                "f:securityContext": {},
+                "f:terminationGracePeriodSeconds": {}
+              }
+            }
+          }
+        ]
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "job",
+            "image": "evologidev.azurecr.io/orderpod-functions:1671196021",
+            "env": [
+              {
+                "name": "BRER_URL",
+                "value": "https://488f-87-14-176-165.eu.ngrok.io"
+              },
+              {
+                "name": "BRER_TOKEN",
+                "value": "ZHx8ZCSybR0wysFbXaBFlpv+rE2jEW0A0cFHFYWUDiz1XSYGqysUVn9VK8a6K2yPbFxjul7MWis="
+              },
+              {
+                "name": "NODE_ENV",
+                "value": "test"
+              }
+            ],
+            "resources": {},
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ],
+        "restartPolicy": "Never",
+        "terminationGracePeriodSeconds": 30,
+        "dnsPolicy": "ClusterFirst",
+        "serviceAccountName": "default",
+        "serviceAccount": "default",
+        "automountServiceAccountToken": false,
+        "nodeName": "aks-system-28784659-vmss000000",
+        "securityContext": {},
+        "schedulerName": "default-scheduler",
+        "tolerations": [
+          {
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          },
+          {
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          }
+        ],
+        "priority": 0,
+        "enableServiceLinks": true,
+        "preemptionPolicy": "PreemptLowerPriority"
+      },
+      "status": {
+        "phase": "Pending",
+        "conditions": [
+          {
+            "type": "PodScheduled",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z"
+          }
+        ],
+        "qosClass": "BestEffort"
+      }
+    }
+[13:58:28.194] TRACE (12978): push invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:28.203] TRACE (12978): pull invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:28.216] TRACE (12978): received kubernetes event
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    phase: "MODIFIED"
+    pod: {
+      "kind": "Pod",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "fn-op-test-function-nhktj7",
+        "namespace": "default",
+        "uid": "409dd9db-3361-4bb7-aa31-6a9435d6a204",
+        "resourceVersion": "163106546",
+        "creationTimestamp": "2023-06-04T11:58:28Z",
+        "labels": {
+          "app.kubernetes.io/managed-by": "brer.io",
+          "brer.io/function-name": "op-test-function",
+          "brer.io/invocation-id": "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+        },
+        "managedFields": [
+          {
+            "manager": "kubelet",
+            "operation": "Update",
+            "apiVersion": "v1",
+            "time": "2023-06-04T11:58:28Z",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:status": {
+                "f:conditions": {
+                  "k:{\"type\":\"ContainersReady\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  },
+                  "k:{\"type\":\"Initialized\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:status": {},
+                    "f:type": {}
+                  },
+                  "k:{\"type\":\"Ready\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:message": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  }
+                },
+                "f:containerStatuses": {},
+                "f:hostIP": {},
+                "f:startTime": {}
+              }
+            },
+            "subresource": "status"
+          },
+          {
+            "manager": "unknown",
+            "operation": "Update",
+            "apiVersion": "v1",
+            "time": "2023-06-04T11:58:28Z",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:metadata": {
+                "f:labels": {
+                  ".": {},
+                  "f:app.kubernetes.io/managed-by": {},
+                  "f:brer.io/function-name": {},
+                  "f:brer.io/invocation-id": {}
+                }
+              },
+              "f:spec": {
+                "f:automountServiceAccountToken": {},
+                "f:containers": {
+                  "k:{\"name\":\"job\"}": {
+                    ".": {},
+                    "f:env": {
+                      ".": {},
+                      "k:{\"name\":\"BRER_TOKEN\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"BRER_URL\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"NODE_ENV\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      }
+                    },
+                    "f:image": {},
+                    "f:imagePullPolicy": {},
+                    "f:name": {},
+                    "f:resources": {},
+                    "f:terminationMessagePath": {},
+                    "f:terminationMessagePolicy": {}
+                  }
+                },
+                "f:dnsPolicy": {},
+                "f:enableServiceLinks": {},
+                "f:restartPolicy": {},
+                "f:schedulerName": {},
+                "f:securityContext": {},
+                "f:terminationGracePeriodSeconds": {}
+              }
+            }
+          }
+        ]
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "job",
+            "image": "evologidev.azurecr.io/orderpod-functions:1671196021",
+            "env": [
+              {
+                "name": "BRER_URL",
+                "value": "https://488f-87-14-176-165.eu.ngrok.io"
+              },
+              {
+                "name": "BRER_TOKEN",
+                "value": "ZHx8ZCSybR0wysFbXaBFlpv+rE2jEW0A0cFHFYWUDiz1XSYGqysUVn9VK8a6K2yPbFxjul7MWis="
+              },
+              {
+                "name": "NODE_ENV",
+                "value": "test"
+              }
+            ],
+            "resources": {},
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ],
+        "restartPolicy": "Never",
+        "terminationGracePeriodSeconds": 30,
+        "dnsPolicy": "ClusterFirst",
+        "serviceAccountName": "default",
+        "serviceAccount": "default",
+        "automountServiceAccountToken": false,
+        "nodeName": "aks-system-28784659-vmss000000",
+        "securityContext": {},
+        "schedulerName": "default-scheduler",
+        "tolerations": [
+          {
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          },
+          {
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          }
+        ],
+        "priority": 0,
+        "enableServiceLinks": true,
+        "preemptionPolicy": "PreemptLowerPriority"
+      },
+      "status": {
+        "phase": "Pending",
+        "conditions": [
+          {
+            "type": "Initialized",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z"
+          },
+          {
+            "type": "Ready",
+            "status": "False",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z",
+            "reason": "ContainersNotReady",
+            "message": "containers with unready status: [job]"
+          },
+          {
+            "type": "ContainersReady",
+            "status": "False",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z",
+            "reason": "ContainersNotReady",
+            "message": "containers with unready status: [job]"
+          },
+          {
+            "type": "PodScheduled",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z"
+          }
+        ],
+        "hostIP": "10.240.0.6",
+        "startTime": "2023-06-04T11:58:28Z",
+        "containerStatuses": [
+          {
+            "name": "job",
+            "state": {
+              "waiting": {
+                "reason": "ContainerCreating"
+              }
+            },
+            "lastState": {},
+            "ready": false,
+            "restartCount": 0,
+            "image": "evologidev.azurecr.io/orderpod-functions:1671196021",
+            "imageID": "",
+            "started": false
+          }
+        ],
+        "qosClass": "BestEffort"
+      }
+    }
+[13:58:28.216] TRACE (12978): push invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:28.225] TRACE (12978): pull invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:28.994] TRACE (12978): received kubernetes event
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    phase: "MODIFIED"
+    pod: {
+      "kind": "Pod",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "fn-op-test-function-nhktj7",
+        "namespace": "default",
+        "uid": "409dd9db-3361-4bb7-aa31-6a9435d6a204",
+        "resourceVersion": "163106555",
+        "creationTimestamp": "2023-06-04T11:58:28Z",
+        "labels": {
+          "app.kubernetes.io/managed-by": "brer.io",
+          "brer.io/function-name": "op-test-function",
+          "brer.io/invocation-id": "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+        },
+        "managedFields": [
+          {
+            "manager": "kubelet",
+            "operation": "Update",
+            "apiVersion": "v1",
+            "time": "2023-06-04T11:58:28Z",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:status": {
+                "f:conditions": {
+                  "k:{\"type\":\"ContainersReady\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:status": {},
+                    "f:type": {}
+                  },
+                  "k:{\"type\":\"Initialized\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:status": {},
+                    "f:type": {}
+                  },
+                  "k:{\"type\":\"Ready\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:status": {},
+                    "f:type": {}
+                  }
+                },
+                "f:containerStatuses": {},
+                "f:hostIP": {},
+                "f:phase": {},
+                "f:podIP": {},
+                "f:podIPs": {
+                  ".": {},
+                  "k:{\"ip\":\"10.244.1.82\"}": {
+                    ".": {},
+                    "f:ip": {}
+                  }
+                },
+                "f:startTime": {}
+              }
+            },
+            "subresource": "status"
+          },
+          {
+            "manager": "unknown",
+            "operation": "Update",
+            "apiVersion": "v1",
+            "time": "2023-06-04T11:58:28Z",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:metadata": {
+                "f:labels": {
+                  ".": {},
+                  "f:app.kubernetes.io/managed-by": {},
+                  "f:brer.io/function-name": {},
+                  "f:brer.io/invocation-id": {}
+                }
+              },
+              "f:spec": {
+                "f:automountServiceAccountToken": {},
+                "f:containers": {
+                  "k:{\"name\":\"job\"}": {
+                    ".": {},
+                    "f:env": {
+                      ".": {},
+                      "k:{\"name\":\"BRER_TOKEN\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"BRER_URL\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"NODE_ENV\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      }
+                    },
+                    "f:image": {},
+                    "f:imagePullPolicy": {},
+                    "f:name": {},
+                    "f:resources": {},
+                    "f:terminationMessagePath": {},
+                    "f:terminationMessagePolicy": {}
+                  }
+                },
+                "f:dnsPolicy": {},
+                "f:enableServiceLinks": {},
+                "f:restartPolicy": {},
+                "f:schedulerName": {},
+                "f:securityContext": {},
+                "f:terminationGracePeriodSeconds": {}
+              }
+            }
+          }
+        ]
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "job",
+            "image": "evologidev.azurecr.io/orderpod-functions:1671196021",
+            "env": [
+              {
+                "name": "BRER_URL",
+                "value": "https://488f-87-14-176-165.eu.ngrok.io"
+              },
+              {
+                "name": "BRER_TOKEN",
+                "value": "ZHx8ZCSybR0wysFbXaBFlpv+rE2jEW0A0cFHFYWUDiz1XSYGqysUVn9VK8a6K2yPbFxjul7MWis="
+              },
+              {
+                "name": "NODE_ENV",
+                "value": "test"
+              }
+            ],
+            "resources": {},
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ],
+        "restartPolicy": "Never",
+        "terminationGracePeriodSeconds": 30,
+        "dnsPolicy": "ClusterFirst",
+        "serviceAccountName": "default",
+        "serviceAccount": "default",
+        "automountServiceAccountToken": false,
+        "nodeName": "aks-system-28784659-vmss000000",
+        "securityContext": {},
+        "schedulerName": "default-scheduler",
+        "tolerations": [
+          {
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          },
+          {
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          }
+        ],
+        "priority": 0,
+        "enableServiceLinks": true,
+        "preemptionPolicy": "PreemptLowerPriority"
+      },
+      "status": {
+        "phase": "Running",
+        "conditions": [
+          {
+            "type": "Initialized",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z"
+          },
+          {
+            "type": "Ready",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z"
+          },
+          {
+            "type": "ContainersReady",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z"
+          },
+          {
+            "type": "PodScheduled",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z"
+          }
+        ],
+        "hostIP": "10.240.0.6",
+        "podIP": "10.244.1.82",
+        "podIPs": [
+          {
+            "ip": "10.244.1.82"
+          }
+        ],
+        "startTime": "2023-06-04T11:58:28Z",
+        "containerStatuses": [
+          {
+            "name": "job",
+            "state": {
+              "running": {
+                "startedAt": "2023-06-04T11:58:28Z"
+              }
+            },
+            "lastState": {},
+            "ready": true,
+            "restartCount": 0,
+            "image": "evologidev.azurecr.io/orderpod-functions:1671196021",
+            "imageID": "evologidev.azurecr.io/orderpod-functions@sha256:e06b13ddff4fe648d8d211e0de30581cbe2be69d5355dfc1a35aedc0c1ff4bff",
+            "containerID": "containerd://e03fae40dff0485649f70fbc1aaa6cb271c0160e800d55b41e5b08580d2641bf",
+            "started": true
+          }
+        ],
+        "qosClass": "BestEffort"
+      }
+    }
+[13:58:28.994] TRACE (12978): push invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:28.997] TRACE (12978): pull invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:30.748] INFO (12978): incoming request
+    reqId: "req-3"
+    req: {
+      "method": "POST",
+      "url": "/rpc/v1/run",
+      "hostname": "488f-87-14-176-165.eu.ngrok.io",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 45916
+    }
+[13:58:30.793] TRACE (12978): push invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:30.800] INFO (12978): request completed
+    reqId: "req-3"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 51.562454000115395
+[13:58:30.888] INFO (12978): incoming request
+    reqId: "req-4"
+    req: {
+      "method": "POST",
+      "url": "/rpc/v1/download",
+      "hostname": "488f-87-14-176-165.eu.ngrok.io",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 45922
+    }
+[13:58:30.898] INFO (12978): request completed
+    reqId: "req-4"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 10.143157999962568
+[13:58:30.957] DEBUG (12978): prepare to collect logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:30.966] DEBUG (12978): download pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:41.094] INFO (12978): incoming request
+    reqId: "req-5"
+    req: {
+      "method": "POST",
+      "url": "/rpc/v1/complete",
+      "hostname": "488f-87-14-176-165.eu.ngrok.io",
+      "remoteAddress": "127.0.0.1",
+      "remotePort": 35914
+    }
+[13:58:41.112] INFO (12978): request completed
+    reqId: "req-5"
+    res: {
+      "statusCode": 200
+    }
+    responseTime: 17.01151300035417
+[13:58:42.117] TRACE (12978): received kubernetes event
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    phase: "MODIFIED"
+    pod: {
+      "kind": "Pod",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "fn-op-test-function-nhktj7",
+        "namespace": "default",
+        "uid": "409dd9db-3361-4bb7-aa31-6a9435d6a204",
+        "resourceVersion": "163106609",
+        "creationTimestamp": "2023-06-04T11:58:28Z",
+        "labels": {
+          "app.kubernetes.io/managed-by": "brer.io",
+          "brer.io/function-name": "op-test-function",
+          "brer.io/invocation-id": "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+        },
+        "managedFields": [
+          {
+            "manager": "unknown",
+            "operation": "Update",
+            "apiVersion": "v1",
+            "time": "2023-06-04T11:58:28Z",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:metadata": {
+                "f:labels": {
+                  ".": {},
+                  "f:app.kubernetes.io/managed-by": {},
+                  "f:brer.io/function-name": {},
+                  "f:brer.io/invocation-id": {}
+                }
+              },
+              "f:spec": {
+                "f:automountServiceAccountToken": {},
+                "f:containers": {
+                  "k:{\"name\":\"job\"}": {
+                    ".": {},
+                    "f:env": {
+                      ".": {},
+                      "k:{\"name\":\"BRER_TOKEN\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"BRER_URL\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"NODE_ENV\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      }
+                    },
+                    "f:image": {},
+                    "f:imagePullPolicy": {},
+                    "f:name": {},
+                    "f:resources": {},
+                    "f:terminationMessagePath": {},
+                    "f:terminationMessagePolicy": {}
+                  }
+                },
+                "f:dnsPolicy": {},
+                "f:enableServiceLinks": {},
+                "f:restartPolicy": {},
+                "f:schedulerName": {},
+                "f:securityContext": {},
+                "f:terminationGracePeriodSeconds": {}
+              }
+            }
+          },
+          {
+            "manager": "kubelet",
+            "operation": "Update",
+            "apiVersion": "v1",
+            "time": "2023-06-04T11:58:41Z",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:status": {
+                "f:conditions": {
+                  "k:{\"type\":\"ContainersReady\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  },
+                  "k:{\"type\":\"Initialized\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  },
+                  "k:{\"type\":\"Ready\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  }
+                },
+                "f:containerStatuses": {},
+                "f:hostIP": {},
+                "f:phase": {},
+                "f:podIP": {},
+                "f:podIPs": {
+                  ".": {},
+                  "k:{\"ip\":\"10.244.1.82\"}": {
+                    ".": {},
+                    "f:ip": {}
+                  }
+                },
+                "f:startTime": {}
+              }
+            },
+            "subresource": "status"
+          }
+        ]
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "job",
+            "image": "evologidev.azurecr.io/orderpod-functions:1671196021",
+            "env": [
+              {
+                "name": "BRER_URL",
+                "value": "https://488f-87-14-176-165.eu.ngrok.io"
+              },
+              {
+                "name": "BRER_TOKEN",
+                "value": "ZHx8ZCSybR0wysFbXaBFlpv+rE2jEW0A0cFHFYWUDiz1XSYGqysUVn9VK8a6K2yPbFxjul7MWis="
+              },
+              {
+                "name": "NODE_ENV",
+                "value": "test"
+              }
+            ],
+            "resources": {},
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ],
+        "restartPolicy": "Never",
+        "terminationGracePeriodSeconds": 30,
+        "dnsPolicy": "ClusterFirst",
+        "serviceAccountName": "default",
+        "serviceAccount": "default",
+        "automountServiceAccountToken": false,
+        "nodeName": "aks-system-28784659-vmss000000",
+        "securityContext": {},
+        "schedulerName": "default-scheduler",
+        "tolerations": [
+          {
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          },
+          {
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          }
+        ],
+        "priority": 0,
+        "enableServiceLinks": true,
+        "preemptionPolicy": "PreemptLowerPriority"
+      },
+      "status": {
+        "phase": "Running",
+        "conditions": [
+          {
+            "type": "Initialized",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z",
+            "reason": "PodCompleted"
+          },
+          {
+            "type": "Ready",
+            "status": "False",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:41Z",
+            "reason": "PodCompleted"
+          },
+          {
+            "type": "ContainersReady",
+            "status": "False",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:41Z",
+            "reason": "PodCompleted"
+          },
+          {
+            "type": "PodScheduled",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z"
+          }
+        ],
+        "hostIP": "10.240.0.6",
+        "podIP": "10.244.1.82",
+        "podIPs": [
+          {
+            "ip": "10.244.1.82"
+          }
+        ],
+        "startTime": "2023-06-04T11:58:28Z",
+        "containerStatuses": [
+          {
+            "name": "job",
+            "state": {
+              "terminated": {
+                "exitCode": 0,
+                "reason": "Completed",
+                "startedAt": "2023-06-04T11:58:28Z",
+                "finishedAt": "2023-06-04T11:58:41Z",
+                "containerID": "containerd://e03fae40dff0485649f70fbc1aaa6cb271c0160e800d55b41e5b08580d2641bf"
+              }
+            },
+            "lastState": {},
+            "ready": false,
+            "restartCount": 0,
+            "image": "evologidev.azurecr.io/orderpod-functions:1671196021",
+            "imageID": "evologidev.azurecr.io/orderpod-functions@sha256:e06b13ddff4fe648d8d211e0de30581cbe2be69d5355dfc1a35aedc0c1ff4bff",
+            "containerID": "containerd://e03fae40dff0485649f70fbc1aaa6cb271c0160e800d55b41e5b08580d2641bf",
+            "started": false
+          }
+        ],
+        "qosClass": "BestEffort"
+      }
+    }
+[13:58:42.119] TRACE (12978): push invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:42.162] DEBUG (12978): save pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:42.187] DEBUG (12978): refresh pod status
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:42.321] DEBUG (12978): download pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:42.475] DEBUG (12978): save pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:42.487] DEBUG (12978): refresh pod status
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:42.619] DEBUG (12978): download pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:42.780] DEBUG (12978): save pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:42.800] DEBUG (12978): refresh pod status
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:42.939] DEBUG (12978): download pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:43.135] DEBUG (12978): save pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:43.157] DEBUG (12978): refresh pod status
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:43.440] DEBUG (12978): download pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:43.622] DEBUG (12978): save pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:43.637] DEBUG (12978): refresh pod status
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:43.848] DEBUG (12978): download pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:44.019] DEBUG (12978): save pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:44.030] DEBUG (12978): refresh pod status
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:44.046] TRACE (12978): received kubernetes event
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    phase: "MODIFIED"
+    pod: {
+      "kind": "Pod",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "fn-op-test-function-nhktj7",
+        "namespace": "default",
+        "uid": "409dd9db-3361-4bb7-aa31-6a9435d6a204",
+        "resourceVersion": "163106615",
+        "creationTimestamp": "2023-06-04T11:58:28Z",
+        "labels": {
+          "app.kubernetes.io/managed-by": "brer.io",
+          "brer.io/function-name": "op-test-function",
+          "brer.io/invocation-id": "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+        },
+        "managedFields": [
+          {
+            "manager": "unknown",
+            "operation": "Update",
+            "apiVersion": "v1",
+            "time": "2023-06-04T11:58:28Z",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:metadata": {
+                "f:labels": {
+                  ".": {},
+                  "f:app.kubernetes.io/managed-by": {},
+                  "f:brer.io/function-name": {},
+                  "f:brer.io/invocation-id": {}
+                }
+              },
+              "f:spec": {
+                "f:automountServiceAccountToken": {},
+                "f:containers": {
+                  "k:{\"name\":\"job\"}": {
+                    ".": {},
+                    "f:env": {
+                      ".": {},
+                      "k:{\"name\":\"BRER_TOKEN\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"BRER_URL\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"NODE_ENV\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      }
+                    },
+                    "f:image": {},
+                    "f:imagePullPolicy": {},
+                    "f:name": {},
+                    "f:resources": {},
+                    "f:terminationMessagePath": {},
+                    "f:terminationMessagePolicy": {}
+                  }
+                },
+                "f:dnsPolicy": {},
+                "f:enableServiceLinks": {},
+                "f:restartPolicy": {},
+                "f:schedulerName": {},
+                "f:securityContext": {},
+                "f:terminationGracePeriodSeconds": {}
+              }
+            }
+          },
+          {
+            "manager": "kubelet",
+            "operation": "Update",
+            "apiVersion": "v1",
+            "time": "2023-06-04T11:58:43Z",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:status": {
+                "f:conditions": {
+                  "k:{\"type\":\"ContainersReady\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  },
+                  "k:{\"type\":\"Initialized\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  },
+                  "k:{\"type\":\"Ready\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  }
+                },
+                "f:containerStatuses": {},
+                "f:hostIP": {},
+                "f:phase": {},
+                "f:podIP": {},
+                "f:podIPs": {
+                  ".": {},
+                  "k:{\"ip\":\"10.244.1.82\"}": {
+                    ".": {},
+                    "f:ip": {}
+                  }
+                },
+                "f:startTime": {}
+              }
+            },
+            "subresource": "status"
+          }
+        ]
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "job",
+            "image": "evologidev.azurecr.io/orderpod-functions:1671196021",
+            "env": [
+              {
+                "name": "BRER_URL",
+                "value": "https://488f-87-14-176-165.eu.ngrok.io"
+              },
+              {
+                "name": "BRER_TOKEN",
+                "value": "ZHx8ZCSybR0wysFbXaBFlpv+rE2jEW0A0cFHFYWUDiz1XSYGqysUVn9VK8a6K2yPbFxjul7MWis="
+              },
+              {
+                "name": "NODE_ENV",
+                "value": "test"
+              }
+            ],
+            "resources": {},
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ],
+        "restartPolicy": "Never",
+        "terminationGracePeriodSeconds": 30,
+        "dnsPolicy": "ClusterFirst",
+        "serviceAccountName": "default",
+        "serviceAccount": "default",
+        "automountServiceAccountToken": false,
+        "nodeName": "aks-system-28784659-vmss000000",
+        "securityContext": {},
+        "schedulerName": "default-scheduler",
+        "tolerations": [
+          {
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          },
+          {
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          }
+        ],
+        "priority": 0,
+        "enableServiceLinks": true,
+        "preemptionPolicy": "PreemptLowerPriority"
+      },
+      "status": {
+        "phase": "Succeeded",
+        "conditions": [
+          {
+            "type": "Initialized",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z",
+            "reason": "PodCompleted"
+          },
+          {
+            "type": "Ready",
+            "status": "False",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:41Z",
+            "reason": "PodCompleted"
+          },
+          {
+            "type": "ContainersReady",
+            "status": "False",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:41Z",
+            "reason": "PodCompleted"
+          },
+          {
+            "type": "PodScheduled",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z"
+          }
+        ],
+        "hostIP": "10.240.0.6",
+        "podIP": "10.244.1.82",
+        "podIPs": [
+          {
+            "ip": "10.244.1.82"
+          }
+        ],
+        "startTime": "2023-06-04T11:58:28Z",
+        "containerStatuses": [
+          {
+            "name": "job",
+            "state": {
+              "terminated": {
+                "exitCode": 0,
+                "reason": "Completed",
+                "startedAt": "2023-06-04T11:58:28Z",
+                "finishedAt": "2023-06-04T11:58:41Z",
+                "containerID": "containerd://e03fae40dff0485649f70fbc1aaa6cb271c0160e800d55b41e5b08580d2641bf"
+              }
+            },
+            "lastState": {},
+            "ready": false,
+            "restartCount": 0,
+            "image": "evologidev.azurecr.io/orderpod-functions:1671196021",
+            "imageID": "evologidev.azurecr.io/orderpod-functions@sha256:e06b13ddff4fe648d8d211e0de30581cbe2be69d5355dfc1a35aedc0c1ff4bff",
+            "containerID": "containerd://e03fae40dff0485649f70fbc1aaa6cb271c0160e800d55b41e5b08580d2641bf",
+            "started": false
+          }
+        ],
+        "qosClass": "BestEffort"
+      }
+    }
+[13:58:44.046] TRACE (12978): push invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:44.259] DEBUG (12978): delete pod
+    pod: "fn-op-test-function-nhktj7"
+[13:58:44.409] TRACE (12978): received kubernetes event
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    phase: "MODIFIED"
+    pod: {
+      "kind": "Pod",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "fn-op-test-function-nhktj7",
+        "namespace": "default",
+        "uid": "409dd9db-3361-4bb7-aa31-6a9435d6a204",
+        "resourceVersion": "163106618",
+        "creationTimestamp": "2023-06-04T11:58:28Z",
+        "deletionTimestamp": "2023-06-04T11:58:44Z",
+        "deletionGracePeriodSeconds": 0,
+        "labels": {
+          "app.kubernetes.io/managed-by": "brer.io",
+          "brer.io/function-name": "op-test-function",
+          "brer.io/invocation-id": "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+        },
+        "managedFields": [
+          {
+            "manager": "unknown",
+            "operation": "Update",
+            "apiVersion": "v1",
+            "time": "2023-06-04T11:58:28Z",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:metadata": {
+                "f:labels": {
+                  ".": {},
+                  "f:app.kubernetes.io/managed-by": {},
+                  "f:brer.io/function-name": {},
+                  "f:brer.io/invocation-id": {}
+                }
+              },
+              "f:spec": {
+                "f:automountServiceAccountToken": {},
+                "f:containers": {
+                  "k:{\"name\":\"job\"}": {
+                    ".": {},
+                    "f:env": {
+                      ".": {},
+                      "k:{\"name\":\"BRER_TOKEN\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"BRER_URL\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"NODE_ENV\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      }
+                    },
+                    "f:image": {},
+                    "f:imagePullPolicy": {},
+                    "f:name": {},
+                    "f:resources": {},
+                    "f:terminationMessagePath": {},
+                    "f:terminationMessagePolicy": {}
+                  }
+                },
+                "f:dnsPolicy": {},
+                "f:enableServiceLinks": {},
+                "f:restartPolicy": {},
+                "f:schedulerName": {},
+                "f:securityContext": {},
+                "f:terminationGracePeriodSeconds": {}
+              }
+            }
+          },
+          {
+            "manager": "kubelet",
+            "operation": "Update",
+            "apiVersion": "v1",
+            "time": "2023-06-04T11:58:43Z",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:status": {
+                "f:conditions": {
+                  "k:{\"type\":\"ContainersReady\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  },
+                  "k:{\"type\":\"Initialized\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  },
+                  "k:{\"type\":\"Ready\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  }
+                },
+                "f:containerStatuses": {},
+                "f:hostIP": {},
+                "f:phase": {},
+                "f:podIP": {},
+                "f:podIPs": {
+                  ".": {},
+                  "k:{\"ip\":\"10.244.1.82\"}": {
+                    ".": {},
+                    "f:ip": {}
+                  }
+                },
+                "f:startTime": {}
+              }
+            },
+            "subresource": "status"
+          }
+        ]
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "job",
+            "image": "evologidev.azurecr.io/orderpod-functions:1671196021",
+            "env": [
+              {
+                "name": "BRER_URL",
+                "value": "https://488f-87-14-176-165.eu.ngrok.io"
+              },
+              {
+                "name": "BRER_TOKEN",
+                "value": "ZHx8ZCSybR0wysFbXaBFlpv+rE2jEW0A0cFHFYWUDiz1XSYGqysUVn9VK8a6K2yPbFxjul7MWis="
+              },
+              {
+                "name": "NODE_ENV",
+                "value": "test"
+              }
+            ],
+            "resources": {},
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ],
+        "restartPolicy": "Never",
+        "terminationGracePeriodSeconds": 30,
+        "dnsPolicy": "ClusterFirst",
+        "serviceAccountName": "default",
+        "serviceAccount": "default",
+        "automountServiceAccountToken": false,
+        "nodeName": "aks-system-28784659-vmss000000",
+        "securityContext": {},
+        "schedulerName": "default-scheduler",
+        "tolerations": [
+          {
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          },
+          {
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          }
+        ],
+        "priority": 0,
+        "enableServiceLinks": true,
+        "preemptionPolicy": "PreemptLowerPriority"
+      },
+      "status": {
+        "phase": "Succeeded",
+        "conditions": [
+          {
+            "type": "Initialized",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z",
+            "reason": "PodCompleted"
+          },
+          {
+            "type": "Ready",
+            "status": "False",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:41Z",
+            "reason": "PodCompleted"
+          },
+          {
+            "type": "ContainersReady",
+            "status": "False",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:41Z",
+            "reason": "PodCompleted"
+          },
+          {
+            "type": "PodScheduled",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z"
+          }
+        ],
+        "hostIP": "10.240.0.6",
+        "podIP": "10.244.1.82",
+        "podIPs": [
+          {
+            "ip": "10.244.1.82"
+          }
+        ],
+        "startTime": "2023-06-04T11:58:28Z",
+        "containerStatuses": [
+          {
+            "name": "job",
+            "state": {
+              "terminated": {
+                "exitCode": 0,
+                "reason": "Completed",
+                "startedAt": "2023-06-04T11:58:28Z",
+                "finishedAt": "2023-06-04T11:58:41Z",
+                "containerID": "containerd://e03fae40dff0485649f70fbc1aaa6cb271c0160e800d55b41e5b08580d2641bf"
+              }
+            },
+            "lastState": {},
+            "ready": false,
+            "restartCount": 0,
+            "image": "evologidev.azurecr.io/orderpod-functions:1671196021",
+            "imageID": "evologidev.azurecr.io/orderpod-functions@sha256:e06b13ddff4fe648d8d211e0de30581cbe2be69d5355dfc1a35aedc0c1ff4bff",
+            "containerID": "containerd://e03fae40dff0485649f70fbc1aaa6cb271c0160e800d55b41e5b08580d2641bf",
+            "started": false
+          }
+        ],
+        "qosClass": "BestEffort"
+      }
+    }
+[13:58:44.409] TRACE (12978): push invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:44.425] TRACE (12978): received kubernetes event
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    phase: "DELETED"
+    pod: {
+      "kind": "Pod",
+      "apiVersion": "v1",
+      "metadata": {
+        "name": "fn-op-test-function-nhktj7",
+        "namespace": "default",
+        "uid": "409dd9db-3361-4bb7-aa31-6a9435d6a204",
+        "resourceVersion": "163106619",
+        "creationTimestamp": "2023-06-04T11:58:28Z",
+        "deletionTimestamp": "2023-06-04T11:58:44Z",
+        "deletionGracePeriodSeconds": 0,
+        "labels": {
+          "app.kubernetes.io/managed-by": "brer.io",
+          "brer.io/function-name": "op-test-function",
+          "brer.io/invocation-id": "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+        },
+        "managedFields": [
+          {
+            "manager": "unknown",
+            "operation": "Update",
+            "apiVersion": "v1",
+            "time": "2023-06-04T11:58:28Z",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:metadata": {
+                "f:labels": {
+                  ".": {},
+                  "f:app.kubernetes.io/managed-by": {},
+                  "f:brer.io/function-name": {},
+                  "f:brer.io/invocation-id": {}
+                }
+              },
+              "f:spec": {
+                "f:automountServiceAccountToken": {},
+                "f:containers": {
+                  "k:{\"name\":\"job\"}": {
+                    ".": {},
+                    "f:env": {
+                      ".": {},
+                      "k:{\"name\":\"BRER_TOKEN\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"BRER_URL\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      },
+                      "k:{\"name\":\"NODE_ENV\"}": {
+                        ".": {},
+                        "f:name": {},
+                        "f:value": {}
+                      }
+                    },
+                    "f:image": {},
+                    "f:imagePullPolicy": {},
+                    "f:name": {},
+                    "f:resources": {},
+                    "f:terminationMessagePath": {},
+                    "f:terminationMessagePolicy": {}
+                  }
+                },
+                "f:dnsPolicy": {},
+                "f:enableServiceLinks": {},
+                "f:restartPolicy": {},
+                "f:schedulerName": {},
+                "f:securityContext": {},
+                "f:terminationGracePeriodSeconds": {}
+              }
+            }
+          },
+          {
+            "manager": "kubelet",
+            "operation": "Update",
+            "apiVersion": "v1",
+            "time": "2023-06-04T11:58:43Z",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:status": {
+                "f:conditions": {
+                  "k:{\"type\":\"ContainersReady\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  },
+                  "k:{\"type\":\"Initialized\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  },
+                  "k:{\"type\":\"Ready\"}": {
+                    ".": {},
+                    "f:lastProbeTime": {},
+                    "f:lastTransitionTime": {},
+                    "f:reason": {},
+                    "f:status": {},
+                    "f:type": {}
+                  }
+                },
+                "f:containerStatuses": {},
+                "f:hostIP": {},
+                "f:phase": {},
+                "f:podIP": {},
+                "f:podIPs": {
+                  ".": {},
+                  "k:{\"ip\":\"10.244.1.82\"}": {
+                    ".": {},
+                    "f:ip": {}
+                  }
+                },
+                "f:startTime": {}
+              }
+            },
+            "subresource": "status"
+          }
+        ]
+      },
+      "spec": {
+        "containers": [
+          {
+            "name": "job",
+            "image": "evologidev.azurecr.io/orderpod-functions:1671196021",
+            "env": [
+              {
+                "name": "BRER_URL",
+                "value": "https://488f-87-14-176-165.eu.ngrok.io"
+              },
+              {
+                "name": "BRER_TOKEN",
+                "value": "ZHx8ZCSybR0wysFbXaBFlpv+rE2jEW0A0cFHFYWUDiz1XSYGqysUVn9VK8a6K2yPbFxjul7MWis="
+              },
+              {
+                "name": "NODE_ENV",
+                "value": "test"
+              }
+            ],
+            "resources": {},
+            "terminationMessagePath": "/dev/termination-log",
+            "terminationMessagePolicy": "File",
+            "imagePullPolicy": "IfNotPresent"
+          }
+        ],
+        "restartPolicy": "Never",
+        "terminationGracePeriodSeconds": 30,
+        "dnsPolicy": "ClusterFirst",
+        "serviceAccountName": "default",
+        "serviceAccount": "default",
+        "automountServiceAccountToken": false,
+        "nodeName": "aks-system-28784659-vmss000000",
+        "securityContext": {},
+        "schedulerName": "default-scheduler",
+        "tolerations": [
+          {
+            "key": "node.kubernetes.io/not-ready",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          },
+          {
+            "key": "node.kubernetes.io/unreachable",
+            "operator": "Exists",
+            "effect": "NoExecute",
+            "tolerationSeconds": 300
+          }
+        ],
+        "priority": 0,
+        "enableServiceLinks": true,
+        "preemptionPolicy": "PreemptLowerPriority"
+      },
+      "status": {
+        "phase": "Succeeded",
+        "conditions": [
+          {
+            "type": "Initialized",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z",
+            "reason": "PodCompleted"
+          },
+          {
+            "type": "Ready",
+            "status": "False",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:41Z",
+            "reason": "PodCompleted"
+          },
+          {
+            "type": "ContainersReady",
+            "status": "False",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:41Z",
+            "reason": "PodCompleted"
+          },
+          {
+            "type": "PodScheduled",
+            "status": "True",
+            "lastProbeTime": null,
+            "lastTransitionTime": "2023-06-04T11:58:28Z"
+          }
+        ],
+        "hostIP": "10.240.0.6",
+        "podIP": "10.244.1.82",
+        "podIPs": [
+          {
+            "ip": "10.244.1.82"
+          }
+        ],
+        "startTime": "2023-06-04T11:58:28Z",
+        "containerStatuses": [
+          {
+            "name": "job",
+            "state": {
+              "terminated": {
+                "exitCode": 0,
+                "reason": "Completed",
+                "startedAt": "2023-06-04T11:58:28Z",
+                "finishedAt": "2023-06-04T11:58:41Z",
+                "containerID": "containerd://e03fae40dff0485649f70fbc1aaa6cb271c0160e800d55b41e5b08580d2641bf"
+              }
+            },
+            "lastState": {},
+            "ready": false,
+            "restartCount": 0,
+            "image": "evologidev.azurecr.io/orderpod-functions:1671196021",
+            "imageID": "evologidev.azurecr.io/orderpod-functions@sha256:e06b13ddff4fe648d8d211e0de30581cbe2be69d5355dfc1a35aedc0c1ff4bff",
+            "containerID": "containerd://e03fae40dff0485649f70fbc1aaa6cb271c0160e800d55b41e5b08580d2641bf",
+            "started": false
+          }
+        ],
+        "qosClass": "BestEffort"
+      }
+    }
+[13:58:44.425] TRACE (12978): push invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:44.430] DEBUG (12978): prepare to collect logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:44.438] DEBUG (12978): download pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:44.667] DEBUG (12978): save pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:44.680] DEBUG (12978): refresh pod status
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:44.830] DEBUG (12978): prepare to collect logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:44.838] DEBUG (12978): download pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:45.078] DEBUG (12978): save pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:45.100] DEBUG (12978): refresh pod status
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:45.254] DEBUG (12978): prepare to collect logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[13:58:45.256] DEBUG (12978): download pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:45.536] DEBUG (12978): save pod logs
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:45.558] DEBUG (12978): refresh pod status
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+    pod: "fn-op-test-function-nhktj7"
+[13:58:45.704] TRACE (12978): pull invocation job
+    invocationId: "30cac15b-5da0-4596-9bfe-ac4da3116d00"
+[14:03:07.708] DEBUG (12978): sync living invocations
+[32m[nodemon] restarting due to changes...[39m
+[32m[nodemon] starting `npm run watch:build && npm run watch:start`[39m
+
+> brer@0.0.0 watch:build
+> tsc --incremental -p tsconfig.json
+
+src/controller/sync.ts(254,10): error TS6133: 'x' is declared but its value is never read.
+[31m[nodemon] app crashed - waiting for file changes before starting...[39m

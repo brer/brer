@@ -1,0 +1,53 @@
+# after: null
+# bail: false
+# before: null
+# branches: 100
+browser: false
+# changed: false
+# check-coverage: true
+# color: false
+# comments: false
+coverage: false
+# coverage-map: null
+# coverage-report: [html, lcov]
+# debug: false
+# files: []
+# flow: false
+# functions: 100
+# grep: []
+# help: false
+# invert: false
+# jobs: 8
+# jsx: false
+# libtap-settings: null
+# lines: 100
+node-arg: [
+  --loader,
+  ts-node/esm
+]
+# nyc-arg: []
+# nyc-help: false
+# nyc-version: false
+# only: false
+# output-dir: null
+# output-file: null
+# parser-version: false
+# reporter: tap
+# reporter-arg: []
+# save: null
+# save-fixture: false
+# show-process-tree: false
+# snapshot: false
+# statements: 100
+# test-arg: []
+test-env: [
+  NODE_ENV=test,
+  TS_NODE_PROJECT=tsconfig.json
+]
+# test-ignore: mock
+test-regex: ((\/|^)(tests?|__tests?__)\/.*|\.(tests?|spec)|^\/?tests?)\.ts$
+# timeout: 1800 # 30 minutes (seconds)
+ts: false
+# version: false
+# versions: false
+# watch: false

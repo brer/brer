@@ -1,6 +1,7 @@
 import type { FastifyRequest, RouteOptions } from 'fastify'
 import S from 'fluent-json-schema-es'
-import * as uuid from 'uuid'
+
+import { getFunctionId } from '../../../lib/function.js'
 
 interface RouteGeneric {
   Body: {
@@ -56,11 +57,10 @@ const route: RouteOptions = {
     const { database } = this
     const { body } = request as FastifyRequest<RouteGeneric>
 
-    // TODO: ensure function name uniqueness
     // TODO: ensure env name uniqueness and prevent usage of "BRER_" prefix
     const fn = await database.functions
       .create({
-        _id: uuid.v4(),
+        _id: getFunctionId(body.name),
         name: body.name,
         image: body.image,
         env: body.env ?? [],

@@ -1,7 +1,11 @@
 import type { FastifyRequest, RouteOptions } from 'fastify'
 import S from 'fluent-json-schema-es'
-import * as uuid from 'uuid'
-import { getDefaultSecretName, purgeSecrets } from '../lib/function.js'
+
+import {
+  getDefaultSecretName,
+  getFunctionId,
+  purgeSecrets,
+} from '../../../lib/function.js'
 
 interface RouteGeneric {
   Body: {
@@ -66,8 +70,6 @@ const route: RouteOptions = {
     const { database, kubernetes } = this
     const { body, params } = request as FastifyRequest<RouteGeneric>
 
-    const id = uuid.v4()
-
     // TODO: ensure env name uniqueness and prevent usage of "BRER_" prefix
     const env = body.env || []
 
@@ -123,11 +125,13 @@ const route: RouteOptions = {
       }
     }
 
+    const functionId = getFunctionId(params.functionName)
+
     // TODO: ensure function name uniqueness
     const fn = await database.functions
-      .read({ name: params.functionName })
+      .read(functionId)
       .ensure({
-        _id: id,
+        _id: functionId,
         name: params.functionName,
         image: body.image,
         env: [],

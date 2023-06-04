@@ -22,6 +22,10 @@ export interface Invocation extends CouchDocument {
   secretName?: string
   image: string
   env: FnEnv[]
+  /**
+   * Current token signature.
+   */
+  tokenSignature: string
 }
 
 /**

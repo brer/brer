@@ -1,43 +1,6 @@
-import type { FnEnv, Invocation, InvocationStatus } from '@brer/types'
-import * as uuid from 'uuid'
+import type { Invocation, InvocationStatus } from '@brer/types'
 
-export interface CreateInvocationOptions {
-  env?: FnEnv[]
-  functionName: string
-  image: string
-  secretName: string
-  payload: {
-    contentType?: string
-    data: Buffer
-  }
-}
-
-export function createInvocation({
-  env = [],
-  functionName,
-  image,
-  payload,
-  secretName,
-}: CreateInvocationOptions): Invocation {
-  const date = new Date().toISOString()
-  const status = 'pending'
-  return {
-    _id: uuid.v4(),
-    status,
-    phases: [{ date, status }],
-    env,
-    image,
-    functionName,
-    secretName,
-    createdAt: date,
-    _attachments: {
-      payload: {
-        content_type: payload.contentType || 'application/octet-stream',
-        data: payload.data.toString('base64'),
-      },
-    },
-  }
-}
+import { isOlderThan } from './util.js'
 
 function pushInvocationStatus(
   invocation: Invocation,
@@ -59,11 +22,31 @@ function pushInvocationStatus(
 /**
  * Move Invocation from "pending" to "initializing" status.
  */
-export function handleInvocation(invocation: Invocation): Invocation {
+export function handleInvocation(
+  invocation: Invocation,
+  signature: string,
+): Invocation {
+  if (invocation.status === 'initializing') {
+    return {
+      ...invocation,
+      phases: invocation.phases.map(phase =>
+        phase.status === 'initializing'
+          ? {
+              ...phase,
+              date: new Date().toISOString(),
+            }
+          : phase,
+      ),
+      tokenSignature: signature,
+    }
+  }
   if (invocation.status !== 'pending') {
     throw new Error()
   }
-  return pushInvocationStatus(invocation, 'initializing')
+  return pushInvocationStatus(
+    { ...invocation, tokenSignature: signature },
+    'initializing',
+  )
 }
 
 /**
@@ -100,4 +83,28 @@ export function failInvocation(
     throw new Error()
   }
   return pushInvocationStatus({ ...invocation, reason }, 'failed')
+}
+
+/**
+ * Get initialization date.
+ */
+export function getInitializingDate(invocation: Invocation): Date | null {
+  const timestamp = invocation.phases.find(
+    phase => phase.status === 'initializing',
+  )?.date
+  return timestamp ? new Date(timestamp) : null
+}
+
+/**
+ * invocation has reached "init timeout"
+ */
+export function hasTimedOut(invocation: Invocation): boolean {
+  if (invocation.status === 'initializing') {
+    const phase = invocation.phases.find(item => item.status === 'initializing')
+    if (phase) {
+      // TODO: should be a env var
+      return isOlderThan(phase.date, 600) // 10 minutes (seconds)
+    }
+  }
+  return false
 }
