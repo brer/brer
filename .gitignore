@@ -4,5 +4,6 @@
 !.prettierrc.json
 !.taprc
 build
+log*
 node_modules
 package-lock.json
