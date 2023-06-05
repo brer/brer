@@ -1,4 +1,4 @@
-import type { FastifyRequest, RouteOptions } from 'fastify'
+import type { RouteOptions } from '@brer/types'
 import S from 'fluent-json-schema-es'
 
 import {
@@ -18,7 +18,7 @@ interface RouteGeneric {
   }
 }
 
-const route: RouteOptions = {
+const route: RouteOptions<RouteGeneric> = {
   method: 'PUT',
   url: '/api/v1/functions/:functionName',
   schema: {
@@ -66,9 +66,9 @@ const route: RouteOptions = {
         .required(),
     },
   },
-  async handler(request, reply) {
+  async handler(request) {
     const { database, kubernetes } = this
-    const { body, params } = request as FastifyRequest<RouteGeneric>
+    const { body, params } = request
 
     // TODO: ensure env name uniqueness and prevent usage of "BRER_" prefix
     const env = body.env || []
@@ -127,7 +127,6 @@ const route: RouteOptions = {
 
     const functionId = getFunctionId(params.functionName)
 
-    // TODO: ensure function name uniqueness
     const fn = await database.functions
       .read(functionId)
       .ensure({

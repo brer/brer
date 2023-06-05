@@ -1,4 +1,4 @@
-import type { FastifyRequest, RouteOptions } from 'fastify'
+import type { RouteOptions } from '@brer/types'
 import S from 'fluent-json-schema-es'
 
 import { getFunctionId } from '../../../lib/function.js'
@@ -11,7 +11,7 @@ interface RouteGeneric {
   }
 }
 
-const route: RouteOptions = {
+const route: RouteOptions<RouteGeneric> = {
   method: 'POST',
   url: '/api/v1/functions',
   schema: {
@@ -55,8 +55,9 @@ const route: RouteOptions = {
   },
   async handler(request, reply) {
     const { database } = this
-    const { body } = request as FastifyRequest<RouteGeneric>
+    const { body } = request
 
+    // TODO: same faetures as "updateFunction.ts"
     // TODO: ensure env name uniqueness and prevent usage of "BRER_" prefix
     const fn = await database.functions
       .create({

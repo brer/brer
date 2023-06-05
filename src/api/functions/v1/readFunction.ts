@@ -1,5 +1,7 @@
-import type { FastifyRequest, RouteOptions } from 'fastify'
+import type { RouteOptions } from '@brer/types'
 import S from 'fluent-json-schema-es'
+
+import { getFunctionId } from '../../../lib/function.js'
 
 interface RouteGeneric {
   Params: {
@@ -7,7 +9,7 @@ interface RouteGeneric {
   }
 }
 
-const route: RouteOptions = {
+const route: RouteOptions<RouteGeneric> = {
   method: 'GET',
   url: '/api/v1/functions/:functionName',
   schema: {
@@ -31,10 +33,10 @@ const route: RouteOptions = {
   },
   async handler(request, reply) {
     const { database } = this
-    const { params } = request as FastifyRequest<RouteGeneric>
+    const { params } = request
 
     const fn = await database.functions
-      .find({ name: params.functionName })
+      .find(getFunctionId(params.functionName))
       .unwrap()
 
     if (!fn) {

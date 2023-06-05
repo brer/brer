@@ -74,28 +74,6 @@ async function databasePlugin(
   }
 
   fastify.decorate('database', decorator)
-
-  fastify.log.debug('prepare databases')
-  await Promise.all([
-    ensureDatabase(decorator.functions.adapter),
-    ensureDatabase(decorator.invocationLogs.adapter),
-    ensureDatabase(decorator.invocations.adapter),
-  ])
-}
-
-async function ensureDatabase(adapter: CouchAdapter<any>) {
-  const response = await adapter.got({
-    method: 'PUT',
-    throwHttpErrors: false,
-  })
-  if (
-    response.statusCode !== 201 &&
-    response.statusCode !== 202 &&
-    response.statusCode !== 412
-  ) {
-    // TODO
-    throw new Error()
-  }
 }
 
 function transaction<T>(fn: (attempt: number) => Promise<T>): Promise<T> {

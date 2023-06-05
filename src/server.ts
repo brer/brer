@@ -47,7 +47,7 @@ export default function createServer() {
 
   fastify.register(probes)
 
-  const mode = process.env.SERVER_MODE || null
+  const mode = process.env.SERVER_MODE
   if (!mode || mode === 'api') {
     fastify.register(api)
   }

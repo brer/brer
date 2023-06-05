@@ -15,7 +15,8 @@ interface ErrorOptions {
 }
 
 async function errorPlugin(fastify: FastifyInstance) {
-  // TODO: error handler
+  // TODO: error handler (ex: handle Fastify's schema errors)
+  // TODO: inject 4xx and 5xx response schema to all routes
 
   fastify.decorateReply('error', null)
 

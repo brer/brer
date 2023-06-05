@@ -10,7 +10,7 @@ The whole point of this project is to be a simple and effective task runner with
 
 ## Roadmap
 
-- [ ] Invocation init timeout
+- [x] Invocation init timeout
 - [ ] Previous Invocations history limit
 - [ ] Max running Invocations limit
 - [ ] Function image validation after an update
