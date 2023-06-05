@@ -28,6 +28,11 @@ await Promise.all([
       fields: ['name'],
     },
   }),
+  database.invocations.adapter.createIndex({
+    index: {
+      fields: ['createdAt'],
+    },
+  }),
 ])
 
 log.info('sync functions name')

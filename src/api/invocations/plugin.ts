@@ -1,13 +1,15 @@
 import type { FastifyInstance } from 'fastify'
 
-import v1DeleteInvocation from './v1/deleteInvocation.js'
-import v1DownloadPayload from './v1/downloadPayload.js'
-import v1ReadInvocation from './v1/readInvocation.js'
-import v1ReadLogs from './v1/readLogs.js'
+import deleteInvocationV1 from './v1/deleteInvocation.js'
+import downloadPayloadV1 from './v1/downloadPayload.js'
+import readInvocationV1 from './v1/readInvocation.js'
+import readLogsV1 from './v1/readLogs.js'
+import searchInvocationsV1 from './v1/searchInvocations.js'
 
 export default async function (fastify: FastifyInstance) {
-  fastify.route(v1DeleteInvocation)
-  fastify.route(v1DownloadPayload)
-  fastify.route(v1ReadInvocation)
-  fastify.route(v1ReadLogs)
+  fastify.route(deleteInvocationV1)
+  fastify.route(downloadPayloadV1)
+  fastify.route(readInvocationV1)
+  fastify.route(readLogsV1)
+  fastify.route(searchInvocationsV1)
 }
