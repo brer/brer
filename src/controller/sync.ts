@@ -23,7 +23,6 @@ import { toTextLines } from '../lib/util.js'
 export async function syncLivingInvocationById(
   fastify: FastifyInstance,
   invocationId: string,
-  signal: AbortSignal,
 ) {
   const invocation = await fastify.database.invocations
     .find(invocationId)
@@ -35,7 +34,7 @@ export async function syncLivingInvocationById(
     status === 'initializing' ||
     status === 'running'
   ) {
-    return syncLivingInvocation(fastify, invocation!, signal)
+    return syncLivingInvocation(fastify, invocation!)
   }
 }
 
@@ -45,7 +44,6 @@ export async function syncLivingInvocationById(
 async function syncLivingInvocation(
   fastify: FastifyInstance,
   invocation: Invocation,
-  signal: AbortSignal,
 ) {
   const { kubernetes } = fastify
 
@@ -65,7 +63,7 @@ async function syncLivingInvocation(
     if (!pod) {
       await failAndClean(fastify, invocation, 'pod was deleted')
     } else {
-      await handleLivingPod(fastify, pod, signal)
+      await handleLivingPod(fastify, pod)
     }
   }
 }
@@ -101,11 +99,7 @@ async function spawnInvocationPod(
   return invocation
 }
 
-export async function reloadPodAndHandle(
-  fastify: FastifyInstance,
-  pod: V1Pod,
-  signal: AbortSignal,
-) {
+export async function reloadPodAndHandle(fastify: FastifyInstance, pod: V1Pod) {
   if (pod.metadata?.labels?.['brer.io/invocation-id']) {
     const reloaded = await findPodByName(
       fastify.kubernetes,
@@ -113,18 +107,14 @@ export async function reloadPodAndHandle(
     )
 
     if (reloaded) {
-      await handleLivingPod(fastify, reloaded, signal)
+      await handleLivingPod(fastify, reloaded)
     } else {
-      await handleDeletedPod(fastify, pod, signal)
+      await handleDeletedPod(fastify, pod)
     }
   }
 }
 
-async function handleLivingPod(
-  fastify: FastifyInstance,
-  pod: V1Pod,
-  signal: AbortSignal,
-) {
+async function handleLivingPod(fastify: FastifyInstance, pod: V1Pod) {
   const { database, log } = fastify
 
   const invocationId = pod.metadata?.labels?.['brer.io/invocation-id']
@@ -168,7 +158,7 @@ async function handleLivingPod(
     invocation.status === 'completed' ||
     invocation.status === 'failed'
   ) {
-    await handlePodLogs(fastify, invocationId, pod, signal)
+    await handlePodLogs(fastify, invocationId, pod)
   }
 }
 
@@ -200,7 +190,6 @@ async function handlePodLogs(
   fastify: FastifyInstance,
   invocationId: string,
   pod: V1Pod | null,
-  signal: AbortSignal,
 ) {
   const { database, kubernetes, log } = fastify
 
@@ -210,7 +199,6 @@ async function handlePodLogs(
   let done = false
 
   while (
-    !signal.aborted &&
     !done &&
     (containerStatus === 'running' || containerStatus === 'terminated')
   ) {
@@ -235,7 +223,6 @@ async function handlePodLogs(
             pod!.metadata!.name!,
             pod!.spec!.containers[0].name,
             options,
-            signal,
           ),
           'utf-8',
           options.limitBytes,
@@ -324,11 +311,7 @@ async function tryToCollect<T>(iterable: AsyncIterable<T>) {
   }
 }
 
-export async function handleDeletedPod(
-  fastify: FastifyInstance,
-  pod: V1Pod,
-  signal: AbortSignal,
-) {
+export async function handleDeletedPod(fastify: FastifyInstance, pod: V1Pod) {
   const { database } = fastify
   const invocationId = pod.metadata?.labels?.['brer.io/invocation-id']
 
@@ -336,7 +319,7 @@ export async function handleDeletedPod(
     const invocation = await database.invocations.find(invocationId).unwrap()
 
     if (invocation?.status === 'initializing') {
-      await syncLivingInvocation(fastify, invocation, signal)
+      await syncLivingInvocation(fastify, invocation)
     } else if (invocation?.status === 'running') {
       await failAndClean(fastify, invocation, 'pod was deleted')
     }

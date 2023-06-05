@@ -30,14 +30,19 @@ async function controllerPlugin(fastify: FastifyInstance) {
     log.warn({ err }, 'cannot load local pod info')
   }
 
-  const controller = new AbortController()
   const jobs = new Map<string, Promise<any>>()
   const watcher = new Watch(kubernetes.config)
 
+  let closed = false
   let request: any = null
   let timer: any = null
 
   const pushJob = (invocationId: string, fn: () => Promise<any>) => {
+    if (closed) {
+      // server is closing
+      return
+    }
+
     let promise = jobs.get(invocationId) || Promise.resolve()
 
     promise = promise.then(() =>
@@ -60,7 +65,7 @@ async function controllerPlugin(fastify: FastifyInstance) {
   fastify.register(rpcPlugin, {
     callback: invocation =>
       pushJob(invocation._id, () =>
-        syncLivingInvocationById(fastify, invocation._id, controller.signal),
+        syncLivingInvocationById(fastify, invocation._id),
       ),
   })
 
@@ -84,14 +89,10 @@ async function controllerPlugin(fastify: FastifyInstance) {
                 // at startup all pods are "added" to this watching list
                 case 'ADDED':
                 case 'MODIFIED':
-                  pushJob(invocationId, () =>
-                    reloadPodAndHandle(fastify, pod, controller.signal),
-                  )
+                  pushJob(invocationId, () => reloadPodAndHandle(fastify, pod))
                   break
                 case 'DELETED':
-                  pushJob(invocationId, () =>
-                    handleDeletedPod(fastify, pod, controller.signal),
-                  )
+                  pushJob(invocationId, () => handleDeletedPod(fastify, pod))
                   break
               }
             }
@@ -114,7 +115,7 @@ async function controllerPlugin(fastify: FastifyInstance) {
   const autoWatch = () => {
     watchPods().then(
       () => {
-        if (!controller.signal.aborted) {
+        if (!closed) {
           log.error('pods watcher has been closed')
           process.nextTick(autoWatch)
         } else {
@@ -122,7 +123,7 @@ async function controllerPlugin(fastify: FastifyInstance) {
         }
       },
       err => {
-        if (!controller.signal.aborted) {
+        if (!closed) {
           log.error({ err }, 'pods watcher has failed')
           process.nextTick(autoWatch)
         } else {
@@ -135,8 +136,15 @@ async function controllerPlugin(fastify: FastifyInstance) {
   fastify.addHook('onReady', async () => {
     autoWatch()
 
+    let running = false
     timer = setInterval(() => {
-      log.debug('sync living invocations')
+      if (running) {
+        // this could be an query optimization problem
+        return log.warn('sync living invocations is still running')
+      }
+
+      log.trace('sync living invocations')
+      running = true
       database.invocations
         .filter({
           status: {
@@ -145,20 +153,22 @@ async function controllerPlugin(fastify: FastifyInstance) {
         })
         .tap(invocation =>
           pushJob(invocation._id, () =>
-            syncLivingInvocationById(
-              fastify,
-              invocation._id,
-              controller.signal,
-            ),
+            syncLivingInvocationById(fastify, invocation._id),
           ),
         )
         .consume()
-        .catch(err => log.error({ err }, 'failed to sync invocations status'))
+        .catch(err => {
+          log.error({ err }, 'failed to sync invocations status')
+        })
+        .then(() => {
+          running = false
+        })
     }, getRandomInt(60000, 300000))
   })
 
   fastify.addHook('onClose', async () => {
-    controller.abort()
+    closed = true
+
     if (request) {
       request.destroy()
     }
