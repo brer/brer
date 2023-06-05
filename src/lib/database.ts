@@ -58,7 +58,7 @@ async function databasePlugin(
       hooks,
       plugins: [
         mutentMigration({
-          key: '_v',
+          key: 'v',
           version,
         }),
       ],
@@ -71,6 +71,16 @@ async function databasePlugin(
     invocations: getStore('invocations'),
     transaction,
   }
+
+  // Test database connection
+  const response = await decorator.functions.adapter.got<{ doc_count: number }>(
+    {
+      method: 'GET',
+      resolveBodyOnly: true,
+    },
+  )
+  fastify.log.debug(`this database has ${response.doc_count} functions`)
+  // TODO: add warning for del_doc_count for all databases
 
   fastify.decorate('database', decorator)
 }

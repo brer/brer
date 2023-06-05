@@ -111,6 +111,7 @@ const route: RouteOptions<RouteGeneric> = {
           undefined,
           undefined,
           undefined,
+          undefined,
           {
             headers: {
               'content-type': 'application/merge-patch+json',

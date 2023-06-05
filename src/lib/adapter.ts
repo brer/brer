@@ -18,7 +18,7 @@ export interface CouchDocument {
   /**
    * Document version (database versioning).
    */
-  _v?: number
+  v?: number
   /**
    * ISO date string.
    */
