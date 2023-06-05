@@ -27,6 +27,7 @@
     "fluent-json-schema-es": "^4.1.0",
     "got": "^13.0.0",
     "mutent": "^5.0.1",
+    "mutent-migration": "^0.2.0",
     "uuid": "^9.0.0"
   },
   "devDependencies": {

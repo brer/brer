@@ -111,7 +111,7 @@ const route: RouteOptions<RouteGeneric> = {
         url: 'rpc/v1/invoke',
         prefixUrl:
           process.env.PUBLIC_URL ||
-          `http://brer-invoker.${kubernetes.namespace}.svc.cluster.local/`,
+          `http://brer-controller.${kubernetes.namespace}.svc.cluster.local/`,
         headers: {
           authorization: `Bearer ${token.value}`,
         },

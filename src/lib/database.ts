@@ -2,6 +2,7 @@ import type { Fn, Invocation, InvocationLog } from '@brer/types'
 import type { FastifyInstance } from 'fastify'
 import plugin from 'fastify-plugin'
 import { Entity, MutentError, Store, StoreOptions } from 'mutent'
+import { mutentMigration } from 'mutent-migration'
 
 import {
   CouchAdapter,
@@ -48,29 +49,27 @@ async function databasePlugin(
     },
   }
 
+  const getStore = (database: string, version: number = 0) => {
+    return new Store({
+      adapter: new CouchAdapter({
+        ...options,
+        database,
+      }),
+      hooks,
+      plugins: [
+        mutentMigration({
+          key: '_v',
+          version,
+        }),
+      ],
+    })
+  }
+
   const decorator: FastifyInstance['database'] = {
+    functions: getStore('functions'),
+    invocationLogs: getStore('invocation-logs'),
+    invocations: getStore('invocations'),
     transaction,
-    invocations: new Store({
-      adapter: new CouchAdapter<Invocation>({
-        ...options,
-        database: 'invocations',
-      }),
-      hooks,
-    }),
-    functions: new Store({
-      adapter: new CouchAdapter<Fn>({
-        ...options,
-        database: 'functions',
-      }),
-      hooks,
-    }),
-    invocationLogs: new Store({
-      adapter: new CouchAdapter<Invocation>({
-        ...options,
-        database: 'invocation-logs',
-      }),
-      hooks,
-    }),
   }
 
   fastify.decorate('database', decorator)

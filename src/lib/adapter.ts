@@ -160,7 +160,12 @@ export class CouchAdapter<T extends CouchDocument>
       }
     }
 
-    if (response.statusCode !== 201 && response.statusCode !== 202) {
+    // 200 is when the documens is not modified
+    if (
+      response.statusCode !== 200 &&
+      response.statusCode !== 201 &&
+      response.statusCode !== 202
+    ) {
       throw new MutentError(
         'COUCHDB_WRITE_ERROR',
         Object(response.body).reason || 'Error while writing',
@@ -225,18 +230,37 @@ export class CouchAdapter<T extends CouchDocument>
       return
     }
 
-    // TODO: stream
-    const response = await this.got<{ docs: T[] }>({
-      method: 'POST',
-      url: '_find',
-      json: {
-        ...options,
-        selector: query,
-      },
-      responseType: 'json',
-    })
-    for (const document of response.body.docs) {
-      yield document
+    const limit = options.limit || Number.POSITIVE_INFINITY
+    const pageSize = 25 // TODO: should be an option
+
+    let bookmark: string | undefined
+    let count = 0
+
+    while (count < limit) {
+      const requestSize = Math.min(pageSize, limit - count)
+
+      const response = await this.got<{ bookmark: string; docs: T[] }>({
+        method: 'POST',
+        url: '_find',
+        json: {
+          ...options,
+          bookmark,
+          limit: requestSize,
+          selector: query,
+        },
+        responseType: 'json',
+      })
+
+      for (const document of response.body.docs) {
+        count++
+        yield document
+      }
+
+      if (response.body.docs.length < requestSize) {
+        return
+      } else {
+        bookmark = response.body.bookmark
+      }
     }
   }
 
