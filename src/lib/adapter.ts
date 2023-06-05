@@ -81,6 +81,13 @@ export interface CouchAdapterOptions {
   password?: string
 }
 
+export interface CouchIndexOptions {
+  index: object
+  ddoc?: string
+  name?: string
+  type?: 'json' | 'text'
+}
+
 export class CouchAdapter<T extends CouchDocument>
   implements Adapter<{ entity: T; options: CouchOptions; query: CouchQuery }>
 {
@@ -145,7 +152,7 @@ export class CouchAdapter<T extends CouchDocument>
 
     const attempts = document[Symbol.for('attempts')] || 0
 
-    // TODO: Sometimes a 412 error is returnes, but the data is correct, just retry here, but I'm not sure if makes sense
+    // TODO: Sometimes a 412 error is returned, but the data is correct, just retry here, but I'm not sure if makes sense
     if (response.statusCode === 412) {
       if (attempts < 3) {
         document[Symbol.for('attempts')] = attempts + 1
@@ -180,12 +187,26 @@ export class CouchAdapter<T extends CouchDocument>
         'if-match': document._rev,
       },
       responseType: 'buffer',
+      throwHttpErrors: false,
     })
     if (response.statusCode !== 200) {
       // TODO
       throw new Error()
     }
     return response.body
+  }
+
+  async createIndex(options: CouchIndexOptions) {
+    const response = await this.got({
+      method: 'POST',
+      url: '_index',
+      json: options,
+      throwHttpErrors: false,
+    })
+    if (response.statusCode !== 200) {
+      // TODO
+      throw new Error()
+    }
   }
 
   async find(query: CouchQuery, options: CouchOptions): Promise<T | null> {

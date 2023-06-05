@@ -11,41 +11,24 @@ function v1Schema() {
     .id('https://brer.io/schema/v1/function.json')
     .prop('_id', S.string().format('uuid'))
     .required()
-    .prop(
-      'name',
-      S.string()
-        .minLength(3)
-        .maxLength(256)
-        .pattern(/^[a-z][0-9a-z\-]+[0-9a-z]$/),
-    )
+    .prop('name', S.string())
     .required()
-    .prop('image', S.string().minLength(3).maxLength(256))
+    .prop('image', S.string())
     .required()
     .prop(
       'env',
-      S.array()
-        .maxItems(100)
-        .items(
-          S.object()
-            .additionalProperties(false)
-            .prop(
-              'name',
-              S.string()
-                .minLength(3)
-                .maxLength(256)
-                .pattern(/^[A-Za-z][0-9A-Za-z_\-]+$/),
-            )
-            .required()
-            .prop('value', S.string().maxLength(4096))
-            .required()
-            .prop('secretKey', S.string()),
-        ),
+      S.array().items(
+        S.object()
+          .additionalProperties(false)
+          .prop('name', S.string())
+          .required()
+          .prop('value', S.string())
+          .prop('secretKey', S.string()),
+      ),
     )
     .prop('secretName', S.string())
     .prop('createdAt', S.string().format('date-time'))
-    .readOnly()
     .required()
     .prop('updatedAt', S.string().format('date-time'))
-    .readOnly()
     .required()
 }

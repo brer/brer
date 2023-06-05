@@ -76,6 +76,6 @@ export function decodeToken(token: string): InvocationToken | false {
 /**
  * Returns a 32 bytes long buffer.
  */
-function getSignature(data: Buffer) {
+export function getSignature(data: Buffer) {
   return createHmac('sha256', secret).update(data).digest()
 }
