@@ -49,14 +49,13 @@ export async function* downloadPodLogs(
   pod: string,
   container: string,
   options?: LogOptions,
-  signal?: AbortSignal,
 ): AsyncGenerator<Buffer> {
   const log = new Log(config)
   const stream = new PassThrough({ decodeStrings: true })
 
   try {
-    const request = await log.log(namespace, pod, container, stream, options)
-    signal?.addEventListener('abort', () => request.abort())
+    // TODO: abort this request?
+    await log.log(namespace, pod, container, stream, options)
   } catch (err) {
     if (Object(Object(err).response).statusCode === 404) {
       // pod was deleted, ignore the error

@@ -1,4 +1,4 @@
-import type { Fn, RouteOptions } from '@brer/types'
+import type { Invocation, RouteOptions } from '@brer/types'
 import S from 'fluent-json-schema-es'
 
 import {
@@ -11,27 +11,26 @@ import { asInteger } from '../../../lib/qs.js'
 
 interface RouteGeneric {
   Querystring: PaginationQuerystring & {
-    sort?: 'createdAt' | 'name'
+    functionName?: string
+    sort?: 'createdAt'
   }
 }
 
 const route: RouteOptions<RouteGeneric> = {
   method: 'GET',
-  url: '/api/v1/functions',
+  url: '/api/v1/invocations',
   schema: {
     querystring: S.object()
       .additionalProperties(false)
+      .prop('functionName', S.string().pattern(/^[a-z][0-9a-z\-]+[0-9a-z]$/))
       .prop('continue', S.string())
       .prop('direction', S.string().enum(['asc', 'desc']).default('asc'))
       .prop('limit', S.integer().minimum(1).maximum(100).default(25))
-      .prop(
-        'sort',
-        S.string().enum(['createdAt', 'name']).default('createdAt'),
-      ),
+      .prop('sort', S.string().enum(['createdAt']).default('createdAt')),
     response: {
       200: getPageSchema(
-        'functions',
-        S.ref('https://brer.io/schema/v1/function.json'),
+        'invocations',
+        S.ref('https://brer.io/schema/v1/invocation.json'),
       ),
     },
   },
@@ -43,7 +42,7 @@ const route: RouteOptions<RouteGeneric> = {
     const { query } = request
 
     const page = await getPage(
-      database.functions,
+      database.invocations,
       query,
       getFilter,
       getSort,
@@ -56,19 +55,21 @@ const route: RouteOptions<RouteGeneric> = {
 
     return {
       continue: page.continueToken,
-      functions: page.documents,
+      invocations: page.documents,
     }
   },
 }
 
 function getFilter(querystring: RouteGeneric['Querystring']) {
-  return {}
+  const filter: Record<string, any> = {}
+  if (querystring.functionName) {
+    filter.functionName = querystring.functionName
+  }
+  return filter
 }
 
 function getSort(sort: string, direction: 'asc' | 'desc') {
   switch (sort) {
-    case 'name':
-      return [{ name: direction }]
     default:
       return [{ createdAt: direction }]
   }
@@ -77,17 +78,13 @@ function getSort(sort: string, direction: 'asc' | 'desc') {
 function getCursorFilter(token: PaginationToken) {
   const operator = token.direction === 'desc' ? '$lt' : '$gt'
   switch (token.sort) {
-    case 'name':
-      return { name: { [operator]: token.value } }
     default:
       return { createdAt: { [operator]: token.value } }
   }
 }
 
-function getCursorValue(doc: Fn, sort: unknown) {
+function getCursorValue(doc: Invocation, sort: unknown) {
   switch (sort) {
-    case 'name':
-      return doc.name
     default:
       return doc.createdAt!
   }

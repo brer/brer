@@ -9,7 +9,7 @@ const randomness = randomBytes(4)
 /**
  * HMAC signature secret.
  */
-const secret = process.env.TOKEN_SECRET || '4YJA5J2vgORe9Bb2jqcRC5ImIdqYaLDl'
+const secret = process.env.HMAC_SECRET || '4YJA5J2vgORe9Bb2jqcRC5ImIdqYaLDl'
 
 export interface InvocationToken {
   /**
@@ -76,6 +76,6 @@ export function decodeToken(token: string): InvocationToken | false {
 /**
  * Returns a 32 bytes long buffer.
  */
-function getSignature(data: Buffer) {
+export function getSignature(data: Buffer) {
   return createHmac('sha256', secret).update(data).digest()
 }

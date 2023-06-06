@@ -1,20 +1,20 @@
-import type { FnEnv } from '@brer/types'
+import type { FnEnv, RouteOptions } from '@brer/types'
 import { constantCase } from 'case-anything'
-import { FastifyRequest, RouteOptions } from 'fastify'
 import S from 'fluent-json-schema-es'
 import got from 'got'
 import * as uuid from 'uuid'
 
-import { getDefaultSecretName } from '../../../lib/function.js'
+import { getDefaultSecretName, getFunctionId } from '../../../lib/function.js'
 import { encodeToken } from '../../../lib/token.js'
 
 interface RouteGeneric {
+  Body: Record<string, any>
   Params: {
     functionName: string
   }
 }
 
-const route: RouteOptions = {
+const route: RouteOptions<RouteGeneric> = {
   method: 'POST',
   url: '/api/v1/functions/:functionName',
   schema: {
@@ -48,11 +48,10 @@ const route: RouteOptions = {
   },
   async handler(request, reply) {
     const { database, kubernetes } = this
-    const { body, headers, log, params } =
-      request as FastifyRequest<RouteGeneric>
+    const { body, headers, log, params } = request
 
     const fn = await database.functions
-      .find({ name: params.functionName })
+      .find(getFunctionId(params.functionName))
       .unwrap()
 
     if (!fn) {
@@ -112,7 +111,7 @@ const route: RouteOptions = {
         url: 'rpc/v1/invoke',
         prefixUrl:
           process.env.PUBLIC_URL ||
-          `http://brer-invoker.${kubernetes.namespace}.svc.cluster.local/`,
+          `http://brer-controller.${kubernetes.namespace}.svc.cluster.local/`,
         headers: {
           authorization: `Bearer ${token.value}`,
         },

@@ -2,6 +2,7 @@ import type { Fn, Invocation, InvocationLog } from '@brer/types'
 import type { FastifyInstance } from 'fastify'
 import plugin from 'fastify-plugin'
 import { Entity, MutentError, Store, StoreOptions } from 'mutent'
+import { mutentMigration } from 'mutent-migration'
 
 import {
   CouchAdapter,
@@ -48,54 +49,40 @@ async function databasePlugin(
     },
   }
 
-  const decorator: FastifyInstance['database'] = {
-    transaction,
-    invocations: new Store({
-      adapter: new CouchAdapter<Invocation>({
+  const getStore = (database: string, version: number = 0) => {
+    return new Store({
+      adapter: new CouchAdapter({
         ...options,
-        database: 'invocations',
+        database,
       }),
       hooks,
-    }),
-    functions: new Store({
-      adapter: new CouchAdapter<Fn>({
-        ...options,
-        database: 'functions',
-      }),
-      hooks,
-    }),
-    invocationLogs: new Store({
-      adapter: new CouchAdapter<Invocation>({
-        ...options,
-        database: 'invocation-logs',
-      }),
-      hooks,
-    }),
+      plugins: [
+        mutentMigration({
+          key: 'v',
+          version,
+        }),
+      ],
+    })
   }
+
+  const decorator: FastifyInstance['database'] = {
+    functions: getStore('functions'),
+    invocationLogs: getStore('invocation-logs'),
+    invocations: getStore('invocations'),
+    transaction,
+  }
+
+  // Test database connection
+  const response = await decorator.functions.adapter.got<{ doc_count: number }>(
+    {
+      method: 'GET',
+      resolveBodyOnly: true,
+    },
+  )
+  fastify.log.debug(`this database has ${response.doc_count} functions`)
+  // TODO: add warning for del_doc_count for all databases
 
   fastify.decorate('database', decorator)
-
-  fastify.log.debug('prepare databases')
-  await Promise.all([
-    ensureDatabase(decorator.functions.adapter),
-    ensureDatabase(decorator.invocationLogs.adapter),
-    ensureDatabase(decorator.invocations.adapter),
-  ])
-}
-
-async function ensureDatabase(adapter: CouchAdapter<any>) {
-  const response = await adapter.got({
-    method: 'PUT',
-    throwHttpErrors: false,
-  })
-  if (
-    response.statusCode !== 201 &&
-    response.statusCode !== 202 &&
-    response.statusCode !== 412
-  ) {
-    // TODO
-    throw new Error()
-  }
 }
 
 function transaction<T>(fn: (attempt: number) => Promise<T>): Promise<T> {
