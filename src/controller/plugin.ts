@@ -14,7 +14,6 @@ import {
 
 async function controllerPlugin(fastify: FastifyInstance) {
   const { database, kubernetes, log } = fastify
-  log.debug('controller plugin is enabled')
 
   let fieldSelector: string | undefined
   try {

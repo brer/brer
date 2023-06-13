@@ -126,6 +126,8 @@ const route: RouteOptions<RouteGeneric> = {
       }
     }
 
+    // TODO: run the function in "test mode"
+
     const functionId = getFunctionId(params.functionName)
 
     const fn = await database.functions

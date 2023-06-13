@@ -6,7 +6,8 @@ import database from './lib/database.js'
 import error from './lib/error.js'
 import probes from './lib/probes.js'
 
-import api from './api/plugin.js'
+import brerApi from './api/brer.js'
+import registryApi from './api/registry.js'
 import controller from './controller/plugin.js'
 
 export default function createServer() {
@@ -49,9 +50,18 @@ export default function createServer() {
 
   const mode = process.env.SERVER_MODE
   if (!mode || mode === 'api') {
-    fastify.register(api)
+    fastify.log.debug('brer api plugin is enabled')
+    fastify.register(brerApi)
+
+    if (process.env.REGISTRY_URL) {
+      fastify.log.debug('registry api plugin is enabled')
+      fastify.register(registryApi)
+    } else {
+      fastify.log.warn('registry api are disabled')
+    }
   }
   if (!mode || mode === 'controller') {
+    fastify.log.debug('controller plugin is enabled')
     fastify.register(controller)
   }
 
