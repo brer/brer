@@ -1,5 +1,5 @@
 import type { Invocation } from '@brer/types'
-import type { LogOptions, V1Pod } from '@kubernetes/client-node'
+import type { LogOptions } from '@kubernetes/client-node'
 import type { FastifyInstance } from 'fastify'
 
 import {
@@ -8,6 +8,7 @@ import {
   hasTimedOut,
 } from '../lib/invocation.js'
 import {
+  ContainerStatus,
   downloadPodLogs,
   findPodByName,
   getContainerStatus,
@@ -17,55 +18,50 @@ import {
   getPodTemplate,
 } from '../lib/kubernetes.js'
 import { parseLogLines, pushLines } from '../lib/log.js'
-import { decodeToken, encodeToken } from '../lib/token.js'
+import { encodeToken } from '../lib/token.js'
 import { toTextLines } from '../lib/util.js'
 
-export async function syncLivingInvocationById(
+export async function syncInvocationById(
   fastify: FastifyInstance,
   invocationId: string,
-) {
-  const invocation = await fastify.database.invocations
-    .find(invocationId)
-    .unwrap()
+): Promise<Invocation | null> {
+  const { database, kubernetes, log } = fastify
 
-  const status = invocation?.status
-  if (
-    status === 'pending' ||
-    status === 'initializing' ||
-    status === 'running'
-  ) {
-    return syncLivingInvocation(fastify, invocation!)
+  let invocation = await database.invocations.find(invocationId).unwrap()
+  if (!invocation) {
+    await cleanKubernetes(fastify, invocationId)
+    return null
   }
-}
-
-/**
- * "initializing", "pending", and "running" invocations
- */
-async function syncLivingInvocation(
-  fastify: FastifyInstance,
-  invocation: Invocation,
-) {
-  const { kubernetes } = fastify
 
   if (invocation.status === 'pending') {
-    await spawnInvocationPod(fastify, invocation)
-  } else if (invocation.status === 'initializing') {
-    if (hasTimedOut(invocation)) {
-      await failAndClean(fastify, invocation, 'timed out')
+    // TODO: this is the step that needs to be throttled (max running executions per cluster)
+    log.info({ invocationId: invocation._id }, 'handle invocation')
+    invocation = await database.invocations
+      .from(invocation)
+      .update(handleInvocation)
+      .unwrap()
+  }
+
+  if (invocation.status === 'initializing') {
+    if (!invocation.tokenSignature) {
+      // First clean run (no tokens were generated)
+      invocation = await spawnInvocationPod(fastify, invocation)
+    } else if (hasTimedOut(invocation)) {
+      // Stuck inside Kubernetes somehow (ex missing secret)
+      invocation = await failAndClean(fastify, invocation, 'timed out')
     } else {
       const pod = await getPodByInvocationId(kubernetes, invocation._id)
       if (!pod) {
-        await spawnInvocationPod(fastify, invocation)
+        // Previous iteration of this code has failed to create the Pod
+        invocation = await spawnInvocationPod(fastify, invocation)
       }
     }
-  } else if (invocation.status === 'running') {
-    const pod = await getPodByInvocationId(kubernetes, invocation._id)
-    if (!pod) {
-      await failAndClean(fastify, invocation, 'pod was deleted')
-    } else {
-      await handleLivingPod(fastify, pod)
-    }
+
+    // Wait for Pod to ping the controller
+    return invocation
   }
+
+  return collectPodLogsAndSync(fastify, invocation)
 }
 
 async function spawnInvocationPod(
@@ -83,7 +79,7 @@ async function spawnInvocationPod(
   log.info({ invocationId: invocation._id }, 'handle invocation')
   invocation = await database.invocations
     .from(invocation)
-    .update(doc => handleInvocation(doc, token.signature))
+    .assign({ tokenSignature: token.signature })
     .unwrap()
 
   const url =
@@ -99,109 +95,27 @@ async function spawnInvocationPod(
   return invocation
 }
 
-export async function reloadPodAndHandle(fastify: FastifyInstance, pod: V1Pod) {
-  if (pod.metadata?.labels?.['brer.io/invocation-id']) {
-    const reloaded = await findPodByName(
-      fastify.kubernetes,
-      pod!.metadata!.name!,
-    )
-
-    if (reloaded) {
-      await handleLivingPod(fastify, reloaded)
-    } else {
-      await handleDeletedPod(fastify, pod)
-    }
-  }
-}
-
-async function handleLivingPod(fastify: FastifyInstance, pod: V1Pod) {
-  const { database, log } = fastify
-
-  const invocationId = pod.metadata?.labels?.['brer.io/invocation-id']
-  if (!invocationId) {
-    // This is not a Brer's Pod
-    return
-  }
-
-  let invocation = await database.invocations.find(invocationId).unwrap()
-  if (!invocation) {
-    // The Invocation was deleted manually from the database (I suppose)
-    return cleanKubernetes(fastify, invocationId)
-  }
-
-  if (hasTimedOut(invocation)) {
-    // Pod is probably stuck at "Pending" state (ex. a secret is missing)
-    return failAndClean(fastify, invocation, 'timed out')
-  }
-
-  const podOwner = isInvocationOwned(invocation, pod)
-  const podStatus = getPodStatus(pod)
-  const podDead = podStatus === 'Failed' || podStatus === 'Succeeded'
-
-  if (
-    podOwner &&
-    podDead &&
-    invocation.status !== 'completed' &&
-    invocation.status !== 'failed'
-  ) {
-    log.debug({ invocationId }, 'pod dead unexpectedly')
-    invocation = await database.invocations
-      .from(invocation)
-      .update(doc => failInvocation(doc, 'pod has terminated unexpectedly'))
-      .unwrap()
-  }
-
-  if (!podOwner) {
-    await cleanKubernetes(fastify, pod)
-  } else if (
-    invocation.status === 'running' ||
-    invocation.status === 'completed' ||
-    invocation.status === 'failed'
-  ) {
-    await handlePodLogs(fastify, invocationId, pod)
-  }
-}
-
-function isInvocationOwned(invocation: Invocation, pod: V1Pod): boolean {
-  const env = pod.spec?.containers?.[0]?.env?.find(
-    item => item.name === 'BRER_TOKEN',
-  )
-  const token = env?.value ? decodeToken(env.value) : false
-  return token ? token.signature === invocation.tokenSignature : false
-}
-
-async function failAndClean(
+async function collectPodLogsAndSync(
   fastify: FastifyInstance,
-  invocation: Invocation,
-  message: string,
-) {
-  const { database, log } = fastify
-
-  log.debug({ invocationId: invocation._id }, message)
-  invocation = await database.invocations
-    .from(invocation)
-    .update(doc => failInvocation(doc, message))
-    .unwrap()
-
-  await cleanKubernetes(fastify, invocation._id)
-}
-
-async function handlePodLogs(
-  fastify: FastifyInstance,
-  invocationId: string,
-  pod: V1Pod | null,
-) {
+  sourceInvocation: Invocation,
+): Promise<Invocation> {
   const { database, kubernetes, log } = fastify
+  const invocationId = sourceInvocation._id
 
-  log.debug({ invocationId }, 'prepare to collect logs')
-  let lastLogDate = await getInitialDate(database, invocationId)
-  let containerStatus = getContainerStatus(pod!)
-  let done = false
+  let invocation: Invocation | null = sourceInvocation
+  let [pod, lastLogDate] = await Promise.all([
+    getPodByInvocationId(kubernetes, invocationId),
+    getInitialDate(database, invocationId),
+  ])
 
-  while (
-    !done &&
-    (containerStatus === 'running' || containerStatus === 'terminated')
-  ) {
+  let containerStatus: ContainerStatus = pod
+    ? getContainerStatus(pod)
+    : 'unknown'
+
+  let hasLogs =
+    containerStatus === 'running' || containerStatus === 'terminated'
+
+  while (invocation && pod && hasLogs) {
     const options: LogOptions = {
       timestamps: true,
     }
@@ -258,22 +172,66 @@ async function handlePodLogs(
     // retrieve the last updatedAt from the database (could be updated by other controllers)
     lastLogDate = doc.date
 
-    log.debug({ invocationId, pod: pod?.metadata?.name }, 'refresh pod status')
-    pod = await findPodByName(
-      kubernetes,
-      pod!.metadata!.name!,
-      pod?.metadata?.namespace,
-    )
-    containerStatus = pod ? getContainerStatus(pod) : 'unknown'
-    done = containerStatus === 'terminated'
-  }
+    // Reload entities status
+    const result = await Promise.all([
+      database.invocations.find(invocation._id).unwrap(),
+      findPodByName(kubernetes, pod!.metadata!.name!, pod!.metadata!.namespace),
+    ])
+    invocation = result[0]
+    pod = result[1]
+    containerStatus = pod ? getContainerStatus(pod) : 'terminated'
+    hasLogs = containerStatus === 'running'
 
-  if (pod) {
-    const podStatus = getPodStatus(pod)
-    if (podStatus === 'Failed' || podStatus === 'Succeeded') {
-      await cleanKubernetes(fastify, pod!)
+    // Update "last invocation state" if necessary
+    if (invocation) {
+      sourceInvocation = invocation
     }
   }
+
+  if (!invocation) {
+    // Invocation was deleted
+    await cleanKubernetes(fastify, invocationId)
+    return sourceInvocation
+  }
+
+  const podStatus = pod ? getPodStatus(pod) : 'Failed'
+
+  if (
+    (podStatus === 'Failed' || podStatus === 'Succeeded') &&
+    invocation.status === 'running'
+  ) {
+    // Pod was (manually) deleted or the Pod coudn't communicate with the controller
+    invocation = await failAndClean(
+      fastify,
+      invocation,
+      pod ? 'pod was deleted' : 'pod has terminated unexpectedly',
+    )
+  } else if (
+    invocation.status === 'completed' ||
+    invocation.status === 'failed'
+  ) {
+    await cleanKubernetes(fastify, invocationId)
+  }
+
+  return invocation
+}
+
+async function failAndClean(
+  fastify: FastifyInstance,
+  invocation: Invocation,
+  message: string,
+) {
+  const { database, log } = fastify
+
+  log.debug({ invocationId: invocation._id }, message)
+  invocation = await database.invocations
+    .from(invocation)
+    .update(doc => failInvocation(doc, message))
+    .unwrap()
+
+  await cleanKubernetes(fastify, invocation._id)
+
+  return invocation
 }
 
 /**
@@ -311,44 +269,21 @@ async function tryToCollect<T>(iterable: AsyncIterable<T>) {
   }
 }
 
-export async function handleDeletedPod(fastify: FastifyInstance, pod: V1Pod) {
-  const { database } = fastify
-  const invocationId = pod.metadata?.labels?.['brer.io/invocation-id']
-
-  if (invocationId) {
-    const invocation = await database.invocations.find(invocationId).unwrap()
-
-    if (invocation?.status === 'initializing') {
-      await syncLivingInvocation(fastify, invocation)
-    } else if (invocation?.status === 'running') {
-      await failAndClean(fastify, invocation, 'pod was deleted')
-    }
-  }
-}
-
 async function cleanKubernetes(
   { kubernetes, log }: FastifyInstance,
-  podOrInvocationId: V1Pod | string,
+  invocationId: string,
 ) {
   try {
-    if (typeof podOrInvocationId === 'string') {
-      log.debug({ invocationId: podOrInvocationId }, 'delete pods')
-      await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
-        kubernetes.namespace,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        getLabelSelector({ invocationId: podOrInvocationId }),
-      )
-    } else {
-      log.debug({ pod: podOrInvocationId.metadata!.name! }, 'delete pod')
-      await kubernetes.api.CoreV1Api.deleteNamespacedPod(
-        podOrInvocationId.metadata!.name!,
-        podOrInvocationId.metadata!.namespace!,
-      )
-    }
+    log.debug({ invocationId }, 'delete pods')
+    await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
+      kubernetes.namespace,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      getLabelSelector({ invocationId }),
+    )
   } catch (err) {
     log.warn({ err }, 'error while deleting pods')
   }

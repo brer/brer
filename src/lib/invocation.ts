@@ -22,31 +22,11 @@ function pushInvocationStatus(
 /**
  * Move Invocation from "pending" to "initializing" status.
  */
-export function handleInvocation(
-  invocation: Invocation,
-  signature: string,
-): Invocation {
-  if (invocation.status === 'initializing') {
-    return {
-      ...invocation,
-      phases: invocation.phases.map(phase =>
-        phase.status === 'initializing'
-          ? {
-              ...phase,
-              date: new Date().toISOString(),
-            }
-          : phase,
-      ),
-      tokenSignature: signature,
-    }
-  }
+export function handleInvocation(invocation: Invocation): Invocation {
   if (invocation.status !== 'pending') {
     throw new Error()
   }
-  return pushInvocationStatus(
-    { ...invocation, tokenSignature: signature },
-    'initializing',
-  )
+  return pushInvocationStatus(invocation, 'initializing')
 }
 
 /**
