@@ -6,67 +6,61 @@ import { hostname } from 'node:os'
 import { getLabelSelector } from '../lib/kubernetes.js'
 import { getRandomInt } from '../lib/util.js'
 import rpcPlugin from './rpc.js'
-import {
-  handleDeletedPod,
-  reloadPodAndHandle,
-  syncLivingInvocationById,
-} from './sync.js'
+import { syncInvocationById } from './sync.js'
 
 async function controllerPlugin(fastify: FastifyInstance) {
   const { database, kubernetes, log } = fastify
   log.debug('controller plugin is enabled')
 
   let fieldSelector: string | undefined
-  try {
+  if (process.env.KUBERNETES_SERVICE_HOST) {
     const thisPod = await kubernetes.api.CoreV1Api.readNamespacedPod(
       hostname(),
       kubernetes.namespace,
     )
-    if (thisPod.body.spec?.nodeName) {
-      // TODO: avoid this if there is just one controller
+    if (
+      thisPod.body.metadata?.ownerReferences?.find(
+        item => item.kind === 'DaemonSet',
+      ) &&
+      thisPod.body.spec?.nodeName
+    ) {
       fieldSelector = `spec.nodeName=${thisPod.body.spec.nodeName}`
+      log.debug({ nodeName: thisPod.body.spec.nodeName }, 'daemonset detected')
     }
-  } catch (err) {
-    log.warn({ err }, 'cannot load local pod info')
   }
 
-  const jobs = new Map<string, Promise<any>>()
+  const map: Map<string, Promise<any>> = new Map()
   const watcher = new Watch(kubernetes.config)
 
   let closed = false
   let request: any = null
   let timer: any = null
 
-  const pushJob = (invocationId: string, fn: () => Promise<any>) => {
+  const pushJob = (invocationId: string) => {
     if (closed) {
       // server is closing
       return
     }
+    if (map.has(invocationId)) {
+      log.trace({ invocationId }, 'invocation job is running')
+      return
+    }
 
-    let promise = jobs.get(invocationId) || Promise.resolve()
-
-    promise = promise.then(() =>
-      fn().catch(err =>
-        log.error({ invocationId, err }, 'error while watching invocation'),
-      ),
-    )
-
-    promise.then(() => {
-      if (jobs.get(invocationId) === promise) {
+    const promise = syncInvocationById(fastify, invocationId)
+      .catch(err => {
+        log.error({ invocationId, err }, 'error while watching invocation')
+      })
+      .then(() => {
         log.trace({ invocationId }, 'pull invocation job')
-        jobs.delete(invocationId)
-      }
-    })
+        map.delete(invocationId)
+      })
 
     log.trace({ invocationId }, 'push invocation job')
-    jobs.set(invocationId, promise)
+    map.set(invocationId, promise)
   }
 
   fastify.register(rpcPlugin, {
-    callback: invocation =>
-      pushJob(invocation._id, () =>
-        syncLivingInvocationById(fastify, invocation._id),
-      ),
+    callback: invocation => pushJob(invocation._id),
   })
 
   const watchPods = () => {
@@ -79,22 +73,10 @@ async function controllerPlugin(fastify: FastifyInstance) {
             labelSelector: getLabelSelector(), // only manged-by=brer pods
           },
           (phase: string, pod: V1Pod) => {
-            // Detects Brer's pods
             const invocationId = pod.metadata?.labels?.['brer.io/invocation-id']
-
             if (invocationId) {
               log.trace({ invocationId, phase }, 'received kubernetes event')
-              switch (phase) {
-                // "added" is NOT "created"
-                // at startup all pods are "added" to this watching list
-                case 'ADDED':
-                case 'MODIFIED':
-                  pushJob(invocationId, () => reloadPodAndHandle(fastify, pod))
-                  break
-                case 'DELETED':
-                  pushJob(invocationId, () => handleDeletedPod(fastify, pod))
-                  break
-              }
+              pushJob(invocationId)
             }
           },
           err => {
@@ -116,7 +98,7 @@ async function controllerPlugin(fastify: FastifyInstance) {
     watchPods().then(
       () => {
         if (!closed) {
-          log.error('pods watcher has been closed')
+          log.warn('pods watcher has been closed')
           process.nextTick(autoWatch)
         } else {
           log.debug('pods watch closed')
@@ -151,11 +133,7 @@ async function controllerPlugin(fastify: FastifyInstance) {
             $in: ['pending', 'initializing', 'running'],
           },
         })
-        .tap(invocation =>
-          pushJob(invocation._id, () =>
-            syncLivingInvocationById(fastify, invocation._id),
-          ),
-        )
+        .tap(invocation => pushJob(invocation._id))
         .consume()
         .catch(err => {
           log.error({ err }, 'failed to sync invocations status')
@@ -177,7 +155,7 @@ async function controllerPlugin(fastify: FastifyInstance) {
     }
 
     // wait for current jobs to close
-    await Promise.allSettled(jobs.values())
+    await Promise.allSettled(map.values())
   })
 }
 

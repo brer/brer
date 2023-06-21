@@ -189,20 +189,35 @@ function serializeLabelSelector(key: string, value: string | string[]): string {
   }
 }
 
+/**
+ * Get the last created Pod by its Invocation identifier.
+ */
 export async function getPodByInvocationId(
   kubernetes: FastifyInstance['kubernetes'],
   invocationId: string,
 ): Promise<V1Pod | null> {
-  const result = await kubernetes.api.CoreV1Api.listNamespacedPod(
+  const response = await kubernetes.api.CoreV1Api.listNamespacedPod(
     kubernetes.namespace,
     undefined,
     undefined,
     undefined,
     undefined,
     getLabelSelector({ invocationId }),
-    1,
   )
-  return result.body.items[0] || null
+  if (!response.body.items.length) {
+    return null
+  }
+  return response.body.items.reduce((a, b) => {
+    if (
+      a.metadata?.creationTimestamp &&
+      b.metadata?.creationTimestamp &&
+      a.metadata.creationTimestamp > b.metadata.creationTimestamp
+    ) {
+      return a
+    } else {
+      return b
+    }
+  })
 }
 
 export async function findPodByName(
