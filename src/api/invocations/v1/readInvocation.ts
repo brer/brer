@@ -19,9 +19,6 @@ const route: RouteOptions = {
       200: S.object()
         .prop('invocation', S.ref('https://brer.io/schema/v1/invocation.json'))
         .required(),
-      404: S.object()
-        .prop('error', S.ref('https://brer.io/schema/v1/error.json'))
-        .required(),
     },
   },
   async handler(request, reply) {

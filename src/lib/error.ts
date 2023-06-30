@@ -1,10 +1,21 @@
-import type { FastifyInstance } from 'fastify'
+import type {
+  FastifyContext,
+  FastifyInstance,
+  FastifySchema,
+} from '@brer/types'
 import plugin from 'fastify-plugin'
 import S from 'fluent-json-schema-es'
 
 declare module 'fastify' {
   interface FastifyReply {
+    /**
+     * Returns the raw response body object.
+     */
     error(options?: ErrorOptions): object
+    /**
+     * Send the error body and returns the `reply` instance.
+     */
+    sendError(options?: ErrorOptions): this
   }
 }
 
@@ -15,14 +26,28 @@ interface ErrorOptions {
 }
 
 async function errorPlugin(fastify: FastifyInstance) {
-  // TODO: error handler (ex: handle Fastify's schema errors)
-  // TODO: inject 4xx and 5xx response schema to all routes
-
   fastify.decorateReply('error', null)
+  fastify.decorateReply('sendError', null)
+
+  fastify.setErrorHandler((err, request, reply) => {
+    if (Object(err).validation) {
+      request.log.trace({ errors: err.validation }, 'validation error')
+      reply.code(400).sendError({
+        code: 'VALIDATION_ERROR',
+        info: { errors: err.validation },
+        message: 'Some request parameters are not valid.',
+      })
+    } else {
+      request.log.error({ err }, 'unhandled error')
+      reply.code(500).sendError({
+        message: 'Unknown error.',
+      })
+    }
+  })
 
   fastify.addSchema(
     S.object()
-      .id('https://brer.io/schema/v1/error.json')
+      .id('https://brer.io/schema/error.json')
       .additionalProperties(false)
       .prop('code', S.string())
       .required()
@@ -31,31 +56,66 @@ async function errorPlugin(fastify: FastifyInstance) {
       .prop('info', S.object().additionalProperties(true)),
   )
 
+  fastify.addHook<any, FastifyContext, FastifySchema>('onRoute', route => {
+    if (/^\/api/.test(route.url)) {
+      if (!route.schema) {
+        route.schema = {}
+      }
+      if (!route.schema.response) {
+        route.schema.response = {}
+      }
+      if (!route.schema.response['4xx']) {
+        route.schema.response['4xx'] = getResponseSchema()
+      }
+      if (!route.schema.response['5xx']) {
+        route.schema.response['5xx'] = getResponseSchema()
+      }
+    }
+  })
+
   fastify.addHook('onRequest', (request, reply, done) => {
-    reply.error = (options = {}) => ({
-      error: {
-        code: options.code || getDefaultErrorCode(reply.statusCode),
-        message: options.message || 'An error occurred.',
-        info: options.info,
-      },
-    })
+    reply.error = function errorMethod(options = {}) {
+      return {
+        error: {
+          code: options.code || getDefaultErrorCode(reply.statusCode),
+          message: options.message || 'An error occurred.',
+          info: options.info,
+        },
+      }
+    }
+
+    reply.sendError = function sendErrorMethod(options) {
+      return this.send(this.error(options))
+    }
+
     done()
   })
 }
 
 function getDefaultErrorCode(statusCode: number): string {
   switch (statusCode) {
+    case 400:
+      return 'BAD_REQUEST'
     case 401:
       return 'NOT_AUTHENTICATED'
     case 403:
       return 'ACCESS_DENIED'
     case 404:
-      return 'DOCUMENT_NOT_FOUND'
+      return 'RESOURCE_NOT_FOUND'
     case 409:
       return 'CONFLICTING_REQUEST'
+    case 412:
+      return 'PRECONDITION_FAILED'
     default:
       return 'INTERNAL_ERROR'
   }
+}
+
+function getResponseSchema() {
+  return S.object()
+    .additionalProperties(false)
+    .prop('error', S.ref('https://brer.io/schema/error.json'))
+    .required()
 }
 
 export default plugin(errorPlugin, {

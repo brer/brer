@@ -4,7 +4,6 @@ import plugin from 'fastify-plugin'
 import { hostname } from 'node:os'
 
 import { getLabelSelector } from '../lib/kubernetes.js'
-import { getRandomInt } from '../lib/util.js'
 import rpcPlugin from './rpc.js'
 import { syncInvocationById } from './sync.js'
 
@@ -140,7 +139,7 @@ async function controllerPlugin(fastify: FastifyInstance) {
         .then(() => {
           running = false
         })
-    }, getRandomInt(60000, 300000))
+    }, 30000) // 30 seconds (milliseconds)
   })
 
   fastify.addHook('onClose', async () => {

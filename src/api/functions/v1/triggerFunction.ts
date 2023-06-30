@@ -1,14 +1,16 @@
-import type { FnEnv, RouteOptions } from '@brer/types'
+import type { FastifyInstance, FnEnv, RouteOptions } from '@brer/types'
 import { constantCase } from 'case-anything'
 import S from 'fluent-json-schema-es'
 import got from 'got'
+import { Readable, Writable } from 'node:stream'
+import { pipeline } from 'node:stream/promises'
 import * as uuid from 'uuid'
 
 import { getDefaultSecretName, getFunctionId } from '../../../lib/function.js'
 import { encodeToken } from '../../../lib/token.js'
 
 interface RouteGeneric {
-  Body: Record<string, any>
+  Body: Buffer
   Params: {
     functionName: string
   }
@@ -40,9 +42,6 @@ const route: RouteOptions<RouteGeneric> = {
         .prop('function', S.ref('https://brer.io/schema/v1/function.json'))
         .required()
         .prop('invocation', S.ref('https://brer.io/schema/v1/invocation.json'))
-        .required(),
-      404: S.object()
-        .prop('error', S.ref('https://brer.io/schema/v1/error.json'))
         .required(),
     },
   },
@@ -76,7 +75,6 @@ const route: RouteOptions<RouteGeneric> = {
 
     const invocationId = uuid.v4()
     const now = new Date()
-    const payload = Buffer.from(JSON.stringify(body)) // TODO: get raw body, and add support for non-JSON body
     const status = 'pending'
     const token = encodeToken(invocationId)
 
@@ -98,7 +96,7 @@ const route: RouteOptions<RouteGeneric> = {
         _attachments: {
           payload: {
             content_type: headers['content-type'] || 'application/octet-stream',
-            data: payload.toString('base64'),
+            data: body.toString('base64'),
           },
         },
         createdAt: now.toISOString(),
@@ -130,4 +128,33 @@ const route: RouteOptions<RouteGeneric> = {
   },
 }
 
-export default route
+async function toBuffer(readable: Readable) {
+  const chunks: Buffer[] = []
+
+  // TODO: encoding?
+  await pipeline(
+    readable,
+    new Writable({
+      decodeStrings: true,
+      objectMode: false,
+      write(chunk, encoding, callback) {
+        chunks.push(Buffer.from(chunk, encoding))
+        callback()
+      },
+    }),
+  )
+
+  return Buffer.concat(chunks)
+}
+
+export default async function plugin(fastify: FastifyInstance) {
+  fastify.removeAllContentTypeParsers()
+
+  fastify.addContentTypeParser('*', (request, payload, done) => {
+    toBuffer(payload)
+      .then(buffer => done(null, buffer))
+      .catch(done)
+  })
+
+  fastify.route(route)
+}

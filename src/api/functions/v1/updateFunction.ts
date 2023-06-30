@@ -61,9 +61,6 @@ const route: RouteOptions<RouteGeneric> = {
       200: S.object()
         .prop('function', S.ref('https://brer.io/schema/v1/function.json'))
         .required(),
-      404: S.object()
-        .prop('error', S.ref('https://brer.io/schema/v1/error.json'))
-        .required(),
     },
   },
   async handler(request) {

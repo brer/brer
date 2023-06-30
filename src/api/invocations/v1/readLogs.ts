@@ -17,11 +17,6 @@ const route: RouteOptions = {
       .additionalProperties(false)
       .prop('invocationId', S.string().format('uuid'))
       .required(),
-    response: {
-      404: S.object()
-        .prop('error', S.ref('https://brer.io/schema/v1/error.json'))
-        .required(),
-    },
   },
   async handler(request, reply) {
     const { database } = this
@@ -57,6 +52,8 @@ async function* iterateLogs(
       }
     }
   }
+
+  // TODO: fetch live logs from k8s
 }
 
 export default route
