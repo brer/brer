@@ -51,13 +51,6 @@ export function tail<T>(items: T[]): T | undefined {
 }
 
 /**
- * min is inclusive, max is exclusive (kinda)
- */
-export function getRandomInt(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min) + min)
-}
-
-/**
  * date is older than seconds
  */
 export function isOlderThan(
@@ -65,9 +58,9 @@ export function isOlderThan(
   seconds: number,
 ): boolean {
   if (typeof date === 'string') {
-    date = new Date()
+    date = new Date(date)
   }
-  if (typeof date === 'object') {
+  if (date instanceof Date) {
     date = date.getTime()
   }
   return date < Date.now() - seconds * 1000

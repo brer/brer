@@ -16,6 +16,7 @@
   "author": "Giacomo Gregoletto",
   "license": "MIT",
   "dependencies": {
+    "@fastify/cookie": "^8.3.0",
     "@kubernetes/client-node": "0.18.1",
     "case-anything": "^2.1.13",
     "close-with-grace": "^1.2.0",

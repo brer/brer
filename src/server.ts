@@ -8,6 +8,7 @@ import probes from './lib/probes.js'
 
 import api from './api/plugin.js'
 import controller from './controller/plugin.js'
+import registry from './registry/plugin.js'
 
 export default function createServer() {
   const fastify = Fastify.default({
@@ -49,10 +50,16 @@ export default function createServer() {
 
   const mode = process.env.SERVER_MODE
   if (!mode || mode === 'api') {
+    fastify.log.debug('api plugin enabled')
     fastify.register(api)
   }
   if (!mode || mode === 'controller') {
+    fastify.log.debug('controller plugin enabled')
     fastify.register(controller)
+  }
+  if (process.env.REGISTRY_URL) {
+    fastify.log.debug('registry plugin enabled')
+    fastify.register(registry)
   }
 
   return fastify

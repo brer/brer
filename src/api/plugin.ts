@@ -1,23 +1,27 @@
-import type { FastifyInstance } from 'fastify'
-
-import auth from './auth.js'
-
-import functionSchema from './functions/schema.js'
-import invocationSchema from './invocations/schema.js'
+import type { FastifyInstance } from '@brer/types'
+import cookies from '@fastify/cookie'
 
 import functionsRoutes from './functions/plugin.js'
+import functionSchema from './functions/schema.js'
 import invocationsRoutes from './invocations/plugin.js'
+import invocationSchema from './invocations/schema.js'
+import authRoutes from './auth.js'
 
 export default async function apiPlugin(fastify: FastifyInstance) {
-  fastify.log.debug('api plugin is enabled')
+  if (!process.env.COOKIE_SECRET) {
+    throw new Error('Required env var COOKIE_SECRET is missing')
+  }
 
-  fastify.register(auth)
+  fastify.register(cookies, {
+    hook: 'onRequest',
+    secret: process.env.COOKIE_SECRET,
+  })
 
   // Register global schema ($ref)
   functionSchema(fastify)
   invocationSchema(fastify)
 
-  // Register the actual routes
-  fastify.register(functionsRoutes)
-  fastify.register(invocationsRoutes)
+  await authRoutes(fastify)
+  await functionsRoutes(fastify)
+  await invocationsRoutes(fastify)
 }

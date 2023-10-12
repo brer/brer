@@ -4,13 +4,11 @@ import plugin from 'fastify-plugin'
 import { hostname } from 'node:os'
 
 import { getLabelSelector } from '../lib/kubernetes.js'
-import { getRandomInt } from '../lib/util.js'
 import rpcPlugin from './rpc.js'
 import { syncInvocationById } from './sync.js'
 
 async function controllerPlugin(fastify: FastifyInstance) {
   const { database, kubernetes, log } = fastify
-  log.debug('controller plugin is enabled')
 
   let fieldSelector: string | undefined
   if (process.env.KUBERNETES_SERVICE_HOST) {
@@ -141,7 +139,7 @@ async function controllerPlugin(fastify: FastifyInstance) {
         .then(() => {
           running = false
         })
-    }, getRandomInt(60000, 300000))
+    }, 30000) // 30 seconds (milliseconds)
   })
 
   fastify.addHook('onClose', async () => {

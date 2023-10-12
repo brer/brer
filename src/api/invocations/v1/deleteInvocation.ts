@@ -18,9 +18,6 @@ const route: RouteOptions = {
       .required(),
     response: {
       204: S.null(),
-      404: S.object()
-        .prop('error', S.ref('https://brer.io/schema/v1/error.json'))
-        .required(),
     },
   },
   async handler(request, reply) {

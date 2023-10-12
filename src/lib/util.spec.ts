@@ -1,6 +1,12 @@
 import tap from 'tap'
 
-import { parseRfcDate } from './util.js'
+import { isOlderThan, parseRfcDate } from './util.js'
+
+tap.test('isOlderThan', t => {
+  t.plan(2)
+  t.ok(isOlderThan('2023-06-27T15:32:58.726Z', 600))
+  t.notOk(isOlderThan(Date.now(), 1))
+})
 
 tap.test('parseRfcDate', t => {
   t.plan(2)

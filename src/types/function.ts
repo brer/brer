@@ -10,6 +10,10 @@ export interface Fn extends CouchDocument {
    */
   image: string
   /**
+   * Previous (working) image URL. Fallback image when the "test run" fails.
+   */
+  previousImage?: string
+  /**
    * Environment variables (value or secret).
    */
   env: FnEnv[]

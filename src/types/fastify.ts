@@ -8,7 +8,12 @@ export type RawRequest = http.IncomingMessage
 
 export type RawReply = http.ServerResponse
 
-export interface FastifyContext {}
+export interface FastifyContext {
+  /**
+   * Disable (bypass) the auth middleware for the current route.
+   */
+  public?: boolean
+}
 
 export interface FastifySchema extends fastify.FastifySchema {
   body?: JSONSchema
