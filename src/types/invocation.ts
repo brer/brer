@@ -26,6 +26,10 @@ export interface Invocation extends CouchDocument {
    * Current token signature.
    */
   tokenSignature: string
+  /**
+   * Internal property. List of received log pages.
+   */
+  logs?: InvocationLog[]
 }
 
 /**
@@ -51,6 +55,17 @@ export interface InvocationPhase {
   status: InvocationStatus
   /**
    * ISO 8601 date string.
+   */
+  date: string
+}
+
+export interface InvocationLog {
+  /**
+   * Attachment's name.
+   */
+  attachment: string
+  /**
+   * Date of arrival. ISO 8601 date string.
    */
   date: string
 }

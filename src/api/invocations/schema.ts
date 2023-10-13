@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance } from '@brer/types'
 import S from 'fluent-json-schema-es'
 
 export default function (fastify: FastifyInstance) {

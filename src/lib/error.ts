@@ -1,6 +1,7 @@
 import type {
   FastifyContext,
   FastifyInstance,
+  FastifyReply,
   FastifySchema,
 } from '@brer/types'
 import plugin from 'fastify-plugin'
@@ -22,7 +23,7 @@ declare module 'fastify' {
 interface ErrorOptions {
   code?: string
   message?: string
-  info?: Record<any, any>
+  info?: Record<string, any>
 }
 
 async function errorPlugin(fastify: FastifyInstance) {
@@ -73,21 +74,23 @@ async function errorPlugin(fastify: FastifyInstance) {
     }
   })
 
+  function errorMethod(this: FastifyReply, options: ErrorOptions = {}) {
+    return {
+      error: {
+        code: options.code || getDefaultErrorCode(this.statusCode),
+        message: options.message || 'An error occurred.',
+        info: options.info,
+      },
+    }
+  }
+
+  function sendErrorMethod(this: FastifyReply, options?: ErrorOptions) {
+    return this.send(this.error(options))
+  }
+
   fastify.addHook('onRequest', (request, reply, done) => {
-    reply.error = function errorMethod(options = {}) {
-      return {
-        error: {
-          code: options.code || getDefaultErrorCode(reply.statusCode),
-          message: options.message || 'An error occurred.',
-          info: options.info,
-        },
-      }
-    }
-
-    reply.sendError = function sendErrorMethod(options) {
-      return this.send(this.error(options))
-    }
-
+    reply.error = errorMethod
+    reply.sendError = sendErrorMethod
     done()
   })
 }

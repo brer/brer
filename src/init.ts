@@ -12,7 +12,6 @@ const { database, log } = fastify
 log.info('initialize database')
 await Promise.all([
   ensureDatabase(database.functions),
-  ensureDatabase(database.invocationLogs),
   ensureDatabase(database.invocations),
 ])
 

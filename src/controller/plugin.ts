@@ -1,6 +1,7 @@
+import type { FastifyInstance } from '@brer/types'
 import { V1Pod, Watch } from '@kubernetes/client-node'
-import type { FastifyInstance } from 'fastify'
 import plugin from 'fastify-plugin'
+import Queue from 'fastq'
 import { hostname } from 'node:os'
 
 import { getLabelSelector } from '../lib/kubernetes.js'
@@ -27,39 +28,31 @@ async function controllerPlugin(fastify: FastifyInstance) {
     }
   }
 
-  const map: Map<string, Promise<any>> = new Map()
   const watcher = new Watch(kubernetes.config)
 
   let closed = false
   let request: any = null
   let timer: any = null
 
+  // Simple sequential processing (avoid same-invocation processing)
+  const queue = Queue.promise(
+    (invocationId: string) => syncInvocationById(fastify, invocationId),
+    1,
+  )
+
   const pushJob = (invocationId: string) => {
-    if (closed) {
-      // server is closing
-      return
+    if (!closed) {
+      queue
+        .push(invocationId)
+        .catch(err =>
+          log.error({ invocationId, err }, 'error while watching invocation'),
+        )
     }
-    if (map.has(invocationId)) {
-      log.trace({ invocationId }, 'invocation job is running')
-      return
-    }
-
-    const promise = syncInvocationById(fastify, invocationId)
-      .catch(err => {
-        log.error({ invocationId, err }, 'error while watching invocation')
-      })
-      .then(() => {
-        log.trace({ invocationId }, 'pull invocation job')
-        map.delete(invocationId)
-      })
-
-    log.trace({ invocationId }, 'push invocation job')
-    map.set(invocationId, promise)
   }
 
-  fastify.register(rpcPlugin, {
-    callback: invocation => pushJob(invocation._id),
-  })
+  fastify.events.on('rpc.action.invoke', data => pushJob(data.invocation._id))
+
+  fastify.register(rpcPlugin)
 
   const watchPods = () => {
     return new Promise<void>((resolve, reject) => {
@@ -153,14 +146,14 @@ async function controllerPlugin(fastify: FastifyInstance) {
     }
 
     // wait for current jobs to close
-    await Promise.allSettled(map.values())
+    await queue.drained()
   })
 }
 
 export default plugin(controllerPlugin, {
   name: 'controller',
   decorators: {
-    fastify: ['database', 'kubernetes'],
+    fastify: ['database', 'events', 'kubernetes'],
   },
   encapsulate: true,
 })

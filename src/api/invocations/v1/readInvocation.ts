@@ -1,4 +1,4 @@
-import type { FastifyRequest, RouteOptions } from 'fastify'
+import type { FastifyInstance } from '@brer/types'
 import S from 'fluent-json-schema-es'
 
 interface RouteGeneric {
@@ -7,34 +7,37 @@ interface RouteGeneric {
   }
 }
 
-const route: RouteOptions = {
-  method: 'GET',
-  url: '/api/v1/invocations/:invocationId',
-  schema: {
-    params: S.object()
-      .additionalProperties(false)
-      .prop('invocationId', S.string().format('uuid'))
-      .required(),
-    response: {
-      200: S.object()
-        .prop('invocation', S.ref('https://brer.io/schema/v1/invocation.json'))
+export default (fastify: FastifyInstance) =>
+  fastify.route<RouteGeneric>({
+    method: 'GET',
+    url: '/api/v1/invocations/:invocationId',
+    schema: {
+      tags: ['invocation'],
+      params: S.object()
+        .additionalProperties(false)
+        .prop('invocationId', S.string().format('uuid'))
         .required(),
+      response: {
+        200: S.object()
+          .prop(
+            'invocation',
+            S.ref('https://brer.io/schema/v1/invocation.json'),
+          )
+          .required(),
+      },
     },
-  },
-  async handler(request, reply) {
-    const { database } = this
-    const { params } = request as FastifyRequest<RouteGeneric>
+    async handler(request, reply) {
+      const { database } = this
+      const { params } = request
 
-    const invocation = await database.invocations
-      .find(params.invocationId)
-      .unwrap()
+      const invocation = await database.invocations
+        .find(params.invocationId)
+        .unwrap()
 
-    if (!invocation) {
-      return reply.code(404).error()
-    }
+      if (!invocation) {
+        return reply.code(404).error({ message: 'Invocation not found.' })
+      }
 
-    return { invocation }
-  },
-}
-
-export default route
+      return { invocation }
+    },
+  })

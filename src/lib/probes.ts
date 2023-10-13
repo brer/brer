@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance } from '@brer/types'
 import plugin from 'fastify-plugin'
 
 async function probesPlugin(fastify: FastifyInstance) {
@@ -9,8 +9,21 @@ async function probesPlugin(fastify: FastifyInstance) {
     url: '/probes/liveness',
     logLevel,
     async handler(request, reply) {
-      // TODO
-      reply.code(204)
+      const response = await this.database.functions.adapter.got<any>({
+        method: 'GET',
+        url: '..',
+        resolveBodyOnly: true,
+        responseType: 'json',
+      })
+      if (response.couchdb !== 'Welcome') {
+        request.log.warn({ response }, 'unexpected couchdb response')
+        return reply.code(500).error({
+          code: 'PROBE_FAILURE',
+          message: 'Database connection error.',
+        })
+      }
+
+      return reply.code(204).send()
     },
   })
 
@@ -19,8 +32,8 @@ async function probesPlugin(fastify: FastifyInstance) {
     url: '/probes/readiness',
     logLevel,
     async handler(request, reply) {
-      // TODO
-      reply.code(204)
+      // TODO: what?
+      return reply.code(204).send()
     },
   })
 }

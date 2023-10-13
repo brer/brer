@@ -4,6 +4,7 @@ import noAdditionalProperties from 'fastify-no-additional-properties'
 
 import database from './lib/database.js'
 import error from './lib/error.js'
+import events from './lib/events.js'
 import probes from './lib/probes.js'
 
 import api from './api/plugin.js'
@@ -24,12 +25,12 @@ export default function createServer() {
     caseSensitive: true,
     ignoreTrailingSlash: false,
     logger: {
-      level: process.env.LOG_LEVEL,
+      level: process.env.LOG_LEVEL || 'info',
     },
   })
 
   fastify.register(error)
-
+  fastify.register(events)
   fastify.register(noAdditionalProperties)
 
   fastify.register(kubernetes, {
