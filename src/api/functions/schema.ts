@@ -23,10 +23,24 @@ function v1Schema() {
           .prop('name', S.string())
           .required()
           .prop('value', S.string())
+          .prop('secretName', S.string())
           .prop('secretKey', S.string()),
       ),
     )
-    .prop('secretName', S.string())
+    .prop(
+      'runtime',
+      S.object()
+        .additionalProperties(true)
+        .prop('type', S.string())
+        .description(
+          'Runtime type idenfitier. Special cases are `"Unknown"` and `"Failure"`.',
+        )
+        .required()
+        .prop('result')
+        .description('Invocation result when the runtime cannot be determined.')
+        .prop('reason')
+        .description('Invocation failure reason.'),
+    )
     .prop('createdAt', S.string().format('date-time'))
     .required()
     .prop('updatedAt', S.string().format('date-time'))

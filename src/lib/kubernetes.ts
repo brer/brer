@@ -1,8 +1,7 @@
 import type { FastifyInstance, Invocation } from '@brer/types'
 import type { V1EnvVar, V1Pod } from '@kubernetes/client-node'
 import { randomBytes } from 'node:crypto'
-
-import { getDefaultSecretName } from './function.js'
+import { getFunctionSecretName } from './function.js'
 
 export type PodStatus =
   | 'Pending'
@@ -37,9 +36,7 @@ export function getPodTemplate(
     { name: 'BRER_TOKEN', value: token },
   ]
 
-  const secretName =
-    invocation.secretName || getDefaultSecretName(invocation.functionName)
-
+  const defaultSecretName = getFunctionSecretName(invocation.functionName)
   for (const item of invocation.env) {
     env.push(
       item.secretKey
@@ -47,7 +44,7 @@ export function getPodTemplate(
             name: item.name,
             valueFrom: {
               secretKeyRef: {
-                name: secretName,
+                name: item.secretName || defaultSecretName,
                 key: item.secretKey,
               },
             },

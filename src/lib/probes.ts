@@ -9,6 +9,8 @@ async function probesPlugin(fastify: FastifyInstance) {
     url: '/probes/liveness',
     logLevel,
     async handler(request, reply) {
+      // TODO: test k8s
+
       const response = await this.database.functions.adapter.got<any>({
         method: 'GET',
         url: '..',

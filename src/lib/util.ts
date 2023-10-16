@@ -22,3 +22,9 @@ export function isOlderThan(
   }
   return date < Date.now() - seconds * 1000
 }
+
+export function isPlainObject(value: unknown): value is Record<any, any> {
+  return typeof value === 'object' && value !== null
+    ? Object.getPrototypeOf(value) === Object.prototype
+    : false
+}

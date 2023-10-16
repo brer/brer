@@ -19,20 +19,6 @@ declare module 'fastify' {
 async function rpcPlugin(fastify: FastifyInstance) {
   fastify.decorateRequest('invocationId', null)
 
-  const noAuth = {
-    error: {
-      code: 'UNAUTHORIZED',
-      message: 'Auth info not provided.',
-    },
-  }
-
-  const invalidToken = {
-    error: {
-      code: 'TOKEN_INVALID',
-      message: 'Auth token not valid.',
-    },
-  }
-
   fastify.addHook('onRequest', async (request, reply) => {
     const { headers, log } = request
 
@@ -43,7 +29,10 @@ async function rpcPlugin(fastify: FastifyInstance) {
         : null
 
     if (!value) {
-      return reply.code(401).send(noAuth)
+      return reply.code(401).sendError({
+        code: 'UNAUTHORIZED',
+        message: 'Auth info not provided.',
+      })
     }
 
     try {
@@ -52,9 +41,13 @@ async function rpcPlugin(fastify: FastifyInstance) {
         const invocation = await fastify.database.invocations
           .find(token.id)
           .unwrap()
-
-        if (invocation?.tokenSignature === token.signature) {
-          request.invocationId = invocation._id
+        if (invocation) {
+          if (
+            !invocation.tokenSignature ||
+            invocation.tokenSignature === token.signature
+          ) {
+            request.invocationId = invocation._id
+          }
         }
       }
     } catch (err) {
@@ -62,7 +55,10 @@ async function rpcPlugin(fastify: FastifyInstance) {
     }
 
     if (!request.invocationId) {
-      return reply.code(403).send(invalidToken)
+      return reply.code(403).sendError({
+        code: 'TOKEN_INVALID',
+        message: 'Auth token not valid.',
+      })
     }
   })
 

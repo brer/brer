@@ -4,6 +4,7 @@ import {
   failInvocation,
   handleInvocation,
   hasTimedOut,
+  isTestRun,
 } from '../lib/invocation.js'
 import {
   getLabelSelector,
@@ -12,6 +13,7 @@ import {
   getPodTemplate,
 } from '../lib/kubernetes.js'
 import { encodeToken } from '../lib/token.js'
+import { getFunctionId, setFunctionRuntime } from '../lib/function.js'
 
 export async function syncInvocationById(
   fastify: FastifyInstance,
@@ -27,7 +29,9 @@ export async function syncInvocationById(
   ) {
     // Invocation is dead or missing
     await cleanKubernetes(fastify, invocationId)
-    return null
+    if (!invocation) {
+      return null
+    }
   }
 
   if (invocation.status === 'pending') {
@@ -65,6 +69,17 @@ export async function syncInvocationById(
         pod ? 'pod has terminated unexpectedly' : 'pod was deleted',
       )
     }
+  }
+
+  if (
+    isTestRun(invocation) &&
+    (invocation.status === 'completed' || invocation.status === 'failed')
+  ) {
+    await database.functions
+      .find(getFunctionId(invocation.functionName))
+      .filter(fn => fn.image === invocation!.image)
+      .update(fn => setFunctionRuntime(fn, invocation!))
+      .unwrap()
   }
 
   // Keep waiting for something to change inside the cluster
@@ -125,6 +140,8 @@ async function cleanKubernetes(
   invocationId: string,
 ) {
   try {
+    // TODO: keep pods with status!==0
+    // TODO: exit!==0 is a really bad error, unhandled by the brer lib, so could there be some logs we are missing or other useful info
     log.debug({ invocationId }, 'delete pods')
     await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
       kubernetes.namespace,

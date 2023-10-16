@@ -18,14 +18,19 @@ export interface Invocation extends CouchDocument {
    */
   reason?: any
   phases: InvocationPhase[]
+  /**
+   * Source Function's name.
+   */
   functionName: string
-  secretName?: string
   image: string
+  /**
+   * Test runs are flagged here.
+   */
   env: FnEnv[]
   /**
    * Current token signature.
    */
-  tokenSignature: string
+  tokenSignature?: string
   /**
    * Internal property. List of received log pages.
    */

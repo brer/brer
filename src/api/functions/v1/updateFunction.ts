@@ -1,17 +1,24 @@
-import type { FastifyInstance } from '@brer/types'
+import type { FastifyInstance, FnEnv, Invocation } from '@brer/types'
 import S from 'fluent-json-schema-es'
+import got from 'got'
 
 import {
-  getDefaultSecretName,
   getFunctionId,
-  purgeSecrets,
+  getFunctionSecretName,
+  updateFunction,
 } from '../../../lib/function.js'
+import { createInvocation } from '../../../lib/invocation.js'
+import { encodeToken } from '../../../lib/token.js'
 
 interface RouteGeneric {
   Body: {
-    env?: { name: string; value: string; secretKey?: string }[]
+    env?: {
+      name: string
+      value?: string
+      secretName?: string
+      secretKey?: string
+    }[]
     image: string
-    secretName?: string
   }
   Params: {
     functionName: string
@@ -53,97 +60,184 @@ export default (fastify: FastifyInstance) =>
                     .pattern(/^[0-9A-Za-z_]+$/),
                 )
                 .required()
-                .prop('value', S.string().maxLength(4096).default(''))
-                .required()
-                .prop('secretKey', S.string().maxLength(256)),
+                .prop('value', S.string().maxLength(4096).minLength(1))
+                .prop('secretName', S.string().maxLength(256).minLength(1))
+                .prop('secretKey', S.string().maxLength(256).minLength(1)),
             ),
-        )
-        .prop('secretName', S.string().maxLength(256)),
+        ),
       response: {
         200: S.object()
           .prop('function', S.ref('https://brer.io/schema/v1/function.json'))
           .required(),
+        202: S.object()
+          .prop('function', S.ref('https://brer.io/schema/v1/function.json'))
+          .required()
+          .prop(
+            'invocation',
+            S.ref('https://brer.io/schema/v1/invocation.json'),
+          ),
       },
     },
-    async handler(request) {
+    async handler(request, reply) {
       const { database, kubernetes } = this
-      const { body, params } = request
+      const { body, log, params } = request
 
-      // TODO: ensure env name uniqueness and prevent usage of "BRER_" prefix
-      const env = body.env || []
+      const counter: Record<string, number | undefined> = {}
+      const envs = body.env || []
 
-      const secretName =
-        body.secretName || getDefaultSecretName(params.functionName)
-
-      const secrets = env.filter(item => item.secretKey && item.value)
-      if (secrets.length > 0) {
-        const template = {
-          apiVersion: 'v1',
-          kind: 'Secret',
-          type: 'Opaque',
-          metadata: {
-            name: secretName,
-            labels: {
-              'app.kubernetes.io/managed-by': 'brer.io',
-              'brer.io/function-name': params.functionName,
-            },
-          },
-          stringData: secrets.reduce((acc, item) => {
-            acc[item.secretKey!] = item.value
-            return acc
-          }, {}),
+      for (const env of envs) {
+        if (counter[env.name]) {
+          // No duplicates
+          return reply.code(400).error({
+            message: `Env ${env.name} was already declared.`,
+            info: { env },
+          })
         }
 
-        const exists = await kubernetes.api.CoreV1Api.readNamespacedSecret(
-          secretName,
-          kubernetes.namespace,
-          undefined,
-        ).catch(err =>
-          err?.response?.statusCode === 404 ? null : Promise.reject(err),
-        )
-        if (exists) {
-          await kubernetes.api.CoreV1Api.patchNamespacedSecret(
-            secretName,
-            kubernetes.namespace,
-            template,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            undefined,
-            {
-              headers: {
-                'content-type': 'application/merge-patch+json',
-              },
-            },
-          )
-        } else {
-          await kubernetes.api.CoreV1Api.createNamespacedSecret(
-            kubernetes.namespace,
-            template,
-          )
+        counter[env.name] = 1
+        if (/^BRER_/i.test(env.name)) {
+          // All `BRER_` envs are reserved
+          return reply.code(400).error({
+            message: `Env ${env.name} uses a reserved name.`,
+            info: { env },
+          })
+        } else if (env.value && env.secretName && env.secretKey) {
+          // Secrets writings is allowed only for scoped secrets
+          return reply.code(400).error({
+            message: `Env ${env.name} tries to write a private secret.`,
+            info: { env },
+          })
+        } else if (env.secretName && !env.secretKey) {
+          // Secret references must be complete
+          return reply.code(400).error({
+            message: `Env ${env.name} is missing secret key reference.`,
+            info: { env },
+          })
+        } else if (!env.value && !env.secretKey) {
+          // Disallow unreferenced secrets
+          return reply.code(400).error({
+            message: `Env ${env.name} does not reference any secret.`,
+            info: { env },
+          })
         }
       }
 
-      // TODO: run the function in "test mode"
+      // TODO: handle errors
+      await pushPrivateSecrets(this, params.functionName, envs)
 
       const functionId = getFunctionId(params.functionName)
-
       const fn = await database.functions
         .read(functionId)
         .ensure({
           _id: functionId,
           name: params.functionName,
-          image: body.image,
+          image: '',
           env: [],
         })
-        .assign({
-          image: body.image,
-          secretName: body.secretName,
-          env: purgeSecrets(env),
-        })
+        .update(fn =>
+          updateFunction(fn, {
+            env: envs,
+            image: body.image,
+          }),
+        )
         .unwrap()
 
-      return { function: fn }
+      let invocation: Invocation | undefined
+      if (!fn.runtime) {
+        try {
+          invocation = await database.invocations
+            .create(createInvocation({ fn, env: { BRER_MODE: 'test' } }))
+            .unwrap()
+
+          await got({
+            method: 'POST',
+            url: 'rpc/v1/invoke',
+            prefixUrl:
+              process.env.PUBLIC_URL ||
+              `http://brer-controller.${kubernetes.namespace}.svc.cluster.local/`,
+            headers: {
+              authorization: `Bearer ${encodeToken(invocation._id).value}`,
+            },
+            json: {},
+          })
+        } catch (err) {
+          // the controller will recover later (if alive), just print a warning
+          log.warn({ err }, 'failed to contact the controller')
+        }
+      }
+
+      reply.code(fn.runtime ? 200 : 202)
+      return {
+        function: fn,
+        invocation,
+      }
     },
   })
+
+async function pushPrivateSecrets(
+  { kubernetes }: FastifyInstance,
+  functionName: string,
+  envs: FnEnv[],
+) {
+  envs = Array.from(getPrivateEnvs(envs))
+  if (!envs.length) {
+    return
+  }
+
+  const secretName = getFunctionSecretName(functionName)
+
+  const template = {
+    apiVersion: 'v1',
+    kind: 'Secret',
+    type: 'Opaque',
+    metadata: {
+      name: secretName,
+      labels: {
+        'app.kubernetes.io/managed-by': 'brer.io',
+        'brer.io/function-name': functionName,
+      },
+    },
+    stringData: envs.reduce((acc, item) => {
+      acc[item.secretKey!] = item.value
+      return acc
+    }, {}),
+  }
+
+  const exists = await kubernetes.api.CoreV1Api.readNamespacedSecret(
+    secretName,
+    kubernetes.namespace,
+    undefined,
+  ).catch(err =>
+    err?.response?.statusCode === 404 ? null : Promise.reject(err),
+  )
+  if (exists) {
+    await kubernetes.api.CoreV1Api.patchNamespacedSecret(
+      secretName,
+      kubernetes.namespace,
+      template,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      {
+        headers: {
+          'content-type': 'application/merge-patch+json',
+        },
+      },
+    )
+  } else {
+    await kubernetes.api.CoreV1Api.createNamespacedSecret(
+      kubernetes.namespace,
+      template,
+    )
+  }
+}
+
+function* getPrivateEnvs(envs: FnEnv[]) {
+  for (const env of envs) {
+    if (env.value && env.secretKey && !env.secretName) {
+      yield env
+    }
+  }
+}

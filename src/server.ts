@@ -49,16 +49,16 @@ export default function createServer() {
 
   fastify.register(probes)
 
-  const mode = process.env.SERVER_MODE
-  if (!mode || mode === 'api') {
+  const modes = process.env.SERVER_MODE?.split(',') || ['api']
+  if (modes.includes('api')) {
     fastify.log.debug('api plugin enabled')
     fastify.register(api)
   }
-  if (!mode || mode === 'controller') {
+  if (modes.includes('controller')) {
     fastify.log.debug('controller plugin enabled')
     fastify.register(controller)
   }
-  if (process.env.REGISTRY_URL) {
+  if (modes.includes('registry') && process.env.REGISTRY_URL) {
     fastify.log.debug('registry plugin enabled')
     fastify.register(registry)
   }

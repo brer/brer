@@ -20,7 +20,7 @@
     "@kubernetes/client-node": "0.18.1",
     "case-anything": "^2.1.13",
     "close-with-grace": "^1.2.0",
-    "fastify": "^4.24.0",
+    "fastify": "^4.24.2",
     "fastify-kubernetes": "^0.13.0",
     "fastify-no-additional-properties": "^2.3.0",
     "fastify-plugin": "^4.5.1",

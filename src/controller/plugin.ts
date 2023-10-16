@@ -2,7 +2,6 @@ import type { FastifyInstance } from '@brer/types'
 import { V1Pod, Watch } from '@kubernetes/client-node'
 import plugin from 'fastify-plugin'
 import Queue from 'fastq'
-import { hostname } from 'node:os'
 
 import { getLabelSelector } from '../lib/kubernetes.js'
 import rpcPlugin from './rpc.js'
@@ -10,23 +9,6 @@ import { syncInvocationById } from './sync.js'
 
 async function controllerPlugin(fastify: FastifyInstance) {
   const { database, kubernetes, log } = fastify
-
-  let fieldSelector: string | undefined
-  if (process.env.KUBERNETES_SERVICE_HOST) {
-    const thisPod = await kubernetes.api.CoreV1Api.readNamespacedPod(
-      hostname(),
-      kubernetes.namespace,
-    )
-    if (
-      thisPod.body.metadata?.ownerReferences?.find(
-        item => item.kind === 'DaemonSet',
-      ) &&
-      thisPod.body.spec?.nodeName
-    ) {
-      fieldSelector = `spec.nodeName=${thisPod.body.spec.nodeName}`
-      log.debug({ nodeName: thisPod.body.spec.nodeName }, 'daemonset detected')
-    }
-  }
 
   const watcher = new Watch(kubernetes.config)
 
@@ -60,10 +42,10 @@ async function controllerPlugin(fastify: FastifyInstance) {
         .watch(
           `/api/v1/namespaces/${kubernetes.namespace}/pods`,
           {
-            fieldSelector, // this node pods
             labelSelector: getLabelSelector(), // only manged-by=brer pods
           },
           (phase: string, pod: V1Pod) => {
+            // TODO: improve this thing
             const invocationId = pod.metadata?.labels?.['brer.io/invocation-id']
             if (invocationId) {
               log.trace({ invocationId, phase }, 'received kubernetes event')

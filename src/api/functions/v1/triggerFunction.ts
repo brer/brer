@@ -1,12 +1,12 @@
-import type { FastifyInstance, FnEnv } from '@brer/types'
+import type { FastifyInstance } from '@brer/types'
 import { constantCase } from 'case-anything'
 import S from 'fluent-json-schema-es'
 import got from 'got'
 import { Readable, Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
-import * as uuid from 'uuid'
 
-import { getDefaultSecretName, getFunctionId } from '../../../lib/function.js'
+import { getFunctionId } from '../../../lib/function.js'
+import { createInvocation } from '../../../lib/invocation.js'
 import { encodeToken } from '../../../lib/token.js'
 
 interface RouteGeneric {
@@ -45,7 +45,6 @@ export default async function plugin(fastify: FastifyInstance) {
         .patternProperties({
           '^x-brer-env-': S.string().maxLength(4096),
         }),
-      body: S.object().additionalProperties(true), // TODO: support arbitrary payload
       response: {
         202: S.object()
           .additionalProperties(false)
@@ -70,54 +69,32 @@ export default async function plugin(fastify: FastifyInstance) {
         return reply.code(404).error()
       }
 
-      // TODO: override default envs, ensure env name uniqueness
-      const env: FnEnv[] = [...fn.env]
+      const env: Record<string, string> = {}
       const keys = Object.keys(headers).filter(key => /^x-brer-env-/.test(key))
       for (const key of keys) {
-        env.push({
-          name: constantCase(key.substring(11)),
-          value: request.headers[key] + '',
-        })
-      }
-      for (const obj of env) {
-        if (/^BRER_/i.test(obj.name)) {
-          // TODO: 400
-          throw new Error('Reserved env name')
+        const value = request.headers[key]
+        if (typeof value === 'string' || value === undefined) {
+          const envName = constantCase(key.substring(11))
+          if (/^BRER_/i.test(envName)) {
+            return reply.code(412).error({
+              message: `Header ${key} uses a reserved env name.`,
+            })
+          }
+          env[envName] = value || ''
         }
       }
 
-      const invocationId = uuid.v4()
-      const now = new Date()
-      const status = 'pending'
-      const token = encodeToken(invocationId)
-
       const invocation = await database.invocations
-        .create({
-          _id: invocationId,
-          status,
-          phases: [
-            {
-              date: now.toISOString(),
-              status,
-            },
-          ],
-          env,
-          image: fn.image,
-          functionName: fn.name,
-          secretName: fn.secretName || getDefaultSecretName(fn.name),
-          tokenSignature: token.signature,
-          _attachments: {
-            payload: {
-              content_type:
-                headers['content-type'] || 'application/octet-stream',
-              data: body.toString('base64'),
-            },
-          },
-          createdAt: now.toISOString(),
-        })
+        .create(
+          createInvocation({
+            contentType: headers['content-type'],
+            env,
+            fn,
+            payload: body,
+          }),
+        )
         .unwrap()
 
-      log.trace({ token: token.value }, 'invocation is ready')
       try {
         await got({
           method: 'POST',
@@ -126,7 +103,7 @@ export default async function plugin(fastify: FastifyInstance) {
             process.env.PUBLIC_URL ||
             `http://brer-controller.${kubernetes.namespace}.svc.cluster.local/`,
           headers: {
-            authorization: `Bearer ${token.value}`,
+            authorization: `Bearer ${encodeToken(invocation._id).value}`,
           },
           json: {},
         })
