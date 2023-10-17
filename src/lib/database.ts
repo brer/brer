@@ -63,6 +63,8 @@ async function databasePlugin(
     })
   }
 
+  // TODO: database purge?
+  // TODO: handle couchdb conflicts
   const decorator: FastifyInstance['database'] = {
     functions: getStore('functions'),
     invocations: getStore('invocations'),

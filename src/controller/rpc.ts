@@ -1,5 +1,4 @@
 import type { FastifyInstance } from '@brer/types'
-import plugin from 'fastify-plugin'
 import S from 'fluent-json-schema-es'
 
 import {
@@ -9,6 +8,7 @@ import {
   runInvocation,
 } from '../lib/invocation.js'
 import { decodeToken } from '../lib/token.js'
+import { handleTestInvocation } from './util.js'
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -16,7 +16,7 @@ declare module 'fastify' {
   }
 }
 
-async function rpcPlugin(fastify: FastifyInstance) {
+export default async function rpcPlugin(fastify: FastifyInstance) {
   fastify.decorateRequest('invocationId', null)
 
   fastify.addHook('onRequest', async (request, reply) => {
@@ -80,7 +80,7 @@ async function rpcPlugin(fastify: FastifyInstance) {
         })
       }
 
-      this.events.emit('rpc.action.invoke', { invocation })
+      this.events.emit('brer.invocations.invoke', { invocation })
       return reply.code(204).send()
     },
   })
@@ -164,6 +164,7 @@ async function rpcPlugin(fastify: FastifyInstance) {
               ? completeInvocation(doc, body.result)
               : doc,
           )
+          .tap(doc => handleTestInvocation(database, doc))
           .unwrap(),
       )
       if (invocation?.status !== 'completed') {
@@ -192,6 +193,7 @@ async function rpcPlugin(fastify: FastifyInstance) {
           .update(doc =>
             doc.status !== 'completed' ? failInvocation(doc, body.reason) : doc,
           )
+          .tap(doc => handleTestInvocation(database, doc))
           .unwrap(),
       )
       if (invocation?.status !== 'failed') {
@@ -234,11 +236,3 @@ async function rpcPlugin(fastify: FastifyInstance) {
     },
   })
 }
-
-export default plugin(rpcPlugin, {
-  name: 'rpc',
-  decorators: {
-    fastify: ['database', 'events'],
-  },
-  encapsulate: true,
-})

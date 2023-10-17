@@ -3,6 +3,7 @@ import * as uuid from 'uuid'
 
 import { isPlainObject } from './util.js'
 
+// TODO: ugly
 const namespace =
   process.env.UUID_NAMESPACE || 'f71b108f-2005-4269-be6f-e83005040874'
 
@@ -51,8 +52,12 @@ export function setFunctionRuntime(fn: Fn, invocation: Invocation): Fn {
 }
 
 function getFunctionRuntime(result: unknown): FnRuntime {
-  if (isPlainObject(result) && typeof result.type === 'string') {
-    return result as FnRuntime
+  if (
+    isPlainObject(result) &&
+    isPlainObject(result.runtime) &&
+    typeof result.runtime.type === 'string'
+  ) {
+    return result.runtime as FnRuntime
   } else {
     return {
       type: 'Unknown',

@@ -9,7 +9,11 @@ const randomness = randomBytes(4)
 /**
  * HMAC signature secret.
  */
-const secret = process.env.HMAC_SECRET || '4YJA5J2vgORe9Bb2jqcRC5ImIdqYaLDl'
+const secret = process.env.HMAC_SECRET || ''
+if (!secret) {
+  // TODO: this is ugly
+  throw new Error('Env HMAC_SECRET is missing')
+}
 
 export interface InvocationToken {
   /**

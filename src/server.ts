@@ -52,7 +52,11 @@ export default function createServer() {
   const modes = process.env.SERVER_MODE?.split(',') || ['api']
   if (modes.includes('api')) {
     fastify.log.debug('api plugin enabled')
-    fastify.register(api)
+    fastify.register(api, {
+      cookieSecret: process.env.COOKIE_SECRET,
+      notifyController:
+        !!process.env.KUBERNETES_SERVICE_HOST && !modes.includes('controller'),
+    })
   }
   if (modes.includes('controller')) {
     fastify.log.debug('controller plugin enabled')

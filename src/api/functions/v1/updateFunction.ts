@@ -1,6 +1,5 @@
 import type { FastifyInstance, FnEnv, Invocation } from '@brer/types'
 import S from 'fluent-json-schema-es'
-import got from 'got'
 
 import {
   getFunctionId,
@@ -8,7 +7,6 @@ import {
   updateFunction,
 } from '../../../lib/function.js'
 import { createInvocation } from '../../../lib/invocation.js'
-import { encodeToken } from '../../../lib/token.js'
 
 interface RouteGeneric {
   Body: {
@@ -75,12 +73,13 @@ export default (fastify: FastifyInstance) =>
           .prop(
             'invocation',
             S.ref('https://brer.io/schema/v1/invocation.json'),
-          ),
+          )
+          .required(),
       },
     },
     async handler(request, reply) {
-      const { database, kubernetes } = this
-      const { body, log, params } = request
+      const { database } = this
+      const { body, params } = request
 
       const counter: Record<string, number | undefined> = {}
       const envs = body.env || []
@@ -125,6 +124,8 @@ export default (fastify: FastifyInstance) =>
       // TODO: handle errors
       await pushPrivateSecrets(this, params.functionName, envs)
 
+      let invocation: Invocation | undefined
+
       const functionId = getFunctionId(params.functionName)
       const fn = await database.functions
         .read(functionId)
@@ -140,33 +141,28 @@ export default (fastify: FastifyInstance) =>
             image: body.image,
           }),
         )
+        .tap(async fn => {
+          if (!fn.runtime) {
+            // Create Invocation before Fn commit
+            invocation = await database.invocations
+              .create(
+                createInvocation({
+                  fn,
+                  env: {
+                    BRER_MODE: 'test',
+                  },
+                }),
+              )
+              .unwrap()
+          }
+        })
         .unwrap()
 
-      let invocation: Invocation | undefined
-      if (!fn.runtime) {
-        try {
-          invocation = await database.invocations
-            .create(createInvocation({ fn, env: { BRER_MODE: 'test' } }))
-            .unwrap()
-
-          await got({
-            method: 'POST',
-            url: 'rpc/v1/invoke',
-            prefixUrl:
-              process.env.PUBLIC_URL ||
-              `http://brer-controller.${kubernetes.namespace}.svc.cluster.local/`,
-            headers: {
-              authorization: `Bearer ${encodeToken(invocation._id).value}`,
-            },
-            json: {},
-          })
-        } catch (err) {
-          // the controller will recover later (if alive), just print a warning
-          log.warn({ err }, 'failed to contact the controller')
-        }
+      if (invocation) {
+        this.events.emit('brer.invocations.invoke', { invocation })
       }
 
-      reply.code(fn.runtime ? 200 : 202)
+      reply.code(invocation ? 202 : 200)
       return {
         function: fn,
         invocation,

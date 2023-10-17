@@ -1,13 +1,11 @@
 import type { FastifyInstance } from '@brer/types'
 import { constantCase } from 'case-anything'
 import S from 'fluent-json-schema-es'
-import got from 'got'
 import { Readable, Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
 import { getFunctionId } from '../../../lib/function.js'
 import { createInvocation } from '../../../lib/invocation.js'
-import { encodeToken } from '../../../lib/token.js'
 
 interface RouteGeneric {
   Body: Buffer
@@ -58,15 +56,17 @@ export default async function plugin(fastify: FastifyInstance) {
       },
     },
     async handler(request, reply) {
-      const { database, kubernetes } = this
-      const { body, headers, log, params } = request
+      const { database } = this
+      const { body, headers, params } = request
 
       const fn = await database.functions
         .find(getFunctionId(params.functionName))
         .unwrap()
 
       if (!fn) {
-        return reply.code(404).error()
+        return reply.code(404).error({
+          message: 'Function not found.',
+        })
       }
 
       const env: Record<string, string> = {}
@@ -95,22 +95,7 @@ export default async function plugin(fastify: FastifyInstance) {
         )
         .unwrap()
 
-      try {
-        await got({
-          method: 'POST',
-          url: 'rpc/v1/invoke',
-          prefixUrl:
-            process.env.PUBLIC_URL ||
-            `http://brer-controller.${kubernetes.namespace}.svc.cluster.local/`,
-          headers: {
-            authorization: `Bearer ${encodeToken(invocation._id).value}`,
-          },
-          json: {},
-        })
-      } catch (err) {
-        // the controller will recover later (if alive), just print a warning
-        log.warn({ err }, 'failed to contact the controller')
-      }
+      this.events.emit('brer.invocations.invoke', { invocation })
 
       reply.code(202)
       return {

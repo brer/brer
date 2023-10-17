@@ -1,6 +1,7 @@
 import type { FastifyInstance, Invocation } from '@brer/types'
 import type { V1EnvVar, V1Pod } from '@kubernetes/client-node'
 import { randomBytes } from 'node:crypto'
+
 import { getFunctionSecretName } from './function.js'
 
 export type PodStatus =
@@ -76,17 +77,17 @@ export function getPodTemplate(
           image: invocation.image,
           imagePullPolicy: 'IfNotPresent',
           env,
-          // TODO: resources?
-          // resources: {
-          //   requests: {
-          //     cpu: '10m',
-          //     memory: '64Mi',
-          //   },
-          //   limits: {
-          //     cpu: '1000m',
-          //     memory: '1024Mi',
-          //   },
-          // },
+          // TODO: make editable
+          resources: {
+            // requests: {
+            //   cpu: '10m',
+            //   memory: '64Mi',
+            // },
+            limits: {
+              cpu: '500m',
+              memory: '512Mi',
+            },
+          },
         },
       ],
     },

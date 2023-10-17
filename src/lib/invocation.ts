@@ -217,3 +217,16 @@ export function isTestRun(invocation: Invocation): boolean {
     invocation.env.find(item => item.name === 'BRER_MODE')?.value === 'test'
   )
 }
+
+export function setTokenSignature(
+  invocation: Invocation,
+  tokenSignature: string,
+): Invocation {
+  if (invocation.status !== 'initializing') {
+    throw new Error(`Expected Invocation ${invocation._id} to be initializing`)
+  }
+  return {
+    ...invocation,
+    tokenSignature,
+  }
+}
