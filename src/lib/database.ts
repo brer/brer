@@ -65,6 +65,7 @@ async function databasePlugin(
 
   // TODO: database purge?
   // TODO: handle couchdb conflicts
+  // TODO: add warning for del_doc_count for all databases?
   const decorator: FastifyInstance['database'] = {
     functions: getStore('functions'),
     invocations: getStore('invocations'),
@@ -72,14 +73,10 @@ async function databasePlugin(
   }
 
   // Test database connection
-  const response = await decorator.functions.adapter.got<{ doc_count: number }>(
-    {
-      method: 'GET',
-      resolveBodyOnly: true,
-    },
-  )
-  fastify.log.debug(`this database has ${response.doc_count} functions`)
-  // TODO: add warning for del_doc_count for all databases
+  await decorator.functions.adapter.got({
+    method: 'GET',
+    resolveBodyOnly: true,
+  })
 
   fastify.decorate('database', decorator)
 }

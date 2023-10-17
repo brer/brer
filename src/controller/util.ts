@@ -119,7 +119,7 @@ export async function syncInvocationState(
         invocation = await failWithMessage(
           fastify,
           invocation,
-          'early termination',
+          podStatus === 'Succeeded' ? 'early termination' : 'runtime failure',
         )
       }
     }
@@ -131,7 +131,11 @@ export async function syncInvocationState(
       invocation = await failWithMessage(
         fastify,
         invocation,
-        pod ? 'early termination' : 'pod deletion',
+        !pod
+          ? 'pod deletion'
+          : podStatus === 'Succeeded'
+          ? 'early termination'
+          : 'runtime failure',
       )
     }
   }
@@ -155,7 +159,8 @@ export async function spawnInvocationPod(
     kubernetes.namespace,
     getPodTemplate(
       invocation,
-      `http://brer-controller.${kubernetes.namespace}.svc.cluster.local/`,
+      process.env.RPC_URL ||
+        `http://brer-controller.${kubernetes.namespace}.svc.cluster.local/`,
       token.value,
     ),
   )
