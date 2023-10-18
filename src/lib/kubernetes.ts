@@ -4,6 +4,8 @@ import { randomBytes } from 'node:crypto'
 
 import { getFunctionSecretName } from './function.js'
 
+export type WatchPhase = 'ADDED' | 'MODIFIED' | 'DELETED'
+
 export type PodStatus =
   | 'Pending'
   | 'Running'

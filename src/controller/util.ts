@@ -9,11 +9,12 @@ import {
   setTokenSignature,
 } from '../lib/invocation.js'
 import {
+  type WatchPhase,
   getPodByInvocationId,
   getPodStatus,
   getPodTemplate,
 } from '../lib/kubernetes.js'
-import { InvocationToken, encodeToken } from '../lib/token.js'
+import { type InvocationToken, encodeToken } from '../lib/token.js'
 import { getFunctionId, setFunctionRuntime } from '../lib/function.js'
 
 /**
@@ -22,7 +23,7 @@ import { getFunctionId, setFunctionRuntime } from '../lib/function.js'
 export async function handlePodEvent(
   fastify: FastifyInstance,
   pod: V1Pod,
-  phase: string,
+  phase: WatchPhase,
 ): Promise<Invocation | null> {
   const invocationId = pod.metadata?.labels?.['brer.io/invocation-id']
   if (!invocationId) {
@@ -30,7 +31,7 @@ export async function handlePodEvent(
     return null
   }
 
-  const { database, kubernetes } = fastify
+  const { database, kubernetes, log } = fastify
 
   let invocation = await database.invocations.find(invocationId).unwrap()
   let deletePod = false
@@ -49,10 +50,18 @@ export async function handlePodEvent(
   }
 
   if (deletePod) {
-    await kubernetes.api.CoreV1Api.deleteNamespacedPod(
-      pod.metadata!.name!,
-      kubernetes.namespace,
-    )
+    log.trace(`delete pod ${pod.metadata?.name}`)
+    try {
+      await kubernetes.api.CoreV1Api.deleteNamespacedPod(
+        pod.metadata!.name!,
+        kubernetes.namespace,
+      )
+    } catch (err) {
+      if (Object(err).statusCode !== 404) {
+        // Pod was previously deleted
+        return Promise.reject(err)
+      }
+    }
   }
 
   return invocation
@@ -180,7 +189,7 @@ export async function recoverInvocationPod(
   // No transaction here. The controller is the only process that updates
   // Invocations. If there's a conflict (wrong _rev) error, It means that
   // another controller has handled this Invocation.
-  log.info({ invocationId: invocation._id }, 'handle invocation')
+  log.info({ invocationId: invocation._id }, 'recover invocation')
   invocation = await database.invocations
     .from(invocation)
     .update(doc => setTokenSignature(doc, token.signature))

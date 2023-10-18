@@ -2,7 +2,7 @@ import type { FastifyInstance } from '@brer/types'
 import { V1Pod, Watch } from '@kubernetes/client-node'
 import Queue from 'fastq'
 
-import { getLabelSelector } from '../lib/kubernetes.js'
+import { type WatchPhase, getLabelSelector } from '../lib/kubernetes.js'
 import { handlePodEvent } from './util.js'
 
 interface QueueItem {
@@ -19,7 +19,8 @@ export default async function kubernetesWatcher(fastify: FastifyInstance) {
   let request: any = null
 
   const queue = Queue.promise(
-    ({ phase, pod }: QueueItem) => handlePodEvent(fastify, pod, phase),
+    ({ phase, pod }: QueueItem) =>
+      handlePodEvent(fastify, pod, phase as WatchPhase),
     1,
   )
 
@@ -34,7 +35,8 @@ export default async function kubernetesWatcher(fastify: FastifyInstance) {
           {
             labelSelector: getLabelSelector(), // only manged-by=brer pods
           },
-          (phase: string, pod: V1Pod) =>
+          (phase: string, pod: V1Pod) => {
+            log.trace({ pod: pod.metadata?.name, phase }, 'received pod event')
             queue
               .push({ phase, pod })
               .catch(err =>
@@ -42,7 +44,8 @@ export default async function kubernetesWatcher(fastify: FastifyInstance) {
                   { pod: pod.metadata?.name, phase, err },
                   'pod sync error',
                 ),
-              ),
+              )
+          },
           err => {
             if (err) {
               reject(err)
