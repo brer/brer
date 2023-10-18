@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance } from '@brer/types'
 import S from 'fluent-json-schema-es'
 
 export default function (fastify: FastifyInstance) {
@@ -15,7 +15,6 @@ function v1Schema() {
     .prop('functionName', S.string())
     .description('The name of the Function that generated this Invocation.')
     .required()
-    .prop('secretName', S.string())
     .prop('status', status())
     .description('Current Invocation status.')
     .required()

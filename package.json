@@ -5,43 +5,49 @@
   "description": "A simple Kubernetes task runner",
   "type": "module",
   "scripts": {
-    "build": "npm run clean && tsc -p ./tsconfig.json --sourceMap false",
-    "clean": "rimraf build",
-    "start": "npm run clean && npm run watch:build && npm run watch:start",
-    "test": "tap",
-    "watch": "npm run clean && nodemon -w src -e ts --exec 'npm run watch:build && npm run watch:start'",
+    "prebuild": "rimraf build",
+    "build": "tsc -p ./tsconfig.json --sourceMap false",
+    "start": "npm run prebuild && npm run watch:build && npm run watch:start",
+    "test": "NODE_OPTIONS='--loader=tsx' ava",
+    "watch": "npm run prebuild && nodemon -w src -e ts --exec 'npm run watch:build && npm run watch:start'",
     "watch:build": "tsc --incremental -p tsconfig.json",
     "watch:start": "node --inspect -r source-map-support/register -r dotenv/config build/start.js dotenv_config_path=$npm_config_env | pino-pretty -t"
   },
   "author": "Giacomo Gregoletto",
   "license": "MIT",
   "dependencies": {
-    "@fastify/cookie": "^8.3.0",
+    "@fastify/cookie": "^9.1.0",
     "@kubernetes/client-node": "0.18.1",
     "case-anything": "^2.1.13",
     "close-with-grace": "^1.2.0",
-    "fastify": "^4.17.0",
+    "fastify": "^4.24.2",
     "fastify-kubernetes": "^0.13.0",
     "fastify-no-additional-properties": "^2.3.0",
-    "fastify-plugin": "^4.5.0",
+    "fastify-plugin": "^4.5.1",
+    "fastq": "^1.15.0",
     "fluent-json-schema-es": "^4.1.0",
     "got": "^13.0.0",
     "mutent": "^5.0.1",
     "mutent-migration": "^0.3.0",
-    "uuid": "^9.0.0"
+    "uuid": "^9.0.1"
   },
   "devDependencies": {
-    "@types/node": "^18.16.16",
-    "@types/tap": "^15.0.8",
-    "@types/uuid": "^9.0.1",
-    "dotenv": "^16.1.4",
-    "nodemon": "^2.0.22",
-    "pino-pretty": "^10.0.0",
-    "prettier": "^2.8.8",
-    "rimraf": "^5.0.1",
+    "@fastify/swagger": "^8.11.0",
+    "@types/node": "^20.8.5",
+    "@types/uuid": "^9.0.5",
+    "ava": "^5.3.1",
+    "dotenv": "^16.3.1",
+    "nodemon": "^3.0.1",
+    "pino-pretty": "^10.2.3",
+    "prettier": "^3.0.3",
+    "rimraf": "^5.0.5",
     "source-map-support": "^0.5.21",
-    "tap": "^16.3.6",
-    "ts-node": "^10.9.1",
-    "typescript": "^5.1.3"
+    "tsx": "^3.13.0",
+    "typescript": "^5.2.2"
+  },
+  "ava": {
+    "extensions": {
+      "ts": "module"
+    }
   }
 }

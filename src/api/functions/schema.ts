@@ -1,4 +1,4 @@
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance } from '@brer/types'
 import S from 'fluent-json-schema-es'
 
 export default function (fastify: FastifyInstance) {
@@ -23,10 +23,24 @@ function v1Schema() {
           .prop('name', S.string())
           .required()
           .prop('value', S.string())
+          .prop('secretName', S.string())
           .prop('secretKey', S.string()),
       ),
     )
-    .prop('secretName', S.string())
+    .prop(
+      'runtime',
+      S.object()
+        .additionalProperties(true)
+        .prop('type', S.string())
+        .description(
+          'Runtime type idenfitier. Special cases are `"Unknown"` and `"Failure"`.',
+        )
+        .required()
+        .prop('result')
+        .description('Invocation result when the runtime cannot be determined.')
+        .prop('reason')
+        .description('Invocation failure reason.'),
+    )
     .prop('createdAt', S.string().format('date-time'))
     .required()
     .prop('updatedAt', S.string().format('date-time'))

@@ -4,6 +4,7 @@ import noAdditionalProperties from 'fastify-no-additional-properties'
 
 import database from './lib/database.js'
 import error from './lib/error.js'
+import events from './lib/events.js'
 import probes from './lib/probes.js'
 
 import api from './api/plugin.js'
@@ -24,12 +25,12 @@ export default function createServer() {
     caseSensitive: true,
     ignoreTrailingSlash: false,
     logger: {
-      level: process.env.LOG_LEVEL,
+      level: process.env.LOG_LEVEL || 'info',
     },
   })
 
   fastify.register(error)
-
+  fastify.register(events)
   fastify.register(noAdditionalProperties)
 
   fastify.register(kubernetes, {
@@ -48,16 +49,20 @@ export default function createServer() {
 
   fastify.register(probes)
 
-  const mode = process.env.SERVER_MODE
-  if (!mode || mode === 'api') {
+  const modes = process.env.SERVER_MODE?.split(',') || ['api']
+  if (modes.includes('api')) {
     fastify.log.debug('api plugin enabled')
-    fastify.register(api)
+    fastify.register(api, {
+      cookieSecret: process.env.COOKIE_SECRET,
+      notifyController:
+        !!process.env.KUBERNETES_SERVICE_HOST && !modes.includes('controller'),
+    })
   }
-  if (!mode || mode === 'controller') {
+  if (modes.includes('controller')) {
     fastify.log.debug('controller plugin enabled')
     fastify.register(controller)
   }
-  if (process.env.REGISTRY_URL) {
+  if (modes.includes('registry') && process.env.REGISTRY_URL) {
     fastify.log.debug('registry plugin enabled')
     fastify.register(registry)
   }

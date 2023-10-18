@@ -10,22 +10,29 @@ export interface Fn extends CouchDocument {
    */
   image: string
   /**
-   * Previous (working) image URL. Fallback image when the "test run" fails.
-   */
-  previousImage?: string
-  /**
    * Environment variables (value or secret).
    */
   env: FnEnv[]
   /**
-   * Name of the secret from which this function will load.
-   * Defaults to `"fn-{function-name}"`.
+   * Field present after the first test run.
    */
-  secretName?: string
+  runtime?: FnRuntime
+}
+
+export interface FnRuntime {
+  /**
+   * Runtime type identifier.
+   */
+  type: string
+  /**
+   * Other runtime-specific fields.
+   */
+  [key: string]: any
 }
 
 export interface FnEnv {
   name: string
   value?: string
+  secretName?: string
   secretKey?: string
 }

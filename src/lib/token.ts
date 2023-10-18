@@ -9,7 +9,11 @@ const randomness = randomBytes(4)
 /**
  * HMAC signature secret.
  */
-const secret = process.env.HMAC_SECRET || '4YJA5J2vgORe9Bb2jqcRC5ImIdqYaLDl'
+const secret = process.env.HMAC_SECRET || ''
+if (!secret) {
+  // TODO: this is ugly
+  throw new Error('Env HMAC_SECRET is missing')
+}
 
 export interface InvocationToken {
   /**
@@ -34,7 +38,8 @@ export interface InvocationToken {
  * Returns a 56 bytes long base64 encoded token string.
  */
 export function encodeToken(id: string): InvocationToken {
-  const date = new Date()
+  // Seconds since UNIX epoch
+  const date = Math.round(Date.now() / 1000)
 
   const chunks = [
     // 4 bytes (seconds since unix epoch)
@@ -45,12 +50,12 @@ export function encodeToken(id: string): InvocationToken {
     Buffer.from(uuid.parse(id)),
   ]
 
-  chunks[0].writeUInt32LE(Math.round(date.getTime() / 1000))
+  chunks[0].writeUInt32LE(date)
 
   const signature = getSignature(Buffer.concat(chunks))
 
   return {
-    date,
+    date: new Date(date * 1000),
     id,
     signature: signature.toString('base64'),
     value: Buffer.concat([...chunks, signature]).toString('base64'),

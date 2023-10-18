@@ -18,14 +18,23 @@ export interface Invocation extends CouchDocument {
    */
   reason?: any
   phases: InvocationPhase[]
+  /**
+   * Source Function's name.
+   */
   functionName: string
-  secretName?: string
   image: string
+  /**
+   * Test runs are flagged here.
+   */
   env: FnEnv[]
   /**
    * Current token signature.
    */
-  tokenSignature: string
+  tokenSignature?: string
+  /**
+   * Internal property. List of received log pages.
+   */
+  logs?: InvocationLog[]
 }
 
 /**
@@ -51,6 +60,17 @@ export interface InvocationPhase {
   status: InvocationStatus
   /**
    * ISO 8601 date string.
+   */
+  date: string
+}
+
+export interface InvocationLog {
+  /**
+   * Attachment's name.
+   */
+  attachment: string
+  /**
+   * Date of arrival. ISO 8601 date string.
    */
   date: string
 }

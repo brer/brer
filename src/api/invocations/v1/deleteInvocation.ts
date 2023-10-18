@@ -1,4 +1,4 @@
-import type { FastifyRequest, RouteOptions } from 'fastify'
+import type { FastifyInstance } from '@brer/types'
 import S from 'fluent-json-schema-es'
 
 import { getLabelSelector } from '../../../lib/kubernetes.js'
@@ -9,44 +9,43 @@ interface RouteGeneric {
   }
 }
 
-const route: RouteOptions = {
-  method: 'DELETE',
-  url: '/api/v1/invocations/:invocationId',
-  schema: {
-    params: S.object()
-      .prop('invocationId', S.string().format('uuid'))
-      .required(),
-    response: {
-      204: S.null(),
+export default (fastify: FastifyInstance) =>
+  fastify.route<RouteGeneric>({
+    method: 'DELETE',
+    url: '/api/v1/invocations/:invocationId',
+    schema: {
+      tags: ['invocation'],
+      params: S.object()
+        .prop('invocationId', S.string().format('uuid'))
+        .required(),
+      response: {
+        204: S.null(),
+      },
     },
-  },
-  async handler(request, reply) {
-    const { database, kubernetes } = this
-    const { params } = request as FastifyRequest<RouteGeneric>
+    async handler(request, reply) {
+      const { database, kubernetes } = this
+      const { params } = request
 
-    const invocation = await database.invocations
-      .find(params.invocationId)
-      .unwrap()
+      const invocation = await database.invocations
+        .find(params.invocationId)
+        .unwrap()
 
-    if (!invocation) {
-      return reply.code(404).error()
-    }
+      if (!invocation) {
+        return reply.code(404).error({ message: 'Invocation not found.' })
+      }
 
-    await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
-      kubernetes.namespace,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      getLabelSelector({ invocationId: invocation._id }),
-    )
+      await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
+        kubernetes.namespace,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        getLabelSelector({ invocationId: invocation._id }),
+      )
 
-    await database.invocations.from(invocation).delete().unwrap()
+      await database.invocations.from(invocation).delete().unwrap()
 
-    reply.code(204)
-    return null
-  },
-}
-
-export default route
+      return reply.code(204).send()
+    },
+  })

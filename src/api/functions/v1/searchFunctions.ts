@@ -1,4 +1,4 @@
-import type { Fn, RouteOptions } from '@brer/types'
+import type { FastifyInstance, Fn } from '@brer/types'
 import S from 'fluent-json-schema-es'
 
 import {
@@ -15,51 +15,53 @@ interface RouteGeneric {
   }
 }
 
-const route: RouteOptions<RouteGeneric> = {
-  method: 'GET',
-  url: '/api/v1/functions',
-  schema: {
-    querystring: S.object()
-      .additionalProperties(false)
-      .prop('continue', S.string())
-      .prop('direction', S.string().enum(['asc', 'desc']).default('asc'))
-      .prop('limit', S.integer().minimum(1).maximum(100).default(25))
-      .prop(
-        'sort',
-        S.string().enum(['createdAt', 'name']).default('createdAt'),
-      ),
-    response: {
-      200: getPageSchema(
-        'functions',
-        S.ref('https://brer.io/schema/v1/function.json'),
-      ),
+export default (fastify: FastifyInstance) =>
+  fastify.route<RouteGeneric>({
+    method: 'GET',
+    url: '/api/v1/functions',
+    schema: {
+      tags: ['function'],
+      querystring: S.object()
+        .additionalProperties(false)
+        .prop('continue', S.string())
+        .prop('direction', S.string().enum(['asc', 'desc']).default('asc'))
+        .prop('limit', S.integer().minimum(1).maximum(100).default(25))
+        .prop(
+          'sort',
+          S.string().enum(['createdAt', 'name']).default('createdAt'),
+        ),
+      response: {
+        200: getPageSchema(
+          'functions',
+          S.ref('https://brer.io/schema/v1/function.json'),
+        ),
+      },
     },
-  },
-  async preValidation(request) {
-    request.query.limit = asInteger(request.query.limit)
-  },
-  async handler(request, reply) {
-    const { database } = this
-    const { query } = request
+    async preValidation(request) {
+      request.query.limit = asInteger(request.query.limit)
+    },
+    async handler(request, reply) {
+      const { database } = this
+      const { query } = request
 
-    const page = await getPage(
-      database.functions,
-      query,
-      getFilter,
-      getSort,
-      getCursorFilter,
-      getCursorValue,
-    )
-    if (!page) {
-      return reply.code(400).error({ message: 'Invalid continue token.' })
-    }
+      const page = await getPage(
+        database.functions,
+        query,
+        getFilter,
+        getSort,
+        getCursorFilter,
+        getCursorValue,
+      )
+      if (!page) {
+        return reply.code(400).error({ message: 'Invalid continue token.' })
+      }
 
-    return {
-      continue: page.continueToken,
-      functions: page.documents,
-    }
-  },
-}
+      return {
+        continue: page.continueToken,
+        functions: page.documents,
+      }
+    },
+  })
 
 function getFilter(querystring: RouteGeneric['Querystring']) {
   return {}
@@ -92,5 +94,3 @@ function getCursorValue(doc: Fn, sort: unknown) {
       return doc.createdAt!
   }
 }
-
-export default route

@@ -10,25 +10,32 @@ The whole point of this project is to be a simple and effective task runner with
 
 ## Roadmap
 
+Proposals for future versions.
+
 - [x] Invocation init timeout
+- [x] See Invocations' logs
+- [x] Use Kubernetes secrets
+- [x] Arbitrary payload for Invocations
+- [x] Recover running Invocations without Pod
+- [x] Runtime validation after image update
+- [x] [Web UI](https://github.com/brer/brer-web)
+- [x] [Node.js bindings](https://github.com/brer/brer-nodejs)
 - [ ] Previous Invocations history limit
 - [ ] Max running Invocations limit
-- [ ] Function image validation after an update
-- [x] Store logs as attachment
-- [ ] Swagger / OpenAPI
-- [x] Support secrets (CRUD)
-- [ ] Tests
+- [ ] OpenAPI
+- [ ] Integration tests
 - [ ] Support namespaces
 - [ ] Configure pod resources (cpu and memory)
-- [ ] Make auth configurable
+- [ ] Authentication and authorization (users and policies)
 - [ ] Helm chart
 - [ ] Invocation attempts (retry)
-- [ ] Arbitrary payload for Invocations
 - [ ] Callback URL
-- [ ] Function concurrency (max pending/running Invocations allowed)
-- [x] Recover running Invocations without Pod
-- [ ] Web UI
+- [ ] Go bindings
+- [ ] Rust bindings
+- [ ] PHP bindings
+- [ ] Brer CLI
+- [ ] Docker repository integration
 
-## Related projects
+## Acknowledgements
 
-- [brer-nodejs](https://github.com/brer/brer-nodejs) Node.js bindings for Brer.
+This project is kindly sponsored by [Evologi](https://evologi.it/).

@@ -1,16 +1,10 @@
-import type { Invocation } from '@brer/types'
-import {
-  KubeConfig,
-  Log,
-  LogOptions,
-  V1EnvVar,
-  V1Pod,
-} from '@kubernetes/client-node'
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, Invocation } from '@brer/types'
+import type { V1EnvVar, V1Pod } from '@kubernetes/client-node'
 import { randomBytes } from 'node:crypto'
-import { PassThrough } from 'node:stream'
 
-import { getDefaultSecretName } from './function.js'
+import { getFunctionSecretName } from './function.js'
+
+export type WatchPhase = 'ADDED' | 'MODIFIED' | 'DELETED'
 
 export type PodStatus =
   | 'Pending'
@@ -21,53 +15,6 @@ export type PodStatus =
 
 export function getPodStatus(pod: V1Pod): PodStatus {
   return (pod.status?.phase as PodStatus) || 'Unknown'
-}
-
-export type ContainerStatus = 'waiting' | 'running' | 'terminated' | 'unknown'
-
-export function getContainerStatus(pod: V1Pod): ContainerStatus {
-  const status = pod.status?.containerStatuses?.[0]
-  if (status?.state?.terminated) {
-    return 'terminated'
-  } else if (status?.state?.running) {
-    return 'running'
-  } else if (status?.state?.waiting) {
-    return 'waiting'
-  } else {
-    return 'unknown'
-  }
-}
-
-export function isPodDead(pod: V1Pod) {
-  const podStatus = getPodStatus(pod)
-  return podStatus === 'Succeeded' || podStatus === 'Failed'
-}
-
-export async function* downloadPodLogs(
-  config: KubeConfig,
-  namespace: string,
-  pod: string,
-  container: string,
-  options?: LogOptions,
-): AsyncGenerator<Buffer> {
-  const log = new Log(config)
-  const stream = new PassThrough({ decodeStrings: true })
-
-  try {
-    // TODO: abort this request?
-    await log.log(namespace, pod, container, stream, options)
-  } catch (err) {
-    if (Object(Object(err).response).statusCode === 404) {
-      // pod was deleted, ignore the error
-      return
-    } else {
-      throw err
-    }
-  }
-
-  for await (const buffer of stream) {
-    yield buffer
-  }
 }
 
 function getSuffix(): string {
@@ -92,9 +39,7 @@ export function getPodTemplate(
     { name: 'BRER_TOKEN', value: token },
   ]
 
-  const secretName =
-    invocation.secretName || getDefaultSecretName(invocation.functionName)
-
+  const defaultSecretName = getFunctionSecretName(invocation.functionName)
   for (const item of invocation.env) {
     env.push(
       item.secretKey
@@ -102,7 +47,7 @@ export function getPodTemplate(
             name: item.name,
             valueFrom: {
               secretKeyRef: {
-                name: secretName,
+                name: item.secretName || defaultSecretName,
                 key: item.secretKey,
               },
             },
@@ -134,17 +79,17 @@ export function getPodTemplate(
           image: invocation.image,
           imagePullPolicy: 'IfNotPresent',
           env,
-          // TODO: resources?
-          // resources: {
-          //   requests: {
-          //     cpu: '10m',
-          //     memory: '64Mi',
-          //   },
-          //   limits: {
-          //     cpu: '1000m',
-          //     memory: '1024Mi',
-          //   },
-          // },
+          // TODO: make editable
+          resources: {
+            requests: {
+              cpu: '10m',
+              memory: '64Mi',
+            },
+            limits: {
+              cpu: '500m',
+              memory: '512Mi',
+            },
+          },
         },
       ],
     },

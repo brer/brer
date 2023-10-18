@@ -1,14 +1,14 @@
-import type { Invocation } from '@brer/types'
-import type { FastifyInstance } from 'fastify'
-import plugin from 'fastify-plugin'
+import type { FastifyInstance } from '@brer/types'
 import S from 'fluent-json-schema-es'
 
 import {
   completeInvocation,
   failInvocation,
+  pushLines,
   runInvocation,
 } from '../lib/invocation.js'
 import { decodeToken } from '../lib/token.js'
+import { handleTestInvocation } from './util.js'
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -16,26 +16,8 @@ declare module 'fastify' {
   }
 }
 
-export interface PluginOptions {
-  callback: (invocation: Invocation) => void
-}
-
-async function rpcPlugin(fastify: FastifyInstance, options: PluginOptions) {
+export default async function rpcPlugin(fastify: FastifyInstance) {
   fastify.decorateRequest('invocationId', null)
-
-  const noAuth = {
-    error: {
-      code: 'UNAUTHORIZED',
-      message: 'Auth info not provided.',
-    },
-  }
-
-  const invalidToken = {
-    error: {
-      code: 'TOKEN_INVALID',
-      message: 'Auth token not valid.',
-    },
-  }
 
   fastify.addHook('onRequest', async (request, reply) => {
     const { headers, log } = request
@@ -47,7 +29,10 @@ async function rpcPlugin(fastify: FastifyInstance, options: PluginOptions) {
         : null
 
     if (!value) {
-      return reply.code(401).send(noAuth)
+      return reply.code(401).sendError({
+        code: 'UNAUTHORIZED',
+        message: 'Auth info not provided.',
+      })
     }
 
     try {
@@ -56,9 +41,13 @@ async function rpcPlugin(fastify: FastifyInstance, options: PluginOptions) {
         const invocation = await fastify.database.invocations
           .find(token.id)
           .unwrap()
-
-        if (invocation?.tokenSignature === token.signature) {
-          request.invocationId = invocation._id
+        if (invocation) {
+          if (
+            !invocation.tokenSignature ||
+            invocation.tokenSignature === token.signature
+          ) {
+            request.invocationId = invocation._id
+          }
         }
       }
     } catch (err) {
@@ -66,7 +55,10 @@ async function rpcPlugin(fastify: FastifyInstance, options: PluginOptions) {
     }
 
     if (!request.invocationId) {
-      return reply.code(403).send(invalidToken)
+      return reply.code(403).sendError({
+        code: 'TOKEN_INVALID',
+        message: 'Auth token not valid.',
+      })
     }
   })
 
@@ -82,14 +74,14 @@ async function rpcPlugin(fastify: FastifyInstance, options: PluginOptions) {
       const invocation = await database.invocations
         .find(request.invocationId)
         .unwrap()
-
-      if (invocation?.status === 'pending') {
-        // Spawn Pod
-        options.callback(invocation)
+      if (invocation?.status !== 'pending') {
+        return reply.code(409).error({
+          message: 'Invalid Invocation status.',
+        })
       }
 
-      reply.code(202)
-      return {}
+      this.events.emit('brer.invocations.invoke', { invocation })
+      return reply.code(204).send()
     },
   })
 
@@ -99,16 +91,23 @@ async function rpcPlugin(fastify: FastifyInstance, options: PluginOptions) {
     schema: {
       body: S.object(),
     },
-    async handler(request) {
+    async handler(request, reply) {
       const { database } = this
       const { invocationId } = request
 
       const invocation = await database.transaction(() =>
-        database.invocations.read(invocationId).update(runInvocation).unwrap(),
+        database.invocations
+          .find(invocationId)
+          .update(doc =>
+            doc.status === 'initializing' ? runInvocation(doc) : doc,
+          )
+          .unwrap(),
       )
-
-      // Collect Pod logs
-      options.callback(invocation)
+      if (invocation?.status !== 'running') {
+        return reply.code(409).error({
+          message: 'Invalid Invocation status.',
+        })
+      }
 
       return { invocation }
     },
@@ -125,13 +124,16 @@ async function rpcPlugin(fastify: FastifyInstance, options: PluginOptions) {
       const { invocationId } = request
 
       const invocation = await database.invocations.find(invocationId).unwrap()
-      if (invocation && invocation.status !== 'running') {
-        return reply.code(403).error()
+      if (invocation?.status !== 'running') {
+        return reply.code(409).error({
+          message: 'Invalid Invocation status.',
+        })
       }
 
       const attachment = invocation?._attachments?.payload
       if (!attachment) {
-        return reply.code(404).error()
+        // Empty payloads can be valid
+        return reply.code(204).send()
       }
 
       const payload = await database.invocations.adapter.readAttachment(
@@ -150,18 +152,28 @@ async function rpcPlugin(fastify: FastifyInstance, options: PluginOptions) {
     schema: {
       body: S.object().prop('result'),
     },
-    async handler(request) {
+    async handler(request, reply) {
       const { database } = this
       const { body, invocationId } = request
 
       const invocation = await database.transaction(() =>
         database.invocations
-          .read(invocationId)
-          .update(doc => completeInvocation(doc, body.result))
+          .find(invocationId)
+          .update(doc =>
+            doc.status === 'running'
+              ? completeInvocation(doc, body.result)
+              : doc,
+          )
+          .tap(doc => handleTestInvocation(database, doc))
           .unwrap(),
       )
+      if (invocation?.status !== 'completed') {
+        return reply.code(409).error({
+          message: 'Invalid Invocation status.',
+        })
+      }
 
-      return { invocation }
+      return reply.code(204).send()
     },
   })
 
@@ -171,26 +183,56 @@ async function rpcPlugin(fastify: FastifyInstance, options: PluginOptions) {
     schema: {
       body: S.object().prop('reason'),
     },
-    async handler(request) {
+    async handler(request, reply) {
       const { database } = this
       const { body, invocationId } = request
 
       const invocation = await database.transaction(() =>
         database.invocations
-          .read(invocationId)
-          .update(doc => failInvocation(doc, body.reason))
+          .find(invocationId)
+          .update(doc =>
+            doc.status !== 'completed' ? failInvocation(doc, body.reason) : doc,
+          )
+          .tap(doc => handleTestInvocation(database, doc))
           .unwrap(),
       )
+      if (invocation?.status !== 'failed') {
+        return reply.code(409).error({
+          message: 'Invalid Invocation status.',
+        })
+      }
 
-      return { invocation }
+      return reply.code(204).send()
+    },
+  })
+
+  fastify.route<{ Body: string }>({
+    method: 'POST',
+    url: '/rpc/v1/log',
+    schema: {
+      body: S.string(),
+    },
+    async handler(request, reply) {
+      const { database } = this
+      const { body, invocationId } = request
+
+      const buffer = Buffer.from(body, 'utf-8')
+
+      const invocation = await database.transaction(() =>
+        database.invocations
+          .find(invocationId)
+          .update(doc =>
+            doc.status === 'running' ? pushLines(doc, buffer) : doc,
+          )
+          .unwrap(),
+      )
+      if (invocation?.status !== 'running') {
+        return reply.code(409).error({
+          message: 'Invalid Invocation status.',
+        })
+      }
+
+      return reply.code(204).send()
     },
   })
 }
-
-export default plugin(rpcPlugin, {
-  name: 'rpc',
-  decorators: {
-    fastify: ['database'],
-  },
-  encapsulate: true,
-})

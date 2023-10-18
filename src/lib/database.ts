@@ -1,5 +1,4 @@
-import type { Fn, Invocation, InvocationLog } from '@brer/types'
-import type { FastifyInstance } from 'fastify'
+import type { FastifyInstance, Fn, Invocation } from '@brer/types'
 import plugin from 'fastify-plugin'
 import { Entity, MutentError, Store, StoreOptions } from 'mutent'
 import { mutentMigration } from 'mutent-migration'
@@ -17,7 +16,6 @@ declare module 'fastify' {
       transaction<T>(fn: (attempt: number) => Promise<T>): Promise<T>
       functions: CouchStore<Fn>
       invocations: CouchStore<Invocation>
-      invocationLogs: CouchStore<InvocationLog>
     }
   }
 }
@@ -57,7 +55,7 @@ async function databasePlugin(
       }),
       hooks,
       plugins: [
-        mutentMigration({
+        mutentMigration<CouchGenerics<any>>({
           key: 'v',
           version,
         }),
@@ -65,22 +63,20 @@ async function databasePlugin(
     })
   }
 
+  // TODO: database purge?
+  // TODO: handle couchdb conflicts
+  // TODO: add warning for del_doc_count for all databases?
   const decorator: FastifyInstance['database'] = {
     functions: getStore('functions'),
-    invocationLogs: getStore('invocation-logs'),
     invocations: getStore('invocations'),
     transaction,
   }
 
   // Test database connection
-  const response = await decorator.functions.adapter.got<{ doc_count: number }>(
-    {
-      method: 'GET',
-      resolveBodyOnly: true,
-    },
-  )
-  fastify.log.debug(`this database has ${response.doc_count} functions`)
-  // TODO: add warning for del_doc_count for all databases
+  await decorator.functions.adapter.got({
+    method: 'GET',
+    resolveBodyOnly: true,
+  })
 
   fastify.decorate('database', decorator)
 }
