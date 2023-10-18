@@ -1,5 +1,6 @@
 .*
 !.gitignore
+!.gitkeep
 !.helmignore
 !.prettierrc.json
 !.taprc

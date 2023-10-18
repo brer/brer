@@ -1,3 +1,4 @@
+import staticPlugin from '@fastify/static'
 import Fastify from 'fastify'
 import kubernetes from 'fastify-kubernetes'
 import noAdditionalProperties from 'fastify-no-additional-properties'
@@ -32,6 +33,13 @@ export default function createServer() {
   fastify.register(error)
   fastify.register(events)
   fastify.register(noAdditionalProperties)
+
+  // TODO: use nginx for this
+  if (process.env.STATIC_DIR) {
+    fastify.register(staticPlugin, {
+      root: process.env.STATIC_DIR,
+    })
+  }
 
   fastify.register(kubernetes, {
     file: process.env.K8S_FILE,
