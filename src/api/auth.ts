@@ -22,7 +22,7 @@ export default async function authPlugin(fastify: FastifyInstance) {
   const cookieOptions: CookieSerializeOptions = {
     domain: process.env.COOKIE_DOMAIN,
     httpOnly: true,
-    maxAge: 600000, // 10 minutes (milliseconds)
+    maxAge: 600, // 10 minutes (seconds)
     path: '/',
     sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
     secure: process.env.NODE_ENV === 'production',
@@ -131,7 +131,7 @@ export default async function authPlugin(fastify: FastifyInstance) {
         })
       }
 
-      reply.setCookie('brer_session', body.username, cookieOptions)
+      reply.setCookie(cookieName, body.username, cookieOptions)
       return {
         user: {
           username: body.username,
