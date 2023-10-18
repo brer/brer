@@ -81,10 +81,10 @@ export function getPodTemplate(
           env,
           // TODO: make editable
           resources: {
-            // requests: {
-            //   cpu: '10m',
-            //   memory: '64Mi',
-            // },
+            requests: {
+              cpu: '10m',
+              memory: '64Mi',
+            },
             limits: {
               cpu: '500m',
               memory: '512Mi',
