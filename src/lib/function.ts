@@ -16,9 +16,10 @@ export function getFunctionId(functionName: string) {
 }
 
 export function updateFunction(fn: Fn, options: Pick<Fn, 'env' | 'image'>): Fn {
-  if (fn.image === options.image) {
+  if (fn.image === options.image && fn.runtime?.type !== 'Failure') {
     return { ...fn, env: options.env }
   }
+  // Changing an env can fix a "Pending" Pod
   return {
     ...fn,
     env: options.env,

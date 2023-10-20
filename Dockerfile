@@ -11,7 +11,7 @@ WORKDIR /home/app/node
 
 # copy sources
 COPY package*.json ./
-COPY tsconfig.json ./
+COPY tsconfig*.json ./
 COPY src src/
 
 # build app

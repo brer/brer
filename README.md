@@ -20,7 +20,7 @@ Proposals for future versions.
 - [x] Runtime validation after image update
 - [x] [Web UI](https://github.com/brer/brer-web)
 - [x] [Node.js bindings](https://github.com/brer/brer-nodejs)
-- [ ] Previous Invocations history limit
+- [x] Previous Invocations history limit
 - [ ] Max running Invocations limit
 - [ ] OpenAPI
 - [ ] Integration tests

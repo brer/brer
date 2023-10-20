@@ -8,7 +8,7 @@ import {
   runInvocation,
 } from '../lib/invocation.js'
 import { decodeToken } from '../lib/token.js'
-import { handleTestInvocation } from './util.js'
+import { handleTestInvocation, rotateInvocations } from './util.js'
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -164,7 +164,7 @@ export default async function rpcPlugin(fastify: FastifyInstance) {
               ? completeInvocation(doc, body.result)
               : doc,
           )
-          .tap(doc => handleTestInvocation(database, doc))
+          .tap(doc => handleTestInvocation(database, doc)) // update function before its invocation
           .unwrap(),
       )
       if (invocation?.status !== 'completed') {
@@ -172,6 +172,8 @@ export default async function rpcPlugin(fastify: FastifyInstance) {
           message: 'Invalid Invocation status.',
         })
       }
+
+      await rotateInvocations(this, invocation.functionName)
 
       return reply.code(204).send()
     },
@@ -193,7 +195,7 @@ export default async function rpcPlugin(fastify: FastifyInstance) {
           .update(doc =>
             doc.status !== 'completed' ? failInvocation(doc, body.reason) : doc,
           )
-          .tap(doc => handleTestInvocation(database, doc))
+          .tap(doc => handleTestInvocation(database, doc)) // update function before its invocation
           .unwrap(),
       )
       if (invocation?.status !== 'failed') {
@@ -201,6 +203,8 @@ export default async function rpcPlugin(fastify: FastifyInstance) {
           message: 'Invalid Invocation status.',
         })
       }
+
+      await rotateInvocations(this, invocation.functionName)
 
       return reply.code(204).send()
     },
