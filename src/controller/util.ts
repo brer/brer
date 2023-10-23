@@ -252,6 +252,10 @@ export async function rotateInvocations(
     .delete()
     .consume({
       skip: 20, // TODO: options
-      sort: [{ createdAt: 'desc' }],
+      sort: [
+        { functionName: 'desc' },
+        { createdAt: 'desc' },
+        { status: 'desc' },
+      ],
     })
 }

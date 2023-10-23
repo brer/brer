@@ -1,5 +1,5 @@
 # declare image
-FROM node:18-alpine as build
+FROM node:20-alpine as build
 
 # prepare for native addons
 # RUN apk update \
@@ -21,7 +21,7 @@ RUN npm install \
   && rm -rf src
 
 # declare new (empty) image
-FROM node:18-alpine
+FROM node:20-alpine
 
 # cd into app dir
 WORKDIR /home/app/node

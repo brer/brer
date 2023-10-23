@@ -7,6 +7,7 @@ import database from './lib/database.js'
 import error from './lib/error.js'
 import events from './lib/events.js'
 import probes from './lib/probes.js'
+import tasks from './lib/tasks.js'
 
 import api from './api/plugin.js'
 import controller from './controller/plugin.js'
@@ -32,6 +33,7 @@ export default function createServer() {
 
   fastify.register(error)
   fastify.register(events)
+  fastify.register(tasks)
   fastify.register(noAdditionalProperties)
 
   // TODO: use nginx for this
