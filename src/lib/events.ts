@@ -1,4 +1,4 @@
-import type { FastifyInstance } from '@brer/types'
+import type { FastifyInstance } from '@brer/fastify'
 import plugin from 'fastify-plugin'
 import { EventEmitter } from 'node:events'
 

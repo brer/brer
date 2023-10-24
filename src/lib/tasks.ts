@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyLogger } from '@brer/types'
+import type { FastifyInstance, FastifyLogger } from '@brer/fastify'
 import plugin from 'fastify-plugin'
 
 declare module 'fastify' {

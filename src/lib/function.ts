@@ -1,4 +1,5 @@
-import type { Fn, FnRuntime, Invocation } from '@brer/types'
+import type { Fn, FnRuntime } from '@brer/function'
+import type { Invocation } from '@brer/invocation'
 import * as uuid from 'uuid'
 
 import { isPlainObject } from './util.js'

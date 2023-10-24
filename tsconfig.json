@@ -9,7 +9,8 @@
     "noUnusedLocals": true,
     "outDir": "./build",
     "paths": {
-      "@brer/types": ["./src/types/export.js"]
+      "@brer/couchdb": ["./src/lib/adapter.js"],
+      "@brer/*": ["./src/types/*.js"]
     },
     "removeComments": true,
     "skipLibCheck": true,

@@ -1,4 +1,4 @@
-import type { CouchStore } from '@brer/types'
+import type { CouchStore } from '@brer/couchdb'
 
 import Fastify from './server.js'
 import { getFunctionId } from './lib/function.js'

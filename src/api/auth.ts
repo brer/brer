@@ -1,4 +1,4 @@
-import type { FastifyContext, FastifyInstance } from '@brer/types'
+import type { FastifyContext, FastifyInstance } from '@brer/fastify'
 import type { CookieSerializeOptions } from '@fastify/cookie'
 import S from 'fluent-json-schema-es'
 

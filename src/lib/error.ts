@@ -3,7 +3,7 @@ import type {
   FastifyInstance,
   FastifyReply,
   FastifySchema,
-} from '@brer/types'
+} from '@brer/fastify'
 import plugin from 'fastify-plugin'
 import S from 'fluent-json-schema-es'
 

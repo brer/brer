@@ -1,6 +1,6 @@
 import type * as fastify from 'fastify'
 import type { JSONSchema } from 'fluent-json-schema-es'
-import type * as http from 'http'
+import type * as http from 'node:http'
 
 export type RawServer = http.Server
 
@@ -79,8 +79,8 @@ export interface RouteGeneric {
 }
 
 export interface RouteGenericDefault {
-  Body: Record<string, any>
-  Querystring: Record<string, any>
-  Params: Record<string, any>
-  Headers: Record<string, any>
+  Body: unknown
+  Querystring: Record<string, unknown>
+  Params: Record<string, unknown>
+  Headers: Record<string, unknown>
 }

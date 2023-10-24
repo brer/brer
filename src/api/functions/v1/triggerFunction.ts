@@ -1,4 +1,4 @@
-import type { FastifyInstance } from '@brer/types'
+import type { FastifyInstance } from '@brer/fastify'
 import { constantCase } from 'case-anything'
 import S from 'fluent-json-schema-es'
 import { Readable, Writable } from 'node:stream'

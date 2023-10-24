@@ -1,4 +1,5 @@
-import type { FastifyInstance, Invocation } from '@brer/types'
+import type { FastifyInstance } from '@brer/fastify'
+import type { Invocation } from '@brer/invocation'
 import type { V1EnvVar, V1Pod } from '@kubernetes/client-node'
 import { randomBytes } from 'node:crypto'
 

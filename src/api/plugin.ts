@@ -1,4 +1,5 @@
-import type { FastifyInstance, Invocation } from '@brer/types'
+import type { FastifyInstance } from '@brer/fastify'
+import type { Invocation } from '@brer/invocation'
 import cookies from '@fastify/cookie'
 import got from 'got'
 
