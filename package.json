@@ -5,12 +5,12 @@
   "description": "A simple Kubernetes task runner",
   "type": "module",
   "scripts": {
-    "prebuild": "rimraf build",
+    "prebuild": "rimraf *.tsbuildinfo build",
     "build": "tsc -p ./tsconfig.build.json",
     "start": "npm run prebuild && npm run watch:build && npm run watch:start",
     "test": "NODE_OPTIONS='--loader=tsx' ava",
     "watch": "npm run prebuild && nodemon -w src -e ts --exec 'npm run watch:build && npm run watch:start'",
-    "watch:build": "tsc --incremental -p tsconfig.build.json",
+    "watch:build": "tsc --incremental -p ./tsconfig.build.json",
     "watch:start": "node --inspect -r source-map-support/register -r dotenv/config build/start.js dotenv_config_path=$npm_config_env | pino-pretty -t"
   },
   "author": "Giacomo Gregoletto",
@@ -23,7 +23,7 @@
     "close-with-grace": "^1.2.0",
     "fastify": "^4.24.2",
     "fastify-kubernetes": "^0.13.0",
-    "fastify-no-additional-properties": "^2.3.0",
+    "fastify-no-additional-properties": "^2.4.0",
     "fastify-plugin": "^4.5.1",
     "fastq": "^1.15.0",
     "fluent-json-schema-es": "^4.1.0",
