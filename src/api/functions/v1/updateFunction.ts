@@ -1,4 +1,5 @@
 import type { FastifyInstance, FnEnv, Invocation } from '@brer/types'
+import type { V1Secret } from '@kubernetes/client-node'
 import S from 'fluent-json-schema-es'
 
 import {
@@ -182,7 +183,7 @@ async function pushPrivateSecrets(
 
   const secretName = getFunctionSecretName(functionName)
 
-  const template = {
+  const template: V1Secret = {
     apiVersion: 'v1',
     kind: 'Secret',
     type: 'Opaque',
@@ -193,10 +194,13 @@ async function pushPrivateSecrets(
         'brer.io/function-name': functionName,
       },
     },
-    stringData: envs.reduce((acc, item) => {
-      acc[item.secretKey!] = item.value
-      return acc
-    }, {}),
+    stringData: envs.reduce(
+      (acc, item) => {
+        acc[item.secretKey!] = item.value!
+        return acc
+      },
+      {} as Record<string, string>,
+    ),
   }
 
   const exists = await kubernetes.api.CoreV1Api.readNamespacedSecret(

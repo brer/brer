@@ -1,10 +1,11 @@
 {
   "compilerOptions": {
+    "allowSyntheticDefaultImports": false,
     "esModuleInterop": false,
     "module": "Node16",
     "moduleResolution": "Node16",
-    "noEmitOnError": true,
-    "noImplicitAny": false,
+    "noEmit": true,
+    "noImplicitAny": true,
     "noUnusedLocals": true,
     "outDir": "./build",
     "paths": {
@@ -17,8 +18,8 @@
     "target": "ES2022"
   },
   "include": [
-    "./src/**/*.ts",
-    "./test/**/*.ts"
+    "./src",
+    "./test"
   ],
   "exclude": [
     "./node_modules",
