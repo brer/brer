@@ -17,7 +17,7 @@ COPY src src/
 # build app
 RUN npm install \
   && npm run build \
-  && npm prune --production \
+  && npm prune --omit=dev \
   && rm -rf src
 
 # declare new (empty) image
