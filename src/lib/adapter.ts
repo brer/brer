@@ -1,5 +1,7 @@
 import { default as got, Got } from 'got'
 import { Adapter, Generics, MutentError, Store } from 'mutent'
+import { Agent as HttpAgent } from 'node:http'
+import { Agent as HttpsAgent } from 'node:https'
 
 export interface CouchDocument {
   /**
@@ -88,6 +90,16 @@ export interface CouchIndexOptions {
   type?: 'json' | 'text'
 }
 
+interface FindResponse<T> {
+  warning?: string
+  bookmark: string
+  docs: T[]
+}
+
+const httpAgent = new HttpAgent({ keepAlive: true })
+const httpsAgent = new HttpsAgent({ keepAlive: true })
+
+// TODO: bulk
 export class CouchAdapter<T extends CouchDocument>
   implements Adapter<{ entity: T; options: CouchOptions; query: CouchQuery }>
 {
@@ -99,6 +111,10 @@ export class CouchAdapter<T extends CouchDocument>
     this.database = database
 
     this.got = got.extend({
+      agent: {
+        http: httpAgent,
+        https: httpsAgent,
+      },
       prefixUrl: new URL(this.database, url || 'http://127.0.0.1:5984/'),
       username,
       password,
@@ -150,12 +166,12 @@ export class CouchAdapter<T extends CouchDocument>
       },
     })
 
-    const attempts = document[Symbol.for('attempts')] || 0
+    const attempts = getAttempts(document)
 
     // TODO: Sometimes a 412 error is returned, but the data is correct, just retry here, but I'm not sure if makes sense
     if (response.statusCode === 412) {
       if (attempts < 3) {
-        document[Symbol.for('attempts')] = attempts + 1
+        setAttempts(document, attempts + 1)
         return this.write(document, options)
       }
     }
@@ -239,7 +255,7 @@ export class CouchAdapter<T extends CouchDocument>
     while (count < limit) {
       const requestSize = Math.min(pageSize, limit - count)
 
-      const response = await this.got<{ bookmark: string; docs: T[] }>({
+      const response = await this.got<FindResponse<T>>({
         method: 'POST',
         url: '_find',
         json: {
@@ -250,6 +266,9 @@ export class CouchAdapter<T extends CouchDocument>
         },
         responseType: 'json',
       })
+      if (response.body.warning) {
+        // TODO: print warning somehow
+      }
 
       for (const document of response.body.docs) {
         count++
@@ -272,7 +291,28 @@ export class CouchAdapter<T extends CouchDocument>
     return this.write(newData, options)
   }
 
-  async delete(data: T, options: CouchOptions) {
-    return this.update(data, { ...data, _deleted: true }, options)
+  async delete(data: T) {
+    // TODO: what about other branches?
+    const response = await this.got({
+      method: 'POST',
+      url: '_purge',
+      json: {
+        [data._id]: [data._rev],
+      },
+    })
+    if (response.statusCode !== 201 && response.statusCode !== 202) {
+      // TODO
+      throw new Error()
+    }
   }
+}
+
+const symAttempts = Symbol.for('attempts')
+
+function getAttempts(obj: unknown) {
+  return Object(obj)[symAttempts] || 0
+}
+
+function setAttempts(obj: unknown, value: number) {
+  Object(obj)[symAttempts] = value
 }

@@ -7,6 +7,7 @@ import database from './lib/database.js'
 import error from './lib/error.js'
 import events from './lib/events.js'
 import probes from './lib/probes.js'
+import tasks from './lib/tasks.js'
 
 import api from './api/plugin.js'
 import controller from './controller/plugin.js'
@@ -22,7 +23,7 @@ export default function createServer() {
         useDefaults: true,
       },
     },
-    bodyLimit: 1048576, // 1 MiB (bytes)
+    bodyLimit: 2097152, // 2 MiB (bytes)
     caseSensitive: true,
     ignoreTrailingSlash: false,
     logger: {
@@ -32,7 +33,8 @@ export default function createServer() {
 
   fastify.register(error)
   fastify.register(events)
-  fastify.register(noAdditionalProperties)
+  fastify.register(tasks)
+  fastify.register(noAdditionalProperties.default)
 
   // TODO: use nginx for this
   if (process.env.STATIC_DIR) {

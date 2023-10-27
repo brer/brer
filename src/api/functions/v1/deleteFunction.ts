@@ -2,6 +2,7 @@ import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
 import { getFunctionId } from '../../../lib/function.js'
+import { getLabelSelector } from '../../../lib/kubernetes.js'
 
 interface RouteGeneric {
   Params: {
@@ -10,7 +11,7 @@ interface RouteGeneric {
 }
 
 export default (): RouteOptions<RouteGeneric> => ({
-  method: 'GET',
+  method: 'DELETE',
   url: '/api/v1/functions/:functionName',
   schema: {
     tags: ['function'],
@@ -24,13 +25,11 @@ export default (): RouteOptions<RouteGeneric> => ({
       )
       .required(),
     response: {
-      200: S.object()
-        .prop('function', S.ref('https://brer.io/schema/v1/function.json'))
-        .required(),
+      204: S.null(),
     },
   },
   async handler(request, reply) {
-    const { database } = this
+    const { database, kubernetes, tasks } = this
     const { params } = request
 
     const fn = await database.functions
@@ -41,6 +40,27 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.code(404).error({ message: 'Function not found.' })
     }
 
-    return { function: fn }
+    await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
+      kubernetes.namespace,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      getLabelSelector({ functionName: fn.name }),
+    )
+
+    await database.functions.from(fn).delete().consume()
+
+    tasks.push(async log => {
+      const count = await database.invocations
+        .filter({ functionName: fn.name })
+        .delete()
+        .consume()
+
+      log.debug(`deleted ${count} ${fn.name} invocation(s)`)
+    })
+
+    return reply.code(204).send()
   },
 })

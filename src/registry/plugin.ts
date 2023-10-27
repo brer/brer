@@ -1,4 +1,4 @@
-import type { FastifyInstance } from '@brer/types'
+import type { FastifyInstance } from '@brer/fastify'
 import type { Readable } from 'node:stream'
 
 import { getRegistryClient } from '../lib/registry.js'

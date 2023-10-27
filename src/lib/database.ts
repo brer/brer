@@ -1,4 +1,6 @@
-import type { FastifyInstance, Fn, Invocation } from '@brer/types'
+import type { FastifyInstance } from '@brer/fastify'
+import type { Fn } from '@brer/function'
+import type { Invocation } from '@brer/invocation'
 import plugin from 'fastify-plugin'
 import { Entity, MutentError, Store, StoreOptions } from 'mutent'
 import { mutentMigration } from 'mutent-migration'

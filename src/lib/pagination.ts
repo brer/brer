@@ -1,4 +1,4 @@
-import type { CouchDocument, CouchStore } from '@brer/types'
+import type { CouchDocument, CouchStore } from '@brer/couchdb'
 import S, { JSONSchema } from 'fluent-json-schema-es'
 
 import { getSignature } from './token.js'

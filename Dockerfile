@@ -1,5 +1,5 @@
 # declare image
-FROM node:18-alpine as build
+FROM node:20-alpine as build
 
 # prepare for native addons
 # RUN apk update \
@@ -11,17 +11,17 @@ WORKDIR /home/app/node
 
 # copy sources
 COPY package*.json ./
-COPY tsconfig.json ./
+COPY tsconfig*.json ./
 COPY src src/
 
 # build app
 RUN npm install \
   && npm run build \
-  && npm prune --production \
+  && npm prune --omit=dev \
   && rm -rf src
 
 # declare new (empty) image
-FROM node:18-alpine
+FROM node:20-alpine
 
 # cd into app dir
 WORKDIR /home/app/node

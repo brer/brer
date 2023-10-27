@@ -1,4 +1,5 @@
-import type { FastifyInstance, Invocation } from '@brer/types'
+import type { FastifyInstance } from '@brer/fastify'
+import type { Invocation } from '@brer/invocation'
 import type { V1Pod } from '@kubernetes/client-node'
 
 import {
@@ -50,7 +51,7 @@ export async function handlePodEvent(
   }
 
   if (deletePod) {
-    log.trace(`delete pod ${pod.metadata?.name}`)
+    log.debug(`delete pod ${pod.metadata?.name}`)
     try {
       await kubernetes.api.CoreV1Api.deleteNamespacedPod(
         pod.metadata!.name!,
@@ -88,9 +89,11 @@ export async function handleInvokeEvent(
   fastify: FastifyInstance,
   invocation: Invocation,
 ): Promise<Invocation> {
+  const { database, log } = fastify
   const token = encodeToken(invocation._id)
 
-  invocation = await fastify.database.invocations
+  log.debug({ invocationId: invocation._id }, 'handle invocation')
+  invocation = await database.invocations
     .from(invocation)
     .update(handleInvocation)
     .update(doc => setTokenSignature(doc, token.signature))
@@ -189,7 +192,7 @@ export async function recoverInvocationPod(
   // No transaction here. The controller is the only process that updates
   // Invocations. If there's a conflict (wrong _rev) error, It means that
   // another controller has handled this Invocation.
-  log.info({ invocationId: invocation._id }, 'recover invocation')
+  log.debug({ invocationId: invocation._id }, 'recover invocation')
   invocation = await database.invocations
     .from(invocation)
     .update(doc => setTokenSignature(doc, token.signature))
@@ -201,16 +204,22 @@ export async function recoverInvocationPod(
 }
 
 export async function failWithMessage(
-  { database, log }: FastifyInstance,
+  fastify: FastifyInstance,
   invocation: Invocation,
   message: string,
 ) {
+  const { database, log } = fastify
+
   log.debug({ invocationId: invocation._id }, message)
-  return database.invocations
+  invocation = await database.invocations
     .from(invocation)
     .update(doc => failInvocation(doc, message))
     .tap(doc => handleTestInvocation(database, doc))
     .unwrap()
+
+  await rotateInvocations(fastify, invocation.functionName)
+
+  return invocation
 }
 
 export async function handleTestInvocation(
@@ -227,4 +236,27 @@ export async function handleTestInvocation(
       .update(fn => setFunctionRuntime(fn, invocation))
       .unwrap()
   }
+}
+
+export async function rotateInvocations(
+  { database, log }: FastifyInstance,
+  functionName: string,
+) {
+  log.debug({ functionName }, 'rotate invocations')
+  return database.invocations
+    .filter({
+      functionName,
+      status: {
+        $in: ['completed', 'failed'],
+      },
+    })
+    .delete()
+    .consume({
+      skip: 10, // TODO: options
+      sort: [
+        { functionName: 'desc' },
+        { createdAt: 'desc' },
+        { status: 'desc' },
+      ],
+    })
 }

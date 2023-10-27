@@ -1,4 +1,4 @@
-import type { FastifyInstance } from '@brer/types'
+import type { FastifyInstance } from '@brer/fastify'
 import { V1Pod, Watch } from '@kubernetes/client-node'
 import Queue from 'fastq'
 

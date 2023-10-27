@@ -1,11 +1,10 @@
+import type { CouchDocumentAttachment } from '@brer/couchdb'
+import type { Fn, FnEnv } from '@brer/function'
 import type {
-  CouchDocumentAttachment,
-  Fn,
-  FnEnv,
   Invocation,
   InvocationLog,
   InvocationStatus,
-} from '@brer/types'
+} from '@brer/invocation'
 import { createHash } from 'node:crypto'
 import * as uuid from 'uuid'
 

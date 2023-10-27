@@ -1,4 +1,5 @@
-import type { Fn, FnRuntime, Invocation } from '@brer/types'
+import type { Fn, FnRuntime } from '@brer/function'
+import type { Invocation } from '@brer/invocation'
 import * as uuid from 'uuid'
 
 import { isPlainObject } from './util.js'
@@ -16,9 +17,10 @@ export function getFunctionId(functionName: string) {
 }
 
 export function updateFunction(fn: Fn, options: Pick<Fn, 'env' | 'image'>): Fn {
-  if (fn.image === options.image) {
+  if (fn.image === options.image && fn.runtime?.type !== 'Failure') {
     return { ...fn, env: options.env }
   }
+  // Changing an env can fix a "Pending" Pod
   return {
     ...fn,
     env: options.env,
