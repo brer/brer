@@ -23,7 +23,7 @@ export default function createServer() {
         useDefaults: true,
       },
     },
-    bodyLimit: 1048576, // 1 MiB (bytes)
+    bodyLimit: 2097152, // 2 MiB (bytes)
     caseSensitive: true,
     ignoreTrailingSlash: false,
     logger: {
