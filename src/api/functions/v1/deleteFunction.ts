@@ -4,7 +4,7 @@ import S from 'fluent-json-schema-es'
 import { getFunctionId } from '../../../lib/function.js'
 import { getLabelSelector } from '../../../lib/kubernetes.js'
 
-interface RouteGeneric {
+export interface RouteGeneric {
   Params: {
     functionName: string
   }
@@ -29,15 +29,22 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { database, kubernetes, tasks } = this
-    const { params } = request
+    const { gateway, kubernetes, store, tasks } = this
+    const { params, session } = request
 
-    const fn = await database.functions
+    const fn = await store.functions
       .find(getFunctionId(params.functionName))
       .unwrap()
 
     if (!fn) {
       return reply.code(404).error({ message: 'Function not found.' })
+    }
+
+    const result = await gateway.authorize(session.username, 'api_write', [
+      fn.group,
+    ])
+    if (result.isErr) {
+      return reply.code(403).error(result.unwrapErr())
     }
 
     await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
@@ -50,10 +57,10 @@ export default (): RouteOptions<RouteGeneric> => ({
       getLabelSelector({ functionName: fn.name }),
     )
 
-    await database.functions.from(fn).delete().consume()
+    await store.functions.from(fn).delete().consume()
 
     tasks.push(async log => {
-      const count = await database.invocations
+      const count = await store.invocations
         .filter({ functionName: fn.name })
         .delete()
         .consume()

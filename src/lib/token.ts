@@ -11,7 +11,6 @@ const randomness = randomBytes(4)
  */
 const secret = process.env.HMAC_SECRET || ''
 if (!secret) {
-  // TODO: this is ugly
   throw new Error('Env HMAC_SECRET is missing')
 }
 

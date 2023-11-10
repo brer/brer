@@ -3,12 +3,12 @@ import type { Invocation } from '@brer/invocation'
 import S from 'fluent-json-schema-es'
 import { Readable } from 'node:stream'
 
-interface RouteGeneric {
+export interface RouteGeneric {
   Params: {
     invocationId: string
   }
   Querystring: {
-    // TODO: those params and HEAD route
+    // TODO: those params and HEAD route (keep in mind the utf8 thing)
     limitBytes?: number
     skipBytes?: number
   }
@@ -25,10 +25,10 @@ export default (): RouteOptions<RouteGeneric> => ({
       .required(),
   },
   async handler(request, reply) {
-    const { database } = this
+    const { store } = this
     const { params } = request
 
-    const invocation = await database.invocations
+    const invocation = await store.invocations
       .find(params.invocationId)
       .unwrap()
 
@@ -42,13 +42,13 @@ export default (): RouteOptions<RouteGeneric> => ({
 })
 
 async function* iterateLogs(
-  { database }: FastifyInstance,
+  { store }: FastifyInstance,
   invocation: Invocation,
 ): AsyncGenerator<Buffer> {
   if (invocation.logs) {
     for (const item of invocation.logs) {
-      yield database.invocations.adapter.readAttachment(
-        invocation,
+      yield store.invocations.adapter.nano.attachment.get(
+        invocation._id,
         item.attachment,
       )
     }

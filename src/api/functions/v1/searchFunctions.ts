@@ -1,18 +1,14 @@
 import type { RouteOptions } from '@brer/fastify'
-import type { Fn } from '@brer/function'
 import S from 'fluent-json-schema-es'
 
-import {
-  PaginationQuerystring,
-  PaginationToken,
-  getPage,
-  getPageSchema,
-} from '../../../lib/pagination.js'
 import { asInteger } from '../../../lib/qs.js'
 
-interface RouteGeneric {
-  Querystring: PaginationQuerystring & {
-    sort?: 'createdAt' | 'name'
+export interface RouteGeneric {
+  Querystring: {
+    direction?: 'asc' | 'desc'
+    group?: string
+    limit?: number
+    skip?: number
   }
 }
 
@@ -23,74 +19,57 @@ export default (): RouteOptions<RouteGeneric> => ({
     tags: ['function'],
     querystring: S.object()
       .additionalProperties(false)
-      .prop('continue', S.string())
       .prop('direction', S.string().enum(['asc', 'desc']).default('asc'))
+      .prop('group', S.string())
       .prop('limit', S.integer().minimum(1).maximum(100).default(25))
-      .prop(
-        'sort',
-        S.string().enum(['createdAt', 'name']).default('createdAt'),
-      ),
+      .prop('skip', S.integer().minimum(0)),
     response: {
-      200: getPageSchema(
-        'functions',
-        S.ref('https://brer.io/schema/v1/function.json'),
-      ),
+      200: S.object()
+        .additionalProperties(false)
+        .prop('count', S.integer().minimum(0))
+        .required()
+        .prop(
+          'functions',
+          S.array().items(S.ref('https://brer.io/schema/v1/function.json')),
+        )
+        .required(),
     },
   },
   async preValidation(request) {
     request.query.limit = asInteger(request.query.limit)
+    request.query.skip = asInteger(request.query.skip)
   },
   async handler(request, reply) {
-    const { database } = this
-    const { query } = request
+    const { gateway, store } = this
+    const { query, session } = request
 
-    const page = await getPage(
-      database.functions,
-      query,
-      getFilter,
-      getSort,
-      getCursorFilter,
-      getCursorValue,
+    const groupsResult = await gateway.authorize(
+      session.username,
+      'api_read',
+      query.group ? [query.group] : null,
     )
-    if (!page) {
-      return reply.code(400).error({ message: 'Invalid continue token.' })
+    if (groupsResult.isErr) {
+      return reply.code(403).error(groupsResult.unwrapErr())
     }
 
+    const groups = groupsResult.unwrap()
+
+    const response = await store.functions.adapter.nano.view(
+      'default',
+      'by_group',
+      {
+        descending: query.direction === 'desc',
+        include_docs: true,
+        keys: groups?.map(group => [group]),
+        limit: query.limit || 25,
+        skip: query.skip,
+        sorted: true,
+      },
+    )
+
     return {
-      continue: page.continueToken,
-      functions: page.documents,
+      count: response.total_rows,
+      functions: response.rows.map(row => row.doc),
     }
   },
 })
-
-function getFilter(querystring: RouteGeneric['Querystring']) {
-  return {}
-}
-
-function getSort(sort: string, direction: 'asc' | 'desc') {
-  switch (sort) {
-    case 'name':
-      return [{ name: direction }]
-    default:
-      return [{ createdAt: direction }]
-  }
-}
-
-function getCursorFilter(token: PaginationToken) {
-  const operator = token.direction === 'desc' ? '$lt' : '$gt'
-  switch (token.sort) {
-    case 'name':
-      return { name: { [operator]: token.value } }
-    default:
-      return { createdAt: { [operator]: token.value } }
-  }
-}
-
-function getCursorValue(doc: Fn, sort: unknown) {
-  switch (sort) {
-    case 'name':
-      return doc.name
-    default:
-      return doc.createdAt!
-  }
-}

@@ -23,10 +23,10 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { database } = this
+    const { store } = this
     const { params } = request
 
-    const invocation = await database.invocations
+    const invocation = await store.invocations
       .find(params.invocationId)
       .unwrap()
 

@@ -7,6 +7,8 @@ import type {
 import plugin from 'fastify-plugin'
 import S from 'fluent-json-schema-es'
 
+import type { Result } from './result.js'
+
 declare module 'fastify' {
   interface FastifyReply {
     /**
@@ -15,16 +17,22 @@ declare module 'fastify' {
     error(options?: ErrorOptions): object
     /**
      * Send the error body and returns the `reply` instance.
+     * Useful inside hooks.
      */
     sendError(options?: ErrorOptions): this
   }
 }
 
-interface ErrorOptions {
+export interface ErrorOptions {
+  /**
+   * ERROR_CODE.
+   */
   code?: string
   message?: string
-  info?: Record<string, any>
+  info?: Record<string, unknown>
 }
+
+export type RequestResult<T = unknown> = Result<T, ErrorOptions>
 
 async function errorPlugin(fastify: FastifyInstance) {
   fastify.decorateReply('error', null)

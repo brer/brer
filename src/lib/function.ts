@@ -1,31 +1,66 @@
-import type { Fn, FnRuntime } from '@brer/function'
+import type { Fn, FnEnv, FnRuntime } from '@brer/function'
 import type { Invocation } from '@brer/invocation'
-import * as uuid from 'uuid'
 
-import { isPlainObject } from './util.js'
+import { isSameImage } from './image.js'
+import { deriveUUID, isPlainObject } from './util.js'
 
-// TODO: ugly
-const namespace =
-  process.env.UUID_NAMESPACE || 'f71b108f-2005-4269-be6f-e83005040874'
+export function getFunctionId(functionName: string) {
+  return deriveUUID(`fn-${functionName}`)
+}
 
 export function getFunctionSecretName(functionName: string) {
   return `fn-${functionName}`
 }
 
-export function getFunctionId(functionName: string) {
-  return uuid.v5(functionName, namespace)
+export function createFunction(
+  options: Pick<
+    Fn,
+    'env' | 'exposeRegistry' | 'group' | 'historyLimit' | 'image' | 'name'
+  >,
+): Fn {
+  return {
+    _id: getFunctionId(options.name),
+    env: options.env.map(stripSecretValue),
+    exposeRegistry: options.exposeRegistry,
+    group: options.group,
+    historyLimit: options.historyLimit,
+    image: options.image,
+    name: options.name,
+  }
 }
 
-export function updateFunction(fn: Fn, options: Pick<Fn, 'env' | 'image'>): Fn {
-  if (fn.image === options.image && fn.runtime?.type !== 'Failure') {
-    return { ...fn, env: options.env }
-  }
-  // Changing an env can fix a "Pending" Pod
-  return {
+export function updateFunction(
+  fn: Fn,
+  options: Pick<
+    Fn,
+    'exposeRegistry' | 'env' | 'group' | 'historyLimit' | 'image'
+  >,
+): Fn {
+  const update: Fn = {
     ...fn,
-    env: options.env,
+    env: options.env.map(stripSecretValue),
+    exposeRegistry: options.exposeRegistry,
+    group: options.group,
+    historyLimit: options.historyLimit,
     image: options.image,
+  }
+
+  // Changing an env can fix a "Pending" Pod
+  if (fn.runtime?.type !== 'Failure' && isSameImage(fn.image, update.image)) {
+    return update
+  }
+
+  return {
+    ...update,
     runtime: undefined,
+  }
+}
+
+function stripSecretValue(obj: FnEnv): FnEnv {
+  if (obj.value && (obj.secretKey || obj.secretName)) {
+    return { ...obj, value: undefined }
+  } else {
+    return obj
   }
 }
 

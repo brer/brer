@@ -1,3 +1,14 @@
+import * as uuid from 'uuid'
+
+const UUID_NAMESPACE = process.env.UUID_NAMESPACE || ''
+if (!UUID_NAMESPACE) {
+  throw new Error('Please set the UUID_NAMESPACE environment value')
+}
+
+export function deriveUUID(value: string) {
+  return uuid.v5(value, UUID_NAMESPACE)
+}
+
 /**
  * Get last item of an array
  */

@@ -1,7 +1,5 @@
-import { default as got, Got } from 'got'
-import { Adapter, Generics, MutentError, Store } from 'mutent'
-import { Agent as HttpAgent } from 'node:http'
-import { Agent as HttpsAgent } from 'node:https'
+import type { Adapter, Generics, Store } from 'mutent'
+import nano from 'nano'
 
 export interface CouchDocument {
   /**
@@ -52,11 +50,37 @@ export interface CouchDocumentAttachment {
  */
 export type CouchQuery = string | Record<string, any>
 
+export interface CouchViewQuery {
+  _design: string
+  _view: string
+  startkey?: any
+  endkey?: any
+  key?: any
+  keys?: any[]
+}
+
 export interface CouchOptions {
   fields?: string[]
   sort?: string[] | Array<Record<string, 'asc' | 'desc'>>
   limit?: number
   skip?: number
+  /**
+   * Perform a purge op instead an update.
+   */
+  purge?: boolean
+  /**
+   * Descending order while using views.
+   */
+  descending?: boolean
+  /**
+   * Toggle view results sorting.
+   * @default true
+   */
+  sorted?: boolean
+  /**
+   *
+   */
+  inclusiveEnd?: boolean
 }
 
 export interface CouchGenerics<T extends CouchDocument> extends Generics {
@@ -74,81 +98,38 @@ export interface CouchAdapterOptions {
    */
   database: string
   /**
-   * CouchDB server URL.
-   *
-   * @default "http://127.0.0.1:5984/"
+   * Configured CouchDB client instance.
    */
-  url?: string
-  username?: string
-  password?: string
+  server: nano.ServerScope
 }
 
-export interface CouchIndexOptions {
-  index: object
-  ddoc?: string
-  name?: string
-  type?: 'json' | 'text'
-}
-
-interface FindResponse<T> {
-  warning?: string
-  bookmark: string
-  docs: T[]
-}
-
-const httpAgent = new HttpAgent({ keepAlive: true })
-const httpsAgent = new HttpsAgent({ keepAlive: true })
-
-// TODO: bulk
 export class CouchAdapter<T extends CouchDocument>
   implements Adapter<{ entity: T; options: CouchOptions; query: CouchQuery }>
 {
   readonly database: string
 
-  readonly got: Got
+  readonly nano: nano.DocumentScope<T>
 
-  constructor({ database, password, url, username }: CouchAdapterOptions) {
+  constructor({ database, server }: CouchAdapterOptions) {
     this.database = database
-
-    this.got = got.extend({
-      agent: {
-        http: httpAgent,
-        https: httpsAgent,
-      },
-      prefixUrl: new URL(this.database, url || 'http://127.0.0.1:5984/'),
-      username,
-      password,
-      responseType: 'json',
-      timeout: {
-        request: 30000, // CouchDB should be fast :)
-      },
-    })
+    this.nano = server.db.use(database)
   }
+
+  // TODO: bulk
 
   /**
    * Read document by identifier.
    */
   async read(id: string, options?: CouchOptions): Promise<T | null> {
-    const response = await this.got<T>({
-      method: 'GET',
-      url: id,
-      throwHttpErrors: false,
-    })
-
-    if (response.statusCode === 200) {
-      return response.body
-    } else if (response.statusCode === 404) {
-      return null
-    } else {
-      throw new MutentError(
-        'COUCHDB_READ_ERROR',
-        Object(response.body).reason || 'Error while reading',
-        {
-          body: response.body,
-          statusCode: response.statusCode,
-        },
-      )
+    let doc: T | null = null
+    try {
+      doc = await this.nano.get(id)
+    } catch (err) {
+      if (Object(err).statusCode !== 404) {
+        return Promise.reject(err)
+      }
     }
+    return doc
   }
 
   /**
@@ -156,163 +137,167 @@ export class CouchAdapter<T extends CouchDocument>
    * Set `_deleted: true` to delete a document.
    */
   async write(document: T, options?: CouchOptions): Promise<T> {
-    const response = await this.got<{ id: string; rev: string }>({
-      method: document._id ? 'PUT' : 'POST',
-      url: document._id || '.',
-      json: document,
-      throwHttpErrors: false,
-      headers: {
-        'if-match': document._rev,
-      },
+    const response = await this.nano.insert(document, {
+      docName: document._id,
+      rev: document._rev,
     })
-
-    const attempts = getAttempts(document)
-
-    // TODO: Sometimes a 412 error is returned, but the data is correct, just retry here, but I'm not sure if makes sense
-    if (response.statusCode === 412) {
-      if (attempts < 3) {
-        setAttempts(document, attempts + 1)
-        return this.write(document, options)
-      }
-    }
-
-    // 200 is when the documens is not modified
-    if (
-      response.statusCode !== 200 &&
-      response.statusCode !== 201 &&
-      response.statusCode !== 202
-    ) {
-      throw new MutentError(
-        'COUCHDB_WRITE_ERROR',
-        Object(response.body).reason || 'Error while writing',
-        {
-          attempts,
-          body: response.body,
-          statusCode: response.statusCode,
-        },
-      )
-    }
 
     return {
       ...document,
-      _id: response.body.id,
-      _rev: response.body.rev,
+      _id: response.id,
+      _rev: response.rev,
     }
   }
 
-  async readAttachment(document: T, attachmentName: string) {
-    const response = await this.got({
-      method: 'GET',
-      url: `${document._id}/${attachmentName}`,
-      headers: {
-        'if-match': document._rev,
-      },
-      responseType: 'buffer',
-      throwHttpErrors: false,
-    })
-    if (response.statusCode !== 200) {
-      // TODO
-      throw new Error()
-    }
-    return response.body
-  }
-
-  async createIndex(options: CouchIndexOptions) {
-    const response = await this.got({
-      method: 'POST',
-      url: '_index',
-      json: options,
-      throwHttpErrors: false,
-    })
-    if (response.statusCode !== 200) {
-      // TODO
-      throw new Error()
-    }
-  }
-
+  /**
+   * Mutent method.
+   */
   async find(query: CouchQuery, options: CouchOptions): Promise<T | null> {
-    for await (const item of this.filter(query, { ...options, limit: 1 })) {
-      return item
+    let result: T | null = null
+
+    for await (const item of this.filter(query, {
+      ...options,
+      limit: 1,
+    })) {
+      if (result) {
+        throw new Error('Unexpected iteration')
+      } else {
+        result = item
+      }
     }
-    return null
+
+    return result
   }
 
+  /**
+   * Mutent method.
+   */
   async *filter(query: CouchQuery, options: CouchOptions): AsyncIterable<T> {
     if (typeof query === 'string') {
-      const document = await this.read(query, options)
-      if (document !== null) {
-        yield document
+      const doc = await this.read(query, options)
+      if (doc) {
+        yield doc
       }
-      return
+    } else if (
+      typeof query === 'object' &&
+      typeof query._design === 'string' &&
+      typeof query._view === 'string'
+    ) {
+      yield* this.filterView(query as CouchViewQuery, options)
+    } else {
+      yield* this.filterMango(query, options)
     }
+  }
 
+  async *filterView(
+    query: CouchViewQuery,
+    options: CouchOptions,
+  ): AsyncIterable<T> {
+    let skip = options.skip || 0
+    const limit = (options.limit || Number.POSITIVE_INFINITY) + skip
+    const size = 50
+
+    while (skip < limit) {
+      const page = Math.min(size, limit - skip)
+
+      const response = await this.nano.view(query._design, query._view, {
+        descending: options.descending,
+        endkey: query.endkey,
+        group: false,
+        include_docs: true,
+        inclusive_end: options.inclusiveEnd,
+        key: query.key,
+        keys: query.keys,
+        limit: page,
+        reduce: false,
+        skip,
+        sorted: options.sorted,
+        startkey: query.startkey,
+      })
+
+      for (const row of response.rows) {
+        skip++
+        yield row.doc!
+      }
+
+      if (response.rows.length < page) {
+        skip = limit
+      }
+    }
+  }
+
+  async *filterMango(
+    query: Record<string, any>,
+    options: CouchOptions,
+  ): AsyncIterable<T> {
     const limit = options.limit || Number.POSITIVE_INFINITY
-    const pageSize = 25 // TODO: should be an option
+    const size = 50
 
     let bookmark: string | undefined
     let count = 0
 
     while (count < limit) {
-      const requestSize = Math.min(pageSize, limit - count)
+      const page = Math.min(size, limit - count)
 
-      const response = await this.got<FindResponse<T>>({
-        method: 'POST',
-        url: '_find',
-        json: {
-          ...options,
-          bookmark,
-          limit: requestSize,
-          selector: query,
-        },
-        responseType: 'json',
+      const response = await this.nano.find({
+        selector: query,
+        bookmark,
+        limit: page,
+        fields: options.fields,
+        skip: options.skip,
+        sort: options.sort,
+        // TODO: other options
       })
-      if (response.body.warning) {
-        // TODO: print warning somehow
+      if (response.warning) {
+        console.error(this.database, query)
+        console.error(response.warning)
       }
 
-      for (const document of response.body.docs) {
+      for (const document of response.docs) {
         count++
         yield document
       }
 
-      if (response.body.docs.length < requestSize) {
-        return
+      if (response.docs.length < page) {
+        count = limit
       } else {
-        bookmark = response.body.bookmark
+        bookmark = response.bookmark
       }
     }
   }
 
+  /**
+   * Mutent method.
+   */
   async create(data: T, options: CouchOptions) {
     return this.write(data, options)
   }
 
+  /**
+   * Mutent method.
+   */
   async update(oldData: T, newData: T, options: CouchOptions) {
     return this.write(newData, options)
   }
 
-  async delete(data: T) {
-    // TODO: what about other branches?
-    const response = await this.got({
+  /**
+   * Mutent method.
+   */
+  async delete(data: T, options: CouchOptions) {
+    // TODO: DELETE or _purge (option)
+    if (options.purge) {
+      //
+    } else {
+      //
+    }
+
+    await this.nano.server.request({
+      db: this.database,
+      path: '_purge',
       method: 'POST',
-      url: '_purge',
-      json: {
+      body: {
         [data._id]: [data._rev],
       },
     })
-    if (response.statusCode !== 201 && response.statusCode !== 202) {
-      // TODO
-      throw new Error()
-    }
   }
-}
-
-const symAttempts = Symbol.for('attempts')
-
-function getAttempts(obj: unknown) {
-  return Object(obj)[symAttempts] || 0
-}
-
-function setAttempts(obj: unknown, value: number) {
-  Object(obj)[symAttempts] = value
 }

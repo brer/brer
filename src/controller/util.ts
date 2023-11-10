@@ -32,9 +32,9 @@ export async function handlePodEvent(
     return null
   }
 
-  const { database, kubernetes, log } = fastify
+  const { kubernetes, log, store } = fastify
 
-  let invocation = await database.invocations.find(invocationId).unwrap()
+  let invocation = await store.invocations.find(invocationId).unwrap()
   let deletePod = false
 
   if (phase === 'DELETED') {
@@ -89,11 +89,11 @@ export async function handleInvokeEvent(
   fastify: FastifyInstance,
   invocation: Invocation,
 ): Promise<Invocation> {
-  const { database, log } = fastify
+  const { log, store } = fastify
   const token = encodeToken(invocation._id)
 
   log.debug({ invocationId: invocation._id }, 'handle invocation')
-  invocation = await database.invocations
+  invocation = await store.invocations
     .from(invocation)
     .update(handleInvocation)
     .update(doc => setTokenSignature(doc, token.signature))
@@ -182,7 +182,7 @@ export async function recoverInvocationPod(
   fastify: FastifyInstance,
   invocation: Invocation,
 ) {
-  const { database, log } = fastify
+  const { log, store } = fastify
 
   // The token signature will be saved inside the Invocation.
   // Even if multiple Pods are spawned, only the one with the correct token will
@@ -193,7 +193,7 @@ export async function recoverInvocationPod(
   // Invocations. If there's a conflict (wrong _rev) error, It means that
   // another controller has handled this Invocation.
   log.debug({ invocationId: invocation._id }, 'recover invocation')
-  invocation = await database.invocations
+  invocation = await store.invocations
     .from(invocation)
     .update(doc => setTokenSignature(doc, token.signature))
     .unwrap()
@@ -208,13 +208,13 @@ export async function failWithMessage(
   invocation: Invocation,
   message: string,
 ) {
-  const { database, log } = fastify
+  const { log, store } = fastify
 
   log.debug({ invocationId: invocation._id }, message)
-  invocation = await database.invocations
+  invocation = await store.invocations
     .from(invocation)
     .update(doc => failInvocation(doc, message))
-    .tap(doc => handleTestInvocation(database, doc))
+    .tap(doc => handleTestInvocation(store, doc))
     .unwrap()
 
   await rotateInvocations(fastify, invocation.functionName)
@@ -223,14 +223,14 @@ export async function failWithMessage(
 }
 
 export async function handleTestInvocation(
-  database: FastifyInstance['database'],
+  store: FastifyInstance['store'],
   invocation: Invocation,
 ) {
   if (
     isTestRun(invocation) &&
     (invocation.status === 'completed' || invocation.status === 'failed')
   ) {
-    await database.functions
+    await store.functions
       .find(getFunctionId(invocation.functionName))
       .filter(fn => fn.image === invocation.image)
       .update(fn => setFunctionRuntime(fn, invocation))
@@ -239,24 +239,22 @@ export async function handleTestInvocation(
 }
 
 export async function rotateInvocations(
-  { database, log }: FastifyInstance,
+  { log, store }: FastifyInstance,
   functionName: string,
 ) {
+  const fn = await store.functions.read(getFunctionId(functionName)).unwrap()
+
   log.debug({ functionName }, 'rotate invocations')
-  return database.invocations
+  return store.invocations
     .filter({
-      functionName,
-      status: {
-        $in: ['completed', 'failed'],
-      },
+      _design: 'default',
+      _view: 'history',
+      key: [functionName],
     })
     .delete()
     .consume({
-      skip: 10, // TODO: options
-      sort: [
-        { functionName: 'desc' },
-        { createdAt: 'desc' },
-        { status: 'desc' },
-      ],
+      descending: true,
+      purge: true,
+      skip: fn.historyLimit || 10,
     })
 }

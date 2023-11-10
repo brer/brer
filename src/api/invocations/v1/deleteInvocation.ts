@@ -22,10 +22,10 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { database, kubernetes } = this
+    const { kubernetes, store } = this
     const { params } = request
 
-    const invocation = await database.invocations
+    const invocation = await store.invocations
       .find(params.invocationId)
       .unwrap()
 
@@ -43,7 +43,7 @@ export default (): RouteOptions<RouteGeneric> => ({
       getLabelSelector({ invocationId: invocation._id }),
     )
 
-    await database.invocations.from(invocation).delete().unwrap()
+    await store.invocations.from(invocation).delete().unwrap()
 
     return reply.code(204).send()
   },

@@ -11,12 +11,7 @@ async function probesPlugin(fastify: FastifyInstance) {
     async handler(request, reply) {
       // TODO: test k8s
 
-      const response = await this.database.functions.adapter.got<any>({
-        method: 'GET',
-        url: '..',
-        resolveBodyOnly: true,
-        responseType: 'json',
-      })
+      const response = await this.store.nano.info()
       if (response.couchdb !== 'Welcome') {
         request.log.warn({ response }, 'unexpected couchdb response')
         return reply.code(500).error({
@@ -43,6 +38,6 @@ async function probesPlugin(fastify: FastifyInstance) {
 export default plugin(probesPlugin, {
   name: 'probes',
   decorators: {
-    fastify: ['database'],
+    fastify: ['store'],
   },
 })

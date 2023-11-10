@@ -42,7 +42,7 @@ export type FastifyReply = fastify.FastifyReply<
   {}
 >
 
-export type FastifyRequest<G extends RouteGeneric = RouteGenericDefault> =
+export type FastifyRequest<G extends RouteGeneric = RouteGeneric> =
   fastify.FastifyRequest<
     G,
     RawServer,
@@ -59,7 +59,7 @@ export type FastifyRequest<G extends RouteGeneric = RouteGenericDefault> =
     }
   >
 
-export type RouteOptions<G extends RouteGeneric = RouteGenericDefault> =
+export type RouteOptions<G extends RouteGeneric = RouteGeneric> =
   fastify.RouteOptions<
     RawServer,
     RawRequest,
@@ -72,15 +72,8 @@ export type RouteOptions<G extends RouteGeneric = RouteGenericDefault> =
   >
 
 export interface RouteGeneric {
-  Body?: any
-  Querystring?: Record<string, any>
-  Params?: Record<string, any>
-  Headers?: Record<string, any>
-}
-
-export interface RouteGenericDefault {
-  Body: unknown
-  Querystring: Record<string, unknown>
-  Params: Record<string, unknown>
-  Headers: Record<string, unknown>
+  Body?: unknown
+  Headers?: Record<string, unknown>
+  Params?: Record<string, unknown>
+  Querystring?: Record<string, unknown>
 }

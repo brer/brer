@@ -3,7 +3,7 @@ import type { FastifyInstance } from '@brer/fastify'
 import { syncInvocationState } from './util.js'
 
 export default async function invocationsWatcher(fastify: FastifyInstance) {
-  const { database, log } = fastify
+  const { log, store } = fastify
 
   let promise: Promise<any> | null = null
   let timer: any = null
@@ -16,11 +16,10 @@ export default async function invocationsWatcher(fastify: FastifyInstance) {
     }
 
     log.trace('run invocations watcher')
-    promise = database.invocations
+    promise = store.invocations
       .filter({
-        status: {
-          $in: ['pending', 'initializing', 'running'],
-        },
+        _design: 'default',
+        _view: 'controller',
       })
       .tap(invocation => syncInvocationState(fastify, invocation))
       .consume()

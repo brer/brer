@@ -3,7 +3,7 @@ import S from 'fluent-json-schema-es'
 
 import { getFunctionId } from '../../../lib/function.js'
 
-interface RouteGeneric {
+export interface RouteGeneric {
   Params: {
     functionName: string
   }
@@ -30,15 +30,22 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { database } = this
-    const { params } = request
+    const { gateway, store } = this
+    const { params, session } = request
 
-    const fn = await database.functions
+    const fn = await store.functions
       .find(getFunctionId(params.functionName))
       .unwrap()
 
     if (!fn) {
       return reply.code(404).error({ message: 'Function not found.' })
+    }
+
+    const result = await gateway.authorize(session.username, 'api_read', [
+      fn.group,
+    ])
+    if (result.isErr) {
+      return reply.code(403).error(result.unwrapErr())
     }
 
     return { function: fn }

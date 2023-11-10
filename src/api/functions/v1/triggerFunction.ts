@@ -1,4 +1,4 @@
-import type { FastifyInstance } from '@brer/fastify'
+import type { FastifyContext, FastifyInstance } from '@brer/fastify'
 import { constantCase } from 'case-anything'
 import S from 'fluent-json-schema-es'
 import { Readable, Writable } from 'node:stream'
@@ -7,7 +7,7 @@ import { pipeline } from 'node:stream/promises'
 import { getFunctionId } from '../../../lib/function.js'
 import { createInvocation } from '../../../lib/invocation.js'
 
-interface RouteGeneric {
+export interface RouteGeneric {
   Body: Buffer
   Params: {
     functionName: string
@@ -23,7 +23,7 @@ export default async function plugin(fastify: FastifyInstance) {
       .catch(done)
   })
 
-  fastify.route<RouteGeneric>({
+  fastify.route<RouteGeneric, FastifyContext>({
     method: 'POST',
     url: '/api/v1/functions/:functionName',
     schema: {
@@ -56,17 +56,22 @@ export default async function plugin(fastify: FastifyInstance) {
       },
     },
     async handler(request, reply) {
-      const { database } = this
-      const { body, headers, params } = request
+      const { gateway, store } = this
+      const { body, headers, params, session } = request
 
-      const fn = await database.functions
+      const fn = await store.functions
         .find(getFunctionId(params.functionName))
         .unwrap()
 
       if (!fn) {
-        return reply.code(404).error({
-          message: 'Function not found.',
-        })
+        return reply.code(404).error({ message: 'Function not found.' })
+      }
+
+      const result = await gateway.authorize(session.username, 'api_write', [
+        fn.group,
+      ])
+      if (result.isErr) {
+        return reply.code(403).error(result.unwrapErr())
       }
 
       const env: Record<string, string> = {}
@@ -84,7 +89,7 @@ export default async function plugin(fastify: FastifyInstance) {
         }
       }
 
-      const invocation = await database.invocations
+      const invocation = await store.invocations
         .create(
           createInvocation({
             contentType: headers['content-type'],

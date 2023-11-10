@@ -13,7 +13,19 @@ function v1Schema() {
     .required()
     .prop('name', S.string())
     .required()
-    .prop('image', S.string())
+    .prop('group', S.string())
+    .required()
+    .prop(
+      'image',
+      S.object()
+        .additionalProperties(false)
+        .prop('host', S.string())
+        .required()
+        .prop('name', S.string())
+        .required()
+        .prop('tag', S.string())
+        .required(),
+    )
     .required()
     .prop(
       'env',
@@ -41,6 +53,7 @@ function v1Schema() {
         .prop('reason')
         .description('Invocation failure reason.'),
     )
+    .prop('historyLimit', S.integer())
     .prop('createdAt', S.string().format('date-time'))
     .required()
     .prop('updatedAt', S.string().format('date-time'))

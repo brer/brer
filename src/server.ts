@@ -3,10 +3,11 @@ import Fastify from 'fastify'
 import kubernetes from 'fastify-kubernetes'
 import noAdditionalProperties from 'fastify-no-additional-properties'
 
-import database from './lib/database.js'
 import error from './lib/error.js'
 import events from './lib/events.js'
+import gateway from './lib/gateway.js'
 import probes from './lib/probes.js'
+import store from './lib/store.js'
 import tasks from './lib/tasks.js'
 
 import api from './api/plugin.js'
@@ -35,6 +36,7 @@ export default function createServer() {
   fastify.register(events)
   fastify.register(tasks)
   fastify.register(noAdditionalProperties.default)
+  fastify.register(gateway)
 
   // TODO: use nginx for this
   if (process.env.STATIC_DIR) {
@@ -51,7 +53,7 @@ export default function createServer() {
     namespace: process.env.K8S_NAMESPACE,
   })
 
-  fastify.register(database, {
+  fastify.register(store, {
     url: process.env.COUCH_URL,
     username: process.env.COUCH_USERNAME,
     password: process.env.COUCH_PASSWORD,
@@ -72,9 +74,18 @@ export default function createServer() {
     fastify.log.debug('controller plugin enabled')
     fastify.register(controller)
   }
-  if (modes.includes('registry') && process.env.REGISTRY_URL) {
+  if (modes.includes('registry')) {
     fastify.log.debug('registry plugin enabled')
-    fastify.register(registry)
+    if (!process.env.PUBLIC_URL) {
+      throw new Error('Env PUBLIC_URL is missing')
+    }
+    if (!process.env.REGISTRY_URL) {
+      throw new Error('Env REGISTRY_URL is missing')
+    }
+    fastify.register(registry, {
+      publicUrl: new URL(process.env.PUBLIC_URL),
+      registryUrl: new URL(process.env.REGISTRY_URL),
+    })
   }
 
   return fastify

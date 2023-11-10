@@ -49,6 +49,7 @@ export function createInvocation(options: CreateInvocationOptions): Invocation {
 
   return {
     _id: uuid.v4(),
+    _attachments: attachments,
     status,
     phases: [
       {
@@ -59,7 +60,7 @@ export function createInvocation(options: CreateInvocationOptions): Invocation {
     env: getInvocationEnv(options),
     image: options.fn.image,
     functionName: options.fn.name,
-    _attachments: attachments,
+    group: options.fn.group,
     createdAt: now.toISOString(),
   }
 }

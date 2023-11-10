@@ -1,17 +1,32 @@
-import type { FastifyInstance, RouteOptions } from '@brer/fastify'
+import type {
+  FastifyInstance,
+  FastifyRequest,
+  RouteOptions,
+} from '@brer/fastify'
 import type { FnEnv } from '@brer/function'
 import type { Invocation } from '@brer/invocation'
 import type { V1Secret } from '@kubernetes/client-node'
 import S from 'fluent-json-schema-es'
 
+import type { RequestResult } from '../../../lib/error.js'
 import {
+  createFunction,
   getFunctionId,
   getFunctionSecretName,
   updateFunction,
 } from '../../../lib/function.js'
+import {
+  type ContainerImage,
+  parseImagePath,
+  IMAGE_PATH_REGEXP,
+  IMAGE_TAG_REGEXP,
+  IMAGE_HOST_REGEXP,
+  IMAGE_NAME_REGEXP,
+} from '../../../lib/image.js'
 import { createInvocation } from '../../../lib/invocation.js'
+import * as Result from '../../../lib/result.js'
 
-interface RouteGeneric {
+export interface RouteGeneric {
   Body: {
     env?: {
       name: string
@@ -19,7 +34,10 @@ interface RouteGeneric {
       secretName?: string
       secretKey?: string
     }[]
-    image: string
+    image: string | ContainerImage
+    group?: string
+    historyLimit?: number
+    exposeRegistry?: boolean
   }
   Params: {
     functionName: string
@@ -43,7 +61,32 @@ export default (): RouteOptions<RouteGeneric> => ({
       .required(),
     body: S.object()
       .additionalProperties(false)
-      .prop('image', S.string().minLength(3).maxLength(256))
+      .prop(
+        'image',
+        S.oneOf([
+          S.string().minLength(3).maxLength(256).pattern(IMAGE_PATH_REGEXP),
+          S.object()
+            .additionalProperties(false)
+            .prop(
+              'host',
+              S.string().minLength(1).maxLength(512).pattern(IMAGE_HOST_REGEXP),
+            )
+            .required()
+            .prop(
+              'name',
+              S.string()
+                .minLength(1)
+                .maxLength(4096)
+                .pattern(IMAGE_NAME_REGEXP),
+            )
+            .required()
+            .prop(
+              'tag',
+              S.string().minLength(1).maxLength(128).pattern(IMAGE_TAG_REGEXP),
+            )
+            .required(),
+        ]),
+      )
       .required()
       .prop(
         'env',
@@ -64,7 +107,15 @@ export default (): RouteOptions<RouteGeneric> => ({
               .prop('secretName', S.string().maxLength(256).minLength(1))
               .prop('secretKey', S.string().maxLength(256).minLength(1)),
           ),
-      ),
+      )
+      .prop(
+        'group',
+        S.string()
+          .maxLength(128)
+          .pattern(/^[a-zA-Z0-9_\-]+$/),
+      )
+      .prop('historyLimit', S.integer().minimum(0))
+      .prop('exposeRegistry', S.boolean()),
     response: {
       200: S.object()
         .prop('function', S.ref('https://brer.io/schema/v1/function.json'))
@@ -77,105 +128,161 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { database } = this
-    const { body, params } = request
+    const { gateway, store } = this
+    const { log, params, session } = request
 
-    const counter: Record<string, number | undefined> = {}
-    const envs = body.env || []
+    const bodyResult = parseRequest(request)
+    if (bodyResult.isErr) {
+      return reply.code(400).error(bodyResult.unwrapErr())
+    }
 
-    for (const env of envs) {
-      if (counter[env.name]) {
-        // No duplicates
-        return reply.code(400).error({
-          message: `Env ${env.name} was already declared.`,
-          info: { env },
-        })
-      }
+    const body = bodyResult.unwrap()
 
-      counter[env.name] = 1
-      if (/^BRER_/i.test(env.name)) {
-        // All `BRER_` envs are reserved
-        return reply.code(400).error({
-          message: `Env ${env.name} uses a reserved name.`,
-          info: { env },
-        })
-      } else if (env.value && env.secretName && env.secretKey) {
-        // Secrets writings is allowed only for scoped secrets
-        return reply.code(400).error({
-          message: `Env ${env.name} tries to write a private secret.`,
-          info: { env },
-        })
-      } else if (env.secretName && !env.secretKey) {
-        // Secret references must be complete
-        return reply.code(400).error({
-          message: `Env ${env.name} is missing secret key reference.`,
-          info: { env },
-        })
-      } else if (!env.value && !env.secretKey) {
-        // Disallow unreferenced secrets
-        return reply.code(400).error({
-          message: `Env ${env.name} does not reference any secret.`,
-          info: { env },
-        })
+    const oldFn = await store.functions
+      .find(getFunctionId(params.functionName))
+      .unwrap()
+
+    if (oldFn) {
+      const readResult = await gateway.authorize(session.username, 'api_read', [
+        oldFn.group,
+      ])
+      if (readResult.isErr) {
+        return reply.code(403).error(readResult.unwrapErr())
       }
     }
 
-    // TODO: handle errors
-    await pushPrivateSecrets(this, params.functionName, envs)
+    const writeResult = await gateway.authorize(session.username, 'api_write', [
+      body.group,
+    ])
+    if (writeResult.isErr) {
+      return reply.code(403).error(writeResult.unwrapErr())
+    }
+
+    try {
+      await pushPrivateSecrets(this, params.functionName, body.env)
+    } catch (err) {
+      log.error({ err }, 'secret write error')
+      return reply
+        .code(409)
+        .error({ message: 'Cannot write scoped Kubernetes secrets.' })
+    }
+
+    const tmpFn = oldFn ? updateFunction(oldFn, body) : createFunction(body)
 
     let invocation: Invocation | undefined
-
-    const functionId = getFunctionId(params.functionName)
-    const fn = await database.functions
-      .read(functionId)
-      .ensure({
-        _id: functionId,
-        name: params.functionName,
-        image: '',
-        env: [],
-      })
-      .update(fn =>
-        updateFunction(fn, {
-          env: envs,
-          image: body.image,
-        }),
-      )
-      .tap(async fn => {
-        if (!fn.runtime) {
-          // Create Invocation before Fn commit
-          invocation = await database.invocations
-            .create(
-              createInvocation({
-                fn,
-                env: {
-                  BRER_MODE: 'test',
-                },
-              }),
-            )
-            .unwrap()
-        }
-      })
-      .unwrap()
+    if (!tmpFn.runtime) {
+      // Create Invocation before Fn write
+      invocation = await store.invocations
+        .create(
+          createInvocation({
+            fn: tmpFn,
+            env: {
+              BRER_MODE: 'test',
+            },
+          }),
+        )
+        .unwrap()
+    }
 
     if (invocation) {
       this.events.emit('brer.invocations.invoke', { invocation })
     }
 
+    const newFn = await store.functions
+      .from(oldFn)
+      .update(() => tmpFn)
+      .ensure(tmpFn)
+      .unwrap()
+
     reply.code(invocation ? 202 : 200)
     return {
-      function: fn,
+      function: newFn,
       invocation,
     }
   },
 })
 
+interface ParsedRequest {
+  env: FnEnv[]
+  group: string
+  historyLimit?: number
+  image: ContainerImage
+  name: string
+  exposeRegistry?: boolean
+}
+
+function parseRequest({
+  body,
+  params,
+  session,
+}: FastifyRequest<RouteGeneric>): RequestResult<ParsedRequest> {
+  const group = body.group || session.username
+
+  const image =
+    typeof body.image === 'string' ? parseImagePath(body.image) : body.image
+  if (!image) {
+    return Result.err({
+      message: 'Invalid image.',
+      info: { image: body.image },
+    })
+  }
+
+  const counter: Record<string, boolean | undefined> = {}
+  const env = body.env || []
+
+  for (const obj of env) {
+    if (counter[obj.name]) {
+      return Result.err({
+        message: `Env ${obj.name} was already declared.`,
+        info: { env: obj },
+      })
+    }
+
+    counter[obj.name] = true
+    if (/^BRER_/i.test(obj.name)) {
+      // All `BRER_` envs are reserved
+      return Result.err({
+        message: `Env ${obj.name} uses a reserved name.`,
+        info: { env: obj },
+      })
+    } else if (obj.value && obj.secretName && obj.secretKey) {
+      // Secrets writings is allowed only for scoped secrets
+      return Result.err({
+        message: `Env ${obj.name} tries to write a private secret.`,
+        info: { env: obj },
+      })
+    } else if (obj.secretName && !obj.secretKey) {
+      // Secret references must be complete
+      return Result.err({
+        message: `Env ${obj.name} is missing secret key reference.`,
+        info: { env: obj },
+      })
+    } else if (!obj.value && !obj.secretKey) {
+      // Disallow unreferenced secrets
+      return Result.err({
+        message: `Env ${obj.name} does not reference any secret.`,
+        info: { env: obj },
+      })
+    }
+  }
+
+  return Result.ok({
+    env,
+    group,
+    historyLimit: body.historyLimit,
+    image,
+    name: params.functionName,
+    exposeRegistry: body.exposeRegistry,
+  })
+}
+
 async function pushPrivateSecrets(
   { kubernetes }: FastifyInstance,
   functionName: string,
-  envs: FnEnv[],
+  env: FnEnv[],
 ) {
-  envs = Array.from(getPrivateEnvs(envs))
-  if (!envs.length) {
+  env = Array.from(getPrivateEnvs(env))
+  if (!env.length) {
     return
   }
 
@@ -192,9 +299,9 @@ async function pushPrivateSecrets(
         'brer.io/function-name': functionName,
       },
     },
-    stringData: envs.reduce(
-      (acc, item) => {
-        acc[item.secretKey!] = item.value!
+    stringData: env.reduce(
+      (acc, obj) => {
+        acc[obj.secretKey!] = obj.value!
         return acc
       },
       {} as Record<string, string>,
