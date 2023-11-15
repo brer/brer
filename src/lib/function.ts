@@ -13,36 +13,28 @@ export function getFunctionSecretName(functionName: string) {
 }
 
 export function createFunction(
-  options: Pick<
-    Fn,
-    'env' | 'exposeRegistry' | 'group' | 'historyLimit' | 'image' | 'name'
-  >,
+  options: Pick<Fn, 'env' | 'historyLimit' | 'image' | 'name' | 'project'>,
 ): Fn {
   return {
     _id: getFunctionId(options.name),
     env: options.env.map(stripSecretValue),
-    exposeRegistry: options.exposeRegistry,
-    group: options.group,
     historyLimit: options.historyLimit,
     image: options.image,
     name: options.name,
+    project: options.project,
   }
 }
 
 export function updateFunction(
   fn: Fn,
-  options: Pick<
-    Fn,
-    'exposeRegistry' | 'env' | 'group' | 'historyLimit' | 'image'
-  >,
+  options: Pick<Fn, 'env' | 'historyLimit' | 'image' | 'project'>,
 ): Fn {
   const update: Fn = {
     ...fn,
     env: options.env.map(stripSecretValue),
-    exposeRegistry: options.exposeRegistry,
-    group: options.group,
     historyLimit: options.historyLimit,
     image: options.image,
+    project: options.project,
   }
 
   // Changing an env can fix a "Pending" Pod

@@ -60,7 +60,7 @@ export function createInvocation(options: CreateInvocationOptions): Invocation {
     env: getInvocationEnv(options),
     image: options.fn.image,
     functionName: options.fn.name,
-    group: options.fn.group,
+    project: options.fn.project,
     createdAt: now.toISOString(),
   }
 }

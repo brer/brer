@@ -7,15 +7,18 @@ import type {
 import type { CookieSerializeOptions } from '@fastify/cookie'
 import S from 'fluent-json-schema-es'
 
-import { parseAuthorizationHeader } from '../lib/auth.js'
-import type { RequestResult } from '../lib/error.js'
+import { type Session } from '../lib/auth.js'
+import { type RequestResult } from '../lib/error.js'
+import { parseAuthorizationHeader } from '../lib/header.js'
 import * as Result from '../lib/result.js'
 
 declare module 'fastify' {
   interface FastifyRequest {
-    session: {
-      type: 'basic' | 'bearer' | 'cookie'
-      username: string
+    session: Session & {
+      /**
+       * Session type.
+       */
+      type: 'basic' | 'cookie'
     }
   }
 }
@@ -40,31 +43,46 @@ export default async function authPlugin(fastify: FastifyInstance) {
     const rawCookie = cookies[cookieName]
     const auth = parseAuthorizationHeader(headers.authorization)
 
-    let username: string | undefined
+    let session: FastifyRequest['session'] | undefined
     if (auth?.type === 'basic') {
-      const result = await fastify.gateway.authenticate(
+      const result = await fastify.auth.authenticate(
         auth.username,
         auth.password,
       )
       if (result.isErr) {
         return result.expectErr()
       } else {
-        username = result.unwrap()
+        session = {
+          ...result.unwrap(),
+          type: 'basic',
+        }
       }
     } else if (rawCookie) {
       const unsigned = fastify.unsignCookie(rawCookie)
       if (unsigned.valid && unsigned.value) {
-        username = unsigned.value
+        const { username } = JSON.parse(
+          Buffer.from(unsigned.value, 'base64').toString(),
+        )
+
+        const result = await fastify.auth.fetch(username)
+        if (result.isErr) {
+          return result.expectErr()
+        } else {
+          session = {
+            ...result.unwrap(),
+            type: 'cookie',
+          }
+        }
       }
     }
 
-    if (username) {
-      return Result.ok({
-        type: auth?.type || 'cookie',
-        username,
-      })
+    if (session) {
+      return Result.ok(session)
     } else {
-      return Result.err({ message: 'Invalid credentials.' })
+      return Result.err({
+        message: 'Invalid credentials.',
+        status: 401,
+      })
     }
   }
 
@@ -73,28 +91,35 @@ export default async function authPlugin(fastify: FastifyInstance) {
   fastify.addHook<any, FastifyContext, FastifySchema>(
     'onRequest',
     async (request, reply) => {
-      const optionalAuth = request.routeOptions.config.public || false
+      const adminOnly = !!request.routeOptions.config.admin
+      const optionalAuth =
+        !adminOnly && (request.routeOptions.config.public || false)
+
       const result = await getRequestSession(request)
 
       if (result.isErr && optionalAuth) {
         request.log.trace('optional authentication failed')
       } else if (result.isErr) {
-        return reply.code(401).sendError(result.unwrapErr())
+        return reply.sendError(result.unwrapErr())
       } else {
-        request.session = result.unwrap()
+        const session = result.unwrap()
+        if (adminOnly && session.username !== 'admin') {
+          return reply.sendError({ message: 'Permission denied.', status: 403 })
+        } else {
+          request.session = session
+        }
       }
     },
   )
 
-  fastify.route<
-    {
-      Body: {
-        username: string
-        password: string
-      }
-    },
-    FastifyContext
-  >({
+  interface RouteGeneric {
+    Body: {
+      username: string
+      password: string
+    }
+  }
+
+  fastify.route<RouteGeneric, FastifyContext>({
     method: 'POST',
     url: '/api/session',
     config: {
@@ -115,6 +140,8 @@ export default async function authPlugin(fastify: FastifyInstance) {
             S.object()
               .additionalProperties(false)
               .prop('username', S.string())
+              .required()
+              .prop('projects', S.array().items(S.string()))
               .required(),
           )
           .required(),
@@ -123,18 +150,24 @@ export default async function authPlugin(fastify: FastifyInstance) {
     async handler(request, reply) {
       const { body } = request
 
-      const result = await this.gateway.authenticate(
-        body.username,
-        body.password,
-      )
+      const result = await this.auth.authenticate(body.username, body.password)
       if (result.isErr) {
-        return reply.code(401).error(result.unwrapErr())
+        return reply.error(result.unwrapErr())
       }
 
-      reply.setCookie(cookieName, body.username, cookieOptions)
+      const session = result.unwrap()
+      const content = Buffer.from(
+        JSON.stringify({
+          date: Date.now(),
+          username: session.username,
+        }),
+      ).toString('base64')
+
+      reply.setCookie(cookieName, content, cookieOptions)
       return {
         user: {
-          username: body.username,
+          username: session.username,
+          projects: session.projects,
         },
       }
     },
@@ -164,13 +197,18 @@ export default async function authPlugin(fastify: FastifyInstance) {
             S.object()
               .additionalProperties(false)
               .prop('username', S.string())
+              .required()
+              .prop('projects', S.array().items(S.string()))
               .required(),
           ),
       },
     },
     async handler(request) {
       const user = request.session
-        ? { username: request.session.username }
+        ? {
+            username: request.session.username,
+            projects: request.session.projects,
+          }
         : undefined
 
       const session = request.session

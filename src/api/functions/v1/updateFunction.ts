@@ -35,9 +35,8 @@ export interface RouteGeneric {
       secretKey?: string
     }[]
     image: string | ContainerImage
-    group?: string
+    project?: string
     historyLimit?: number
-    exposeRegistry?: boolean
   }
   Params: {
     functionName: string
@@ -109,13 +108,13 @@ export default (): RouteOptions<RouteGeneric> => ({
           ),
       )
       .prop(
-        'group',
+        'project',
         S.string()
+          .default('default')
           .maxLength(128)
           .pattern(/^[a-zA-Z0-9_\-]+$/),
       )
-      .prop('historyLimit', S.integer().minimum(0))
-      .prop('exposeRegistry', S.boolean()),
+      .prop('historyLimit', S.integer().minimum(0)),
     response: {
       200: S.object()
         .prop('function', S.ref('https://brer.io/schema/v1/function.json'))
@@ -128,7 +127,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { gateway, store } = this
+    const { auth, store } = this
     const { log, params, session } = request
 
     const bodyResult = parseRequest(request)
@@ -143,19 +142,15 @@ export default (): RouteOptions<RouteGeneric> => ({
       .unwrap()
 
     if (oldFn) {
-      const readResult = await gateway.authorize(session.username, 'api_read', [
-        oldFn.group,
-      ])
+      const readResult = await auth.authorize(session, 'admin', oldFn.project)
       if (readResult.isErr) {
-        return reply.code(403).error(readResult.unwrapErr())
+        return reply.error(readResult.unwrapErr())
       }
     }
 
-    const writeResult = await gateway.authorize(session.username, 'api_write', [
-      body.group,
-    ])
+    const writeResult = await auth.authorize(session, 'admin', body.project)
     if (writeResult.isErr) {
-      return reply.code(403).error(writeResult.unwrapErr())
+      return reply.error(writeResult.unwrapErr())
     }
 
     try {
@@ -204,20 +199,16 @@ export default (): RouteOptions<RouteGeneric> => ({
 
 interface ParsedRequest {
   env: FnEnv[]
-  group: string
   historyLimit?: number
   image: ContainerImage
   name: string
-  exposeRegistry?: boolean
+  project: string
 }
 
 function parseRequest({
   body,
   params,
-  session,
 }: FastifyRequest<RouteGeneric>): RequestResult<ParsedRequest> {
-  const group = body.group || session.username
-
   const image =
     typeof body.image === 'string' ? parseImagePath(body.image) : body.image
   if (!image) {
@@ -268,11 +259,10 @@ function parseRequest({
 
   return Result.ok({
     env,
-    group,
     historyLimit: body.historyLimit,
     image,
     name: params.functionName,
-    exposeRegistry: body.exposeRegistry,
+    project: body.project || 'default',
   })
 }
 

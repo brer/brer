@@ -3,9 +3,9 @@ import Fastify from 'fastify'
 import kubernetes from 'fastify-kubernetes'
 import noAdditionalProperties from 'fastify-no-additional-properties'
 
+import auth from './lib/auth.js'
 import error from './lib/error.js'
 import events from './lib/events.js'
-import gateway from './lib/gateway.js'
 import probes from './lib/probes.js'
 import store from './lib/store.js'
 import tasks from './lib/tasks.js'
@@ -36,7 +36,7 @@ export default function createServer() {
   fastify.register(events)
   fastify.register(tasks)
   fastify.register(noAdditionalProperties.default)
-  fastify.register(gateway)
+  fastify.register(auth)
 
   // TODO: use nginx for this
   if (process.env.STATIC_DIR) {

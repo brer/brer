@@ -2,13 +2,11 @@ import type { FastifyInstance, FastifyRequest } from '@brer/fastify'
 import type { Readable } from 'node:stream'
 import { Pool } from 'undici'
 
-import { parseAuthorizationHeader } from '../lib/auth.js'
-import { createAsyncCache } from '../lib/cache.js'
 import { type RequestResult } from '../lib/error.js'
-import * as Result from '../lib/result.js'
 import { updateFunction } from '../lib/function.js'
+import { parseAuthorizationHeader } from '../lib/header.js'
 import { createInvocation } from '../lib/invocation.js'
-
+import * as Result from '../lib/result.js'
 export interface PluginOptions {
   publicUrl: URL
   registryUrl: URL
@@ -20,18 +18,12 @@ export default async function registryPlugin(
 ) {
   const authorization = getAuthorizationHeader()
 
-  // A push will make A LOT of requests.
-  // Cache the auth step for 1min to improve performance.
-  const cache = createAsyncCache<RequestResult<string[]>>(60)
-  const timer = setInterval(cache.release, cache.ttlSeconds * 1000)
-
   const pool = new Pool(registryUrl.origin, {
     connections: 32,
     pipelining: 1,
   })
 
   fastify.addHook('onClose', async () => {
-    clearInterval(timer)
     await pool.close()
   })
 
@@ -55,19 +47,14 @@ export default async function registryPlugin(
     }
 
     // Cache set after authentication AND authorization
-    if (!cache.has(auth.username)) {
-      const result = await fastify.gateway.authenticate(
-        auth.username,
-        auth.password,
-      )
-      if (result.isErr) {
-        return reply.code(401).sendError(result.unwrapErr())
-      }
+    const result = await fastify.auth.authenticate(auth.username, auth.password)
+    if (result.isErr) {
+      return reply.sendError(result.unwrapErr())
     }
 
     request.session = {
+      ...result.unwrap(),
       type: 'basic',
-      username: auth.username,
     }
   })
 
@@ -98,7 +85,7 @@ export default async function registryPlugin(
   const authorizeRegistryAction = async (
     request: FastifyRequest<RouteGeneric>,
   ): Promise<RequestResult<string[]>> => {
-    const response = await fastify.store.functions.adapter.nano.view<string[]>(
+    const response = await fastify.store.functions.adapter.nano.view<any>(
       'default',
       'registry',
       {
@@ -109,60 +96,33 @@ export default async function registryPlugin(
       },
     )
 
-    let groups: string[] = response.rows[0]?.value || []
+    // All projects with this image
+    const values: string[] = response.rows[0]?.value || []
 
-    if (groups.length) {
-      const role =
-        request.method === 'GET' || request.method === 'HEAD'
-          ? 'registry_read'
-          : 'registry_write'
+    const results = await Promise.all(
+      values.map(p => fastify.auth.authorize(request.session, 'publisher', p)),
+    )
 
-      const result = await fastify.gateway.authorize(
-        request.session.username,
-        role,
-        groups,
-      )
-      if (result.isErr) {
-        return result.expectErr()
-      } else {
-        groups = result.unwrap() || []
-      }
+    const projects = results.filter(r => r.isOk).map(r => r.unwrap())
+
+    if (!projects.length) {
+      // No projects, no api :)
+      return Result.err({ status: 404 })
     }
 
-    return Result.ok(groups)
-  }
-
-  /**
-   * A "docker push" will make A LOT of almost-concurrent requests.
-   * This "1 minute cache" will make the whole process super-smooth (no auth delay).
-   */
-  const cachedAuthorization = async (
-    request: FastifyRequest<RouteGeneric>,
-  ): Promise<RequestResult<string[]>> => {
-    const cacheHit = await cache.get(request.session.username)
-    if (cacheHit) {
-      return cacheHit
-    } else {
-      return cache.set(
-        request.session.username,
-        authorizeRegistryAction(request),
-      )
-    }
+    return Result.ok(projects)
   }
 
   fastify.route({
     method: 'PUT',
     url: '/v2/:imageName/manifests/:imageTag',
     async handler(request: FastifyRequest<RouteGeneric>, reply) {
-      const result = await cachedAuthorization(request)
+      const result = await authorizeRegistryAction(request)
       if (result.isErr) {
         return reply.code(403).error(result.unwrapErr())
       }
 
-      const groups = result.unwrap()
-      if (!groups.length) {
-        return reply.code(404).error()
-      }
+      const projects = result.unwrap()
 
       const response = await pool.request({
         method: 'PUT',
@@ -176,9 +136,9 @@ export default async function registryPlugin(
           .filter({
             _design: 'default',
             _view: 'registry',
-            key: [publicUrl.host, request.params.imageName], // filter by image
+            key: [publicUrl.host, request.params.imageName],
           })
-          .filter(fn => groups.includes(fn.group))
+          .filter(fn => projects.includes(fn.project))
           .tap(fn =>
             request.log.trace(
               { tag: request.params.imageTag },
@@ -236,14 +196,9 @@ export default async function registryPlugin(
     method: ['DELETE', 'GET', 'HEAD', 'PATCH', 'POST', 'PUT'],
     url: '/v2/:imageName/*',
     async handler(request: FastifyRequest<RouteGeneric>, reply) {
-      const result = await cachedAuthorization(request)
+      const result = await authorizeRegistryAction(request)
       if (result.isErr) {
         return reply.code(403).error(result.unwrapErr())
-      }
-
-      const groups = result.unwrap()
-      if (!groups.length) {
-        return reply.code(404).error()
       }
 
       const resRegistry = await pool.request({

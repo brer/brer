@@ -1,6 +1,8 @@
 import type { FastifyInstance } from '@brer/fastify'
 import type { Fn } from '@brer/function'
 import type { Invocation } from '@brer/invocation'
+import type { Project } from '@brer/project'
+import type { User } from '@brer/user'
 import Agent from 'agentkeepalive'
 import plugin from 'fastify-plugin'
 import { Entity, Store, StoreOptions } from 'mutent'
@@ -21,6 +23,8 @@ declare module 'fastify' {
       nano: nano.ServerScope
       functions: CouchStore<Fn>
       invocations: CouchStore<Invocation>
+      projects: CouchStore<Project>
+      users: CouchStore<User>
     }
   }
 }
@@ -88,7 +92,7 @@ async function storePlugin(fastify: FastifyInstance, options: PluginOptions) {
       1: obj => ({
         ...obj,
         v: 1,
-        group: 'admin',
+        project: 'default',
         image: parseImagePath(obj.image),
       }),
     }),
@@ -96,10 +100,12 @@ async function storePlugin(fastify: FastifyInstance, options: PluginOptions) {
       1: obj => ({
         ...obj,
         v: 1,
-        group: 'admin',
+        project: 'default',
         image: parseImagePath(obj.image),
       }),
     }),
+    projects: getStore('projects'),
+    users: getStore('users'),
   }
 
   fastify.decorate('store', decorator)

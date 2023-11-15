@@ -19,17 +19,13 @@ export interface Fn extends CouchDocument {
    */
   runtime?: FnRuntime
   /**
-   * Security group/scope.
+   * Invocation's owner.
    */
-  group: string
+  project: string
   /**
    * @default 10
    */
   historyLimit?: number
-  /**
-   * Toggle distribution registry access.
-   */
-  exposeRegistry?: boolean
 }
 
 export interface FnRuntime {

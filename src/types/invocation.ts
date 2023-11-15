@@ -37,9 +37,9 @@ export interface Invocation extends CouchDocument {
    */
   logs?: InvocationLog[]
   /**
-   * Security group/scope.
+   * Invocation's owner.
    */
-  group: string
+  project: string
 }
 
 /**

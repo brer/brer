@@ -30,7 +30,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { gateway, store } = this
+    const { auth, store } = this
     const { params, session } = request
 
     const fn = await store.functions
@@ -41,11 +41,9 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.code(404).error({ message: 'Function not found.' })
     }
 
-    const result = await gateway.authorize(session.username, 'api_read', [
-      fn.group,
-    ])
+    const result = await auth.authorize(session, 'viewer', fn.project)
     if (result.isErr) {
-      return reply.code(403).error(result.unwrapErr())
+      return reply.error(result.unwrapErr())
     }
 
     return { function: fn }

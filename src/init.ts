@@ -14,7 +14,11 @@ async function init() {
   await Promise.all([
     store.nano.db.create(store.functions.adapter.database).catch(existsOk),
     store.nano.db.create(store.invocations.adapter.database).catch(existsOk),
+    store.nano.db.create(store.projects.adapter.database).catch(existsOk),
+    store.nano.db.create(store.users.adapter.database).catch(existsOk),
   ])
+
+  // TODO: create admin user with random password
 
   const invocationsHistoryMap = `
     function (doc) {
@@ -24,32 +28,61 @@ async function init() {
     }
   `
 
-  const byGroupMap = `
+  const mapFunctionsByProject = `
     function (doc) {
-      emit([doc.group, doc.functionName || doc.name, doc.createdAt], null)
+      emit([doc.project, doc.name], null)
     }
   `
 
-  const functionsRegistryMap = `
+  const mapInvocationsByProject = `
     function (doc) {
-      if (doc.exposeRegistry === true && typeof doc.image === 'object') {
-        emit([doc.image.host, doc.image.name], [doc.group])
+      emit([doc.project, doc.functionName, doc.createdAt], null)
+    }
+  `
+
+  const mapRegistryFunctions = `
+    function (doc) {
+      if (typeof doc.image === 'object') {
+        emit([doc.image.host, doc.image.name], [doc.project])
       }
     }
   `
 
   // TODO: check rereduce
-  const functionsRegistryReduce = `
+  const reduceArrays = `
     function (keys, values, rereduce) {
       return values.reduce((a, b) => a.concat(b))
     }
   `
 
-  const invocationsControllerMap = `
+  const mapControllerInvocations = `
     function (doc) {
       if (doc.status === 'pending' || doc.status === 'initializing' || doc.status === 'running') {
-        emit([doc.group, doc.functionName, doc.createdAt], null)
+        emit(doc.createdAt, null)
       }
+    }
+  `
+
+  const mapUsersByUsername = `
+    function (doc) {
+      emit(doc.username, null)
+    }
+  `
+
+  const mapProjectsByUsername = `
+    function (doc) {
+      emit('admin', [doc.name])
+      for (var username in Object(doc.roles)) {
+        if (username !== 'admin' && doc.roles[username] !== 'publisher') {
+          emit(username, [doc.name])
+        }
+      }
+    }
+  `
+
+  const mapProjectsByName = `
+    function (doc) {
+      emit(doc.name, null)
     }
   `
 
@@ -58,26 +91,46 @@ async function init() {
     design(store.functions, {
       _id: '_design/default',
       views: {
-        by_group: {
-          map: byGroupMap,
+        by_project: {
+          map: mapFunctionsByProject,
         },
         registry: {
-          map: functionsRegistryMap,
-          reduce: functionsRegistryReduce,
+          map: mapRegistryFunctions,
+          reduce: reduceArrays,
         },
       },
     }),
     design(store.invocations, {
       _id: '_design/default',
       views: {
-        by_group: {
-          map: byGroupMap,
+        by_project: {
+          map: mapInvocationsByProject,
         },
         history: {
           map: invocationsHistoryMap,
         },
         controller: {
-          map: invocationsControllerMap,
+          map: mapControllerInvocations,
+        },
+      },
+    }),
+    design(store.projects, {
+      _id: '_design/default',
+      views: {
+        by_name: {
+          map: mapProjectsByName,
+        },
+        by_username: {
+          map: mapProjectsByUsername,
+          reduce: reduceArrays,
+        },
+      },
+    }),
+    design(store.users, {
+      _id: '_design/default',
+      views: {
+        by_username: {
+          map: mapUsersByUsername,
         },
       },
     }),

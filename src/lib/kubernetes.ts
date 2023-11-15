@@ -25,9 +25,9 @@ function getSuffix(): string {
 
 const labelNames = {
   functionName: 'brer.io/function-name',
-  group: 'brer.io/group',
   invocationId: 'brer.io/invocation-id',
   managedBy: 'app.kubernetes.io/managed-by',
+  project: 'brer.io/project',
 }
 
 const managedBy = 'brer.io'
@@ -74,7 +74,7 @@ export function getPodTemplate(
       name: `fn-${invocation.functionName}-${getSuffix()}`,
       labels: {
         [labelNames.functionName]: invocation.functionName,
-        [labelNames.group]: invocation.group,
+        [labelNames.project]: invocation.project,
         [labelNames.invocationId]: invocation._id,
         [labelNames.managedBy]: managedBy,
       },

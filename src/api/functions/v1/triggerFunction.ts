@@ -56,7 +56,7 @@ export default async function plugin(fastify: FastifyInstance) {
       },
     },
     async handler(request, reply) {
-      const { gateway, store } = this
+      const { auth, store } = this
       const { body, headers, params, session } = request
 
       const fn = await store.functions
@@ -67,11 +67,9 @@ export default async function plugin(fastify: FastifyInstance) {
         return reply.code(404).error({ message: 'Function not found.' })
       }
 
-      const result = await gateway.authorize(session.username, 'api_write', [
-        fn.group,
-      ])
+      const result = await auth.authorize(session, 'invoker', fn.project)
       if (result.isErr) {
-        return reply.code(403).error(result.unwrapErr())
+        return reply.error(result.unwrapErr())
       }
 
       const env: Record<string, string> = {}

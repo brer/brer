@@ -29,7 +29,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { gateway, kubernetes, store, tasks } = this
+    const { auth, kubernetes, store, tasks } = this
     const { params, session } = request
 
     const fn = await store.functions
@@ -40,11 +40,9 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.code(404).error({ message: 'Function not found.' })
     }
 
-    const result = await gateway.authorize(session.username, 'api_write', [
-      fn.group,
-    ])
+    const result = await auth.authorize(session, 'viewer', fn.project)
     if (result.isErr) {
-      return reply.code(403).error(result.unwrapErr())
+      return reply.error(result.unwrapErr())
     }
 
     await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(

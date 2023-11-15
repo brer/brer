@@ -14,9 +14,10 @@ async function probesPlugin(fastify: FastifyInstance) {
       const response = await this.store.nano.info()
       if (response.couchdb !== 'Welcome') {
         request.log.warn({ response }, 'unexpected couchdb response')
-        return reply.code(500).error({
+        return reply.error({
           code: 'PROBE_FAILURE',
           message: 'Database connection error.',
+          status: 500,
         })
       }
 

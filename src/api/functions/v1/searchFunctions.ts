@@ -6,7 +6,7 @@ import { asInteger } from '../../../lib/qs.js'
 export interface RouteGeneric {
   Querystring: {
     direction?: 'asc' | 'desc'
-    group?: string
+    project?: string
     limit?: number
     skip?: number
   }
@@ -20,7 +20,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     querystring: S.object()
       .additionalProperties(false)
       .prop('direction', S.string().enum(['asc', 'desc']).default('asc'))
-      .prop('group', S.string())
+      .prop('project', S.string().default('default'))
       .prop('limit', S.integer().minimum(1).maximum(100).default(25))
       .prop('skip', S.integer().minimum(0)),
     response: {
@@ -40,27 +40,24 @@ export default (): RouteOptions<RouteGeneric> => ({
     request.query.skip = asInteger(request.query.skip)
   },
   async handler(request, reply) {
-    const { gateway, store } = this
+    const { auth, store } = this
     const { query, session } = request
 
-    const groupsResult = await gateway.authorize(
-      session.username,
-      'api_read',
-      query.group ? [query.group] : null,
-    )
-    if (groupsResult.isErr) {
-      return reply.code(403).error(groupsResult.unwrapErr())
-    }
+    const project = query.project || session.projects[0] || 'default'
 
-    const groups = groupsResult.unwrap()
+    const result = await auth.authorize(session, 'viewer', project)
+    if (result.isErr) {
+      return reply.error(result.unwrapErr())
+    }
 
     const response = await store.functions.adapter.nano.view(
       'default',
-      'by_group',
+      'by_project',
       {
         descending: query.direction === 'desc',
         include_docs: true,
-        keys: groups?.map(group => [group]),
+        startkey: [project, null],
+        endkey: [project, {}],
         limit: query.limit || 25,
         skip: query.skip,
         sorted: true,

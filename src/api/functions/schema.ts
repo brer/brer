@@ -13,7 +13,7 @@ function v1Schema() {
     .required()
     .prop('name', S.string())
     .required()
-    .prop('group', S.string())
+    .prop('project', S.string())
     .required()
     .prop(
       'image',

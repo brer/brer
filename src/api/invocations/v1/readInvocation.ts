@@ -23,15 +23,19 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { store } = this
-    const { params } = request
+    const { auth, store } = this
+    const { params, session } = request
 
     const invocation = await store.invocations
       .find(params.invocationId)
       .unwrap()
-
     if (!invocation) {
       return reply.code(404).error({ message: 'Invocation not found.' })
+    }
+
+    const result = await auth.authorize(session, 'viewer', invocation.project)
+    if (result.isErr) {
+      return reply.error(result.unwrapErr())
     }
 
     return { invocation }

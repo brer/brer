@@ -10,6 +10,10 @@ export type RawReply = http.ServerResponse
 
 export interface FastifyContext {
   /**
+   * Only the admin can access this route.
+   */
+  admin?: boolean
+  /**
    * Disable (bypass) the auth middleware for the current route.
    */
   public?: boolean
