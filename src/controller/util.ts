@@ -2,6 +2,8 @@ import type { FastifyInstance } from '@brer/fastify'
 import type { Invocation } from '@brer/invocation'
 import type { V1Pod } from '@kubernetes/client-node'
 
+import { getFunctionByName, setFunctionRuntime } from '../lib/function.js'
+import { isSameImage } from '../lib/image.js'
 import {
   failInvocation,
   handleInvocation,
@@ -16,7 +18,6 @@ import {
   getPodTemplate,
 } from '../lib/kubernetes.js'
 import { type InvocationToken, encodeToken } from '../lib/token.js'
-import { getFunctionId, setFunctionRuntime } from '../lib/function.js'
 
 /**
  * Kubernetes Controller loop handler.
@@ -231,30 +232,42 @@ export async function handleTestInvocation(
     (invocation.status === 'completed' || invocation.status === 'failed')
   ) {
     await store.functions
-      .find(getFunctionId(invocation.functionName))
-      .filter(fn => fn.image === invocation.image)
+      .from(asIterable(store, invocation))
+      .filter(fn => isSameImage(invocation.image, fn.image))
       .update(fn => setFunctionRuntime(fn, invocation))
       .unwrap()
   }
 }
 
+async function* asIterable(
+  store: FastifyInstance['store'],
+  invocation: Invocation,
+) {
+  const fn = await getFunctionByName(store, invocation.functionName)
+  if (fn) {
+    yield fn
+  }
+}
+
 export async function rotateInvocations(
   { log, store }: FastifyInstance,
-  functionName: string,
+  fnName: string,
 ) {
-  const fn = await store.functions.read(getFunctionId(functionName)).unwrap()
-
-  log.debug({ functionName }, 'rotate invocations')
-  return store.invocations
-    .filter({
-      _design: 'default',
-      _view: 'history',
-      key: [functionName],
-    })
-    .delete()
-    .consume({
-      descending: true,
-      purge: true,
-      skip: fn.historyLimit || 10,
-    })
+  const fn = await getFunctionByName(store, fnName)
+  if (fn) {
+    log.debug({ functionName: fnName }, 'rotate invocations')
+    return store.invocations
+      .filter({
+        _design: 'default',
+        _view: 'dead',
+        startkey: [fnName, {}],
+        endkey: [fnName, null],
+      })
+      .delete()
+      .consume({
+        descending: true,
+        purge: true,
+        skip: fn.historyLimit || 10,
+      })
+  }
 }

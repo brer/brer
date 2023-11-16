@@ -4,7 +4,7 @@ import S from 'fluent-json-schema-es'
 import { Readable, Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 
-import { getFunctionId } from '../../../lib/function.js'
+import { getFunctionByName } from '../../../lib/function.js'
 import { createInvocation } from '../../../lib/invocation.js'
 
 export interface RouteGeneric {
@@ -59,10 +59,7 @@ export default async function plugin(fastify: FastifyInstance) {
       const { auth, store } = this
       const { body, headers, params, session } = request
 
-      const fn = await store.functions
-        .find(getFunctionId(params.functionName))
-        .unwrap()
-
+      const fn = await getFunctionByName(store, params.functionName)
       if (!fn) {
         return reply.code(404).error({ message: 'Function not found.' })
       }

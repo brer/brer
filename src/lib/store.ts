@@ -2,8 +2,7 @@ import type { FastifyInstance } from '@brer/fastify'
 import type { Fn } from '@brer/function'
 import type { Invocation } from '@brer/invocation'
 import type { Project } from '@brer/project'
-import type { User } from '@brer/user'
-import Agent from 'agentkeepalive'
+import HttpAgent, { HttpsAgent } from 'agentkeepalive'
 import plugin from 'fastify-plugin'
 import { Entity, Store, StoreOptions } from 'mutent'
 import { MigrationStrategy, mutentMigration } from 'mutent-migration'
@@ -24,7 +23,6 @@ declare module 'fastify' {
       functions: CouchStore<Fn>
       invocations: CouchStore<Invocation>
       projects: CouchStore<Project>
-      users: CouchStore<User>
     }
   }
 }
@@ -36,10 +34,13 @@ export interface PluginOptions {
 }
 
 async function storePlugin(fastify: FastifyInstance, options: PluginOptions) {
+  const couchUrl = options.url || 'http://127.0.0.1:5984/'
+  const agent = /^https/.test(couchUrl) ? new HttpsAgent() : new HttpAgent() // TODO: agent options?
+
   const scope = nano({
-    url: options.url || 'http://127.0.0.1:5984/',
+    url: couchUrl,
     requestDefaults: {
-      agent: new Agent(), // TODO: agent options
+      agent,
       auth: {
         password: options.username || '',
         username: options.password || '',
@@ -105,7 +106,6 @@ async function storePlugin(fastify: FastifyInstance, options: PluginOptions) {
       }),
     }),
     projects: getStore('projects'),
-    users: getStore('users'),
   }
 
   fastify.decorate('store', decorator)

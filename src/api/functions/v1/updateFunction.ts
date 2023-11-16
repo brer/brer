@@ -11,7 +11,7 @@ import S from 'fluent-json-schema-es'
 import type { RequestResult } from '../../../lib/error.js'
 import {
   createFunction,
-  getFunctionId,
+  getFunctionByName,
   getFunctionSecretName,
   updateFunction,
 } from '../../../lib/function.js'
@@ -116,14 +116,10 @@ export default (): RouteOptions<RouteGeneric> => ({
       )
       .prop('historyLimit', S.integer().minimum(0)),
     response: {
-      200: S.object()
-        .prop('function', S.ref('https://brer.io/schema/v1/function.json'))
-        .required(),
-      202: S.object()
+      '2xx': S.object()
         .prop('function', S.ref('https://brer.io/schema/v1/function.json'))
         .required()
-        .prop('invocation', S.ref('https://brer.io/schema/v1/invocation.json'))
-        .required(),
+        .prop('invocation', S.ref('https://brer.io/schema/v1/invocation.json')),
     },
   },
   async handler(request, reply) {
@@ -137,10 +133,7 @@ export default (): RouteOptions<RouteGeneric> => ({
 
     const body = bodyResult.unwrap()
 
-    const oldFn = await store.functions
-      .find(getFunctionId(params.functionName))
-      .unwrap()
-
+    const oldFn = await getFunctionByName(store, params.functionName)
     if (oldFn) {
       const readResult = await auth.authorize(session, 'admin', oldFn.project)
       if (readResult.isErr) {
@@ -162,34 +155,46 @@ export default (): RouteOptions<RouteGeneric> => ({
         .error({ message: 'Cannot write scoped Kubernetes secrets.' })
     }
 
-    const tmpFn = oldFn ? updateFunction(oldFn, body) : createFunction(body)
+    let created = false
+    const newFn = await store.functions
+      .from(oldFn)
+      .ensure(() => {
+        created = true
+        return createFunction(params.functionName)
+      })
+      .update(fn => updateFunction(fn, body))
+      .unwrap()
+
+    const reference = await getFunctionByName(
+      store,
+      params.functionName,
+      newFn._id,
+    )
+    if (reference?._id !== newFn._id) {
+      return reply.error({
+        message: 'This operation conflicted with another.',
+        status: 409,
+      })
+    }
 
     let invocation: Invocation | undefined
-    if (!tmpFn.runtime) {
+    if (!newFn.runtime) {
       // Create Invocation before Fn write
       invocation = await store.invocations
         .create(
           createInvocation({
-            fn: tmpFn,
+            fn: newFn,
             env: {
               BRER_MODE: 'test',
             },
           }),
         )
         .unwrap()
-    }
 
-    if (invocation) {
       this.events.emit('brer.invocations.invoke', { invocation })
     }
 
-    const newFn = await store.functions
-      .from(oldFn)
-      .update(() => tmpFn)
-      .ensure(tmpFn)
-      .unwrap()
-
-    reply.code(invocation ? 202 : 200)
+    reply.code(created ? 201 : 200)
     return {
       function: newFn,
       invocation,

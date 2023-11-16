@@ -1,7 +1,7 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
-import { getFunctionId } from '../../../lib/function.js'
+import { getFunctionByName } from '../../../lib/function.js'
 
 export interface RouteGeneric {
   Params: {
@@ -33,10 +33,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     const { auth, store } = this
     const { params, session } = request
 
-    const fn = await store.functions
-      .find(getFunctionId(params.functionName))
-      .unwrap()
-
+    const fn = await getFunctionByName(store, params.functionName)
     if (!fn) {
       return reply.code(404).error({ message: 'Function not found.' })
     }

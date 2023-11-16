@@ -1,7 +1,7 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
-import { getFunctionId } from '../../../lib/function.js'
+import { getFunctionByName } from '../../../lib/function.js'
 import { getLabelSelector } from '../../../lib/kubernetes.js'
 
 export interface RouteGeneric {
@@ -32,10 +32,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     const { auth, kubernetes, store, tasks } = this
     const { params, session } = request
 
-    const fn = await store.functions
-      .find(getFunctionId(params.functionName))
-      .unwrap()
-
+    const fn = await getFunctionByName(store, params.functionName)
     if (!fn) {
       return reply.code(404).error({ message: 'Function not found.' })
     }
@@ -55,13 +52,21 @@ export default (): RouteOptions<RouteGeneric> => ({
       getLabelSelector({ functionName: fn.name }),
     )
 
-    await store.functions.from(fn).delete().consume()
+    await store.functions.from(fn).delete().consume({ purge: true })
 
     tasks.push(async log => {
       const count = await store.invocations
-        .filter({ functionName: fn.name })
+        .filter({
+          _design: 'default',
+          _view: 'by_project',
+          startkey: [fn.project, fn.name, null],
+          endkey: [fn.project, fn.name, {}],
+        })
         .delete()
-        .consume()
+        .consume({
+          purge: true,
+          sorted: false,
+        })
 
       log.debug(`deleted ${count} ${fn.name} invocation(s)`)
     })

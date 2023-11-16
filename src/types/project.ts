@@ -6,7 +6,7 @@ export interface Project extends CouchDocument {
    */
   name: string
   /**
-   * Defult to the Brer's (Kunernetes) namespace.
+   * TODO: use this namespace
    */
   namespace: string
   /**

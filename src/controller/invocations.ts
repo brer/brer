@@ -19,7 +19,7 @@ export default async function invocationsWatcher(fastify: FastifyInstance) {
     promise = store.invocations
       .filter({
         _design: 'default',
-        _view: 'controller',
+        _view: 'alive',
       })
       .tap(invocation => syncInvocationState(fastify, invocation))
       .consume()

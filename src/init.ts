@@ -1,6 +1,7 @@
 import type { CouchDocument, CouchStore } from '@brer/couchdb'
 import type { ViewDocument } from 'nano'
 
+import { createProject } from './lib/project.js'
 import Fastify from './server.js'
 
 const fastify = Fastify()
@@ -15,24 +16,51 @@ async function init() {
     store.nano.db.create(store.functions.adapter.database).catch(existsOk),
     store.nano.db.create(store.invocations.adapter.database).catch(existsOk),
     store.nano.db.create(store.projects.adapter.database).catch(existsOk),
-    store.nano.db.create(store.users.adapter.database).catch(existsOk),
   ])
 
-  // TODO: create admin user with random password
+  const reduceArrays = `
+    function (keys, values, rereduce) {
+      return values.reduce((a, b) => a.concat(b))
+    }
+  `
 
-  const invocationsHistoryMap = `
+  const mapFunctionsByName = `
     function (doc) {
-      if (doc.status === 'completed' || doc.status === 'failed') {
-        emit([doc.functionName, doc.createdAt], null)
-      }
+      emit([doc.name, doc.createdAt], null)
     }
   `
 
   const mapFunctionsByProject = `
     function (doc) {
-      emit([doc.project, doc.name], null)
+      if (!doc.draft) {
+        emit([doc.project, doc.name], null)
+      }
     }
   `
+
+  const mapRegistryFunctions = `
+    function (doc) {
+      if (!doc.draft && typeof doc.image === 'object') {
+        emit([doc.image.host, doc.image.name], [doc.project])
+      }
+    }
+    `
+
+  await design(store.functions, {
+    _id: '_design/default',
+    views: {
+      by_name: {
+        map: mapFunctionsByName,
+      },
+      by_project: {
+        map: mapFunctionsByProject,
+      },
+      registry: {
+        map: mapRegistryFunctions,
+        reduce: reduceArrays,
+      },
+    },
+  })
 
   const mapInvocationsByProject = `
     function (doc) {
@@ -40,22 +68,7 @@ async function init() {
     }
   `
 
-  const mapRegistryFunctions = `
-    function (doc) {
-      if (typeof doc.image === 'object') {
-        emit([doc.image.host, doc.image.name], [doc.project])
-      }
-    }
-  `
-
-  // TODO: check rereduce
-  const reduceArrays = `
-    function (keys, values, rereduce) {
-      return values.reduce((a, b) => a.concat(b))
-    }
-  `
-
-  const mapControllerInvocations = `
+  const mapAliveInvocations = `
     function (doc) {
       if (doc.status === 'pending' || doc.status === 'initializing' || doc.status === 'running') {
         emit(doc.createdAt, null)
@@ -63,78 +76,71 @@ async function init() {
     }
   `
 
-  const mapUsersByUsername = `
+  const mapDeadInvocations = `
     function (doc) {
-      emit(doc.username, null)
+      if (doc.status === 'completed' || doc.status === 'failed') {
+        emit([doc.functionName, doc.createdAt], null)
+      }
     }
   `
 
-  const mapProjectsByUsername = `
+  await design(store.invocations, {
+    _id: '_design/default',
+    views: {
+      by_project: {
+        map: mapInvocationsByProject,
+      },
+      alive: {
+        map: mapAliveInvocations,
+      },
+      dead: {
+        map: mapDeadInvocations,
+      },
+    },
+  })
+
+  const mapProjectsByName = `
     function (doc) {
-      emit('admin', [doc.name])
-      for (var username in Object(doc.roles)) {
-        if (username !== 'admin' && doc.roles[username] !== 'publisher') {
-          emit(username, [doc.name])
+      emit([doc.name, doc.createdAt], null)
+    }
+  `
+
+  const mapProjectsByUser = `
+    function (doc) {
+      if (!doc.draft) {
+        emit('admin', [doc.name])
+        for (var username in Object(doc.roles)) {
+          if (username !== 'admin' && doc.roles[username] !== 'publisher') {
+            emit(username, [doc.name])
+          }
         }
       }
     }
   `
 
-  const mapProjectsByName = `
-    function (doc) {
-      emit(doc.name, null)
-    }
-  `
+  await design(store.projects, {
+    _id: '_design/default',
+    views: {
+      by_name: {
+        map: mapProjectsByName,
+      },
+      by_user: {
+        map: mapProjectsByUser,
+        reduce: reduceArrays,
+      },
+    },
+  })
 
-  log.info('write design documents')
-  await Promise.all([
-    design(store.functions, {
-      _id: '_design/default',
-      views: {
-        by_project: {
-          map: mapFunctionsByProject,
-        },
-        registry: {
-          map: mapRegistryFunctions,
-          reduce: reduceArrays,
-        },
-      },
-    }),
-    design(store.invocations, {
-      _id: '_design/default',
-      views: {
-        by_project: {
-          map: mapInvocationsByProject,
-        },
-        history: {
-          map: invocationsHistoryMap,
-        },
-        controller: {
-          map: mapControllerInvocations,
-        },
-      },
-    }),
-    design(store.projects, {
-      _id: '_design/default',
-      views: {
-        by_name: {
-          map: mapProjectsByName,
-        },
-        by_username: {
-          map: mapProjectsByUsername,
-          reduce: reduceArrays,
-        },
-      },
-    }),
-    design(store.users, {
-      _id: '_design/default',
-      views: {
-        by_username: {
-          map: mapUsersByUsername,
-        },
-      },
-    }),
-  ])
+  const projectName = 'default'
+  await store.projects
+    .read({
+      _design: 'default',
+      _view: 'by_name',
+      startkey: [projectName, null],
+      endkey: [projectName, {}],
+    })
+    .ensure(() => ({ ...createProject('default'), draft: undefined }))
+    .consume()
 }
 
 function existsOk(err: unknown) {

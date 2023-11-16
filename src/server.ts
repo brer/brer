@@ -36,7 +36,12 @@ export default function createServer() {
   fastify.register(events)
   fastify.register(tasks)
   fastify.register(noAdditionalProperties.default)
-  fastify.register(auth)
+  fastify.register(auth, {
+    adminPassword: process.env.ADMIN_PASSWORD,
+    gatewayUrl: process.env.GATEWAY_URL
+      ? new URL(process.env.GATEWAY_URL)
+      : undefined,
+  })
 
   // TODO: use nginx for this
   if (process.env.STATIC_DIR) {

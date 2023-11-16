@@ -20,6 +20,10 @@ export interface CouchDocument {
    */
   v?: number
   /**
+   * Document is drafted and not available outside.
+   */
+  draft?: boolean
+  /**
    * ISO date string.
    */
   createdAt?: string
@@ -116,6 +120,7 @@ export class CouchAdapter<T extends CouchDocument>
   }
 
   // TODO: bulk
+  // TODO: what about conflicts?
 
   /**
    * Read document by identifier.
@@ -284,20 +289,21 @@ export class CouchAdapter<T extends CouchDocument>
    * Mutent method.
    */
   async delete(data: T, options: CouchOptions) {
-    // TODO: DELETE or _purge (option)
     if (options.purge) {
-      //
+      // TODO: purge conflicts also
+      await this.nano.server.request({
+        db: this.database,
+        path: '_purge',
+        method: 'POST',
+        body: {
+          [data._id]: [data._rev],
+        },
+      })
     } else {
-      //
+      await this.write({
+        ...data,
+        _deleted: true,
+      })
     }
-
-    await this.nano.server.request({
-      db: this.database,
-      path: '_purge',
-      method: 'POST',
-      body: {
-        [data._id]: [data._rev],
-      },
-    })
   }
 }

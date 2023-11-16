@@ -52,17 +52,20 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.error(result.unwrapErr())
     }
 
+    const descending = query.direction === 'desc'
+    const minKey = descending ? {} : null
+    const maxKey = descending ? null : {}
     const response = await store.invocations.adapter.nano.view(
       'default',
       'by_project',
       {
         descending: query.direction === 'desc',
-        endkey: [project, query.functionName || {}, {}],
+        startkey: [project, query.functionName || minKey, minKey],
+        endkey: [project, query.functionName || maxKey, maxKey],
         include_docs: true,
         limit: query.limit || 25,
         skip: query.skip,
         sorted: true,
-        startkey: [project, query.functionName || null, null],
       },
     )
 

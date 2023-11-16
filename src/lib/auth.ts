@@ -1,9 +1,10 @@
 import type { FastifyInstance } from '@brer/fastify'
 import type { ProjectRole } from '@brer/project'
 import plugin from 'fastify-plugin'
+import { Pool } from 'undici'
 
 import type { RequestResult } from './error.js'
-import { verifySecret } from './hash.js'
+import { getProjectByName } from './project.js'
 import * as Result from './result.js'
 
 declare module 'fastify' {
@@ -37,41 +38,32 @@ export interface Session {
   projects: string[]
 }
 
-async function authPlugin(fastify: FastifyInstance) {
-  const doAuthenticate = async (
-    username: string,
-    password: string,
-  ): Promise<RequestResult<string>> => {
-    const user = await fastify.store.users
-      .find({
-        _design: 'default',
-        _view: 'by_username',
-        key: username,
-      })
-      .unwrap()
+export interface PluginOptions {
+  adminPassword?: string
+  gatewayUrl?: URL
+}
 
-    if (user) {
-      const ok = await verifySecret(password, user.hashedPassword)
-      if (ok) {
-        return Result.ok(username)
-      }
-    } else if (
-      username === 'admin' &&
-      password === process.env.ADMIN_PASSWORD
-    ) {
-      return Result.ok(username)
-    }
+type Authenticator = (
+  username: string,
+  password: string,
+) => Promise<RequestResult<string>>
 
-    return Result.err({
-      message: 'Invalid credentials',
-      status: 401,
-    })
+async function authPlugin(
+  fastify: FastifyInstance,
+  { adminPassword, gatewayUrl }: PluginOptions,
+) {
+  if (!adminPassword) {
+    throw new Error('Env ADMIN_PASSWORD is missing')
   }
+
+  const doAuthenticate = gatewayUrl
+    ? useGateway(fastify, adminPassword, gatewayUrl)
+    : adminOnly(fastify, adminPassword)
 
   const doFetch = async (username: string): Promise<RequestResult<Session>> => {
     const response = await fastify.store.projects.adapter.nano.view<string[]>(
       'default',
-      'by_username',
+      'by_user',
       {
         group: true,
         key: username,
@@ -102,13 +94,7 @@ async function authPlugin(fastify: FastifyInstance) {
         return Result.ok(project)
       }
 
-      const doc = await fastify.store.projects
-        .find({
-          _design: 'default',
-          _view: 'by_name',
-          key: project,
-        })
-        .unwrap()
+      const doc = await getProjectByName(fastify.store, project)
 
       if (isAuthorized(role, doc?.roles[session.username])) {
         return Result.ok(project)
@@ -143,6 +129,80 @@ function isAuthorized(
       return (
         userRole === 'admin' || userRole === 'invoker' || userRole === 'viewer'
       )
+  }
+}
+
+function adminOnly(
+  { log }: FastifyInstance,
+  adminPassword: string,
+): Authenticator {
+  log.info('admin-only mode active')
+  return async (username, password) => {
+    if (username !== 'admin') {
+      log.warn('only admin user can be authenticated without a gateway')
+    }
+    if (username === 'admin' && password === adminPassword) {
+      return Result.ok(username)
+    } else {
+      return Result.err({
+        message: 'Invalid credentials',
+        status: 401,
+      })
+    }
+  }
+}
+
+function useGateway(
+  fastify: FastifyInstance,
+  adminPassword: string,
+  gatewayUrl: URL,
+): Authenticator {
+  fastify.log.info({ gateway: gatewayUrl.host }, 'using authentication gateway')
+  const pool = new Pool(gatewayUrl, { pipelining: 1 })
+  fastify.addHook('onClose', () => pool.close())
+
+  return async (username, password) => {
+    if (username === 'admin' && password === adminPassword) {
+      return Result.ok(username)
+    }
+
+    const response = await pool.request({
+      method: 'POST',
+      path: gatewayUrl.pathname,
+      headers: {
+        accept: '*/*',
+        'content-type': 'application/json; charset=utf-8',
+      },
+      body: JSON.stringify({
+        username,
+        password,
+      }),
+    })
+
+    // TODO: Is this always needed? (consume the stream or something like that)
+    const text = await response.body.text()
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return Result.ok(username)
+    } else if (response.statusCode === 401 || response.statusCode === 403) {
+      return Result.err({
+        message: 'Invalid credentials',
+        status: 401,
+      })
+    } else {
+      fastify.log.error(
+        {
+          statusCode: response.statusCode,
+          body: text,
+        },
+        'gateway error',
+      )
+      return Result.err({
+        message: 'Unexpected authentication gateway response. See logs.',
+        info: { statusCode: response.statusCode },
+        status: 409,
+      })
+    }
   }
 }
 

@@ -1,27 +1,27 @@
+import { FastifyInstance } from '@brer/fastify'
 import type { Fn, FnEnv, FnRuntime } from '@brer/function'
 import type { Invocation } from '@brer/invocation'
+import { v4 as uuid } from 'uuid'
 
 import { isSameImage } from './image.js'
-import { deriveUUID, isPlainObject } from './util.js'
-
-export function getFunctionId(functionName: string) {
-  return deriveUUID(`fn-${functionName}`)
-}
+import { fixDuplicates, isPlainObject, pickFirst } from './util.js'
 
 export function getFunctionSecretName(functionName: string) {
   return `fn-${functionName}`
 }
 
-export function createFunction(
-  options: Pick<Fn, 'env' | 'historyLimit' | 'image' | 'name' | 'project'>,
-): Fn {
+export function createFunction(fnName: string): Fn {
   return {
-    _id: getFunctionId(options.name),
-    env: options.env.map(stripSecretValue),
-    historyLimit: options.historyLimit,
-    image: options.image,
-    name: options.name,
-    project: options.project,
+    _id: uuid(),
+    draft: true,
+    env: [],
+    image: {
+      host: '127.0.0.1:8080',
+      name: fnName,
+      tag: 'latest',
+    },
+    name: fnName,
+    project: 'default',
   }
 }
 
@@ -38,7 +38,11 @@ export function updateFunction(
   }
 
   // Changing an env can fix a "Pending" Pod
-  if (fn.runtime?.type !== 'Failure' && isSameImage(fn.image, update.image)) {
+  if (
+    fn.runtime?.type !== 'Failure' &&
+    isSameImage(fn.image, update.image) &&
+    update.image.tag !== 'latest'
+  ) {
     return update
   }
 
@@ -46,6 +50,29 @@ export function updateFunction(
     ...update,
     runtime: undefined,
   }
+}
+
+/**
+ * This function also fix duplicates.
+ */
+export async function getFunctionByName(
+  store: FastifyInstance['store'],
+  functionName: string,
+  functionId?: string,
+): Promise<Fn | null> {
+  const fns = await store.functions
+    .filter({
+      _design: 'default',
+      _view: 'by_name',
+      startkey: [functionName, null],
+      endkey: [functionName, {}],
+    })
+    .pipe(iterable => fixDuplicates(iterable, functionId))
+    .commit()
+    .filter(pickFirst)
+    .unwrap()
+
+  return fns.length ? fns[0] : null
 }
 
 function stripSecretValue(obj: FnEnv): FnEnv {
@@ -57,7 +84,7 @@ function stripSecretValue(obj: FnEnv): FnEnv {
 }
 
 export function setFunctionRuntime(fn: Fn, invocation: Invocation): Fn {
-  if (fn.image !== invocation.image) {
+  if (!isSameImage(fn.image, invocation.image)) {
     throw new Error(
       `Invocation ${invocation._id} doesn't represent ${fn.name} runtime`,
     )
