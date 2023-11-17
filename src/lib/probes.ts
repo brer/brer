@@ -9,11 +9,12 @@ async function probesPlugin(fastify: FastifyInstance) {
     url: '/probes/liveness',
     logLevel,
     async handler(request, reply) {
-      // TODO: test k8s
-
-      const response = await this.store.nano.info()
-      if (response.couchdb !== 'Welcome') {
-        request.log.warn({ response }, 'unexpected couchdb response')
+      const [couchdb] = await Promise.all([
+        this.store.nano.info(),
+        this.kubernetes.api.CoreApi.getAPIVersions(),
+      ])
+      if (couchdb.couchdb !== 'Welcome') {
+        request.log.warn({ response: couchdb }, 'unexpected couchdb response')
         return reply.error({
           code: 'PROBE_FAILURE',
           message: 'Database connection error.',
