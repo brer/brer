@@ -9,19 +9,16 @@ async function probesPlugin(fastify: FastifyInstance) {
     url: '/probes/liveness',
     logLevel,
     async handler(request, reply) {
-      // TODO: test k8s
-
-      const response = await this.database.functions.adapter.got<any>({
-        method: 'GET',
-        url: '..',
-        resolveBodyOnly: true,
-        responseType: 'json',
-      })
-      if (response.couchdb !== 'Welcome') {
-        request.log.warn({ response }, 'unexpected couchdb response')
-        return reply.code(500).error({
+      const [couchdb] = await Promise.all([
+        this.store.nano.info(),
+        this.kubernetes.api.CoreApi.getAPIVersions(),
+      ])
+      if (couchdb.couchdb !== 'Welcome') {
+        request.log.warn({ response: couchdb }, 'unexpected couchdb response')
+        return reply.error({
           code: 'PROBE_FAILURE',
           message: 'Database connection error.',
+          status: 500,
         })
       }
 
@@ -43,6 +40,6 @@ async function probesPlugin(fastify: FastifyInstance) {
 export default plugin(probesPlugin, {
   name: 'probes',
   decorators: {
-    fastify: ['database'],
+    fastify: ['store'],
   },
 })

@@ -1,4 +1,5 @@
 import type { CouchDocument } from '../lib/adapter.js'
+import type { ContainerImage } from '../lib/image.js'
 import type { FnEnv } from './function.js'
 
 export interface Invocation extends CouchDocument {
@@ -22,7 +23,7 @@ export interface Invocation extends CouchDocument {
    * Source Function's name.
    */
   functionName: string
-  image: string
+  image: ContainerImage
   /**
    * Test runs are flagged here.
    */
@@ -35,6 +36,10 @@ export interface Invocation extends CouchDocument {
    * Internal property. List of received log pages.
    */
   logs?: InvocationLog[]
+  /**
+   * Invocation's owner.
+   */
+  project: string
 }
 
 /**

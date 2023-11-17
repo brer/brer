@@ -1,4 +1,5 @@
 import type { CouchDocument } from '../lib/adapter.js'
+import type { ContainerImage } from '../lib/image.js'
 
 export interface Fn extends CouchDocument {
   /**
@@ -6,9 +7,9 @@ export interface Fn extends CouchDocument {
    */
   name: string
   /**
-   * Docker image url.
+   * Container image location.
    */
-  image: string
+  image: ContainerImage
   /**
    * Environment variables (value or secret).
    */
@@ -17,11 +18,24 @@ export interface Fn extends CouchDocument {
    * Field present after the first test run.
    */
   runtime?: FnRuntime
+  /**
+   * Invocation's owner.
+   */
+  project: string
+  /**
+   * @default 10
+   */
+  historyLimit?: number
 }
 
 export interface FnRuntime {
   /**
    * Runtime type identifier.
+   *
+   * @example "Failure"
+   * @example "Go"
+   * @example "Node.js"
+   * @example "Rust"
    */
   type: string
   /**

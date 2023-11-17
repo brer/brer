@@ -4,6 +4,7 @@ import type { V1EnvVar, V1Pod } from '@kubernetes/client-node'
 import { randomBytes } from 'node:crypto'
 
 import { getFunctionSecretName } from './function.js'
+import { serializeImage } from './image.js'
 
 export type WatchPhase = 'ADDED' | 'MODIFIED' | 'DELETED'
 
@@ -26,9 +27,15 @@ const labelNames = {
   functionName: 'brer.io/function-name',
   invocationId: 'brer.io/invocation-id',
   managedBy: 'app.kubernetes.io/managed-by',
+  project: 'brer.io/project',
 }
 
 const managedBy = 'brer.io'
+
+export interface X {
+  publicUrl?: URL
+  registryUrl?: URL
+}
 
 export function getPodTemplate(
   invocation: Invocation,
@@ -66,9 +73,10 @@ export function getPodTemplate(
     metadata: {
       name: `fn-${invocation.functionName}-${getSuffix()}`,
       labels: {
-        [labelNames.managedBy]: managedBy,
         [labelNames.functionName]: invocation.functionName,
-        [labelNames.invocationId]: invocation._id!,
+        [labelNames.project]: invocation.project,
+        [labelNames.invocationId]: invocation._id,
+        [labelNames.managedBy]: managedBy,
       },
     },
     spec: {
@@ -77,7 +85,7 @@ export function getPodTemplate(
       containers: [
         {
           name: 'job',
-          image: invocation.image,
+          image: serializeImage(invocation.image),
           imagePullPolicy: 'IfNotPresent',
           env,
           // TODO: make editable

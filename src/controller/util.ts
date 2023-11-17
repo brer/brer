@@ -2,6 +2,8 @@ import type { FastifyInstance } from '@brer/fastify'
 import type { Invocation } from '@brer/invocation'
 import type { V1Pod } from '@kubernetes/client-node'
 
+import { getFunctionByName, setFunctionRuntime } from '../lib/function.js'
+import { isSameImage } from '../lib/image.js'
 import {
   failInvocation,
   handleInvocation,
@@ -16,7 +18,6 @@ import {
   getPodTemplate,
 } from '../lib/kubernetes.js'
 import { type InvocationToken, encodeToken } from '../lib/token.js'
-import { getFunctionId, setFunctionRuntime } from '../lib/function.js'
 
 /**
  * Kubernetes Controller loop handler.
@@ -32,9 +33,9 @@ export async function handlePodEvent(
     return null
   }
 
-  const { database, kubernetes, log } = fastify
+  const { kubernetes, log, store } = fastify
 
-  let invocation = await database.invocations.find(invocationId).unwrap()
+  let invocation = await store.invocations.find(invocationId).unwrap()
   let deletePod = false
 
   if (phase === 'DELETED') {
@@ -89,11 +90,11 @@ export async function handleInvokeEvent(
   fastify: FastifyInstance,
   invocation: Invocation,
 ): Promise<Invocation> {
-  const { database, log } = fastify
+  const { log, store } = fastify
   const token = encodeToken(invocation._id)
 
   log.debug({ invocationId: invocation._id }, 'handle invocation')
-  invocation = await database.invocations
+  invocation = await store.invocations
     .from(invocation)
     .update(handleInvocation)
     .update(doc => setTokenSignature(doc, token.signature))
@@ -146,8 +147,8 @@ export async function syncInvocationState(
         !pod
           ? 'pod deletion'
           : podStatus === 'Succeeded'
-          ? 'early termination'
-          : 'runtime failure',
+            ? 'early termination'
+            : 'runtime failure',
       )
     }
   }
@@ -182,7 +183,7 @@ export async function recoverInvocationPod(
   fastify: FastifyInstance,
   invocation: Invocation,
 ) {
-  const { database, log } = fastify
+  const { log, store } = fastify
 
   // The token signature will be saved inside the Invocation.
   // Even if multiple Pods are spawned, only the one with the correct token will
@@ -193,7 +194,7 @@ export async function recoverInvocationPod(
   // Invocations. If there's a conflict (wrong _rev) error, It means that
   // another controller has handled this Invocation.
   log.debug({ invocationId: invocation._id }, 'recover invocation')
-  invocation = await database.invocations
+  invocation = await store.invocations
     .from(invocation)
     .update(doc => setTokenSignature(doc, token.signature))
     .unwrap()
@@ -208,13 +209,13 @@ export async function failWithMessage(
   invocation: Invocation,
   message: string,
 ) {
-  const { database, log } = fastify
+  const { log, store } = fastify
 
   log.debug({ invocationId: invocation._id }, message)
-  invocation = await database.invocations
+  invocation = await store.invocations
     .from(invocation)
     .update(doc => failInvocation(doc, message))
-    .tap(doc => handleTestInvocation(database, doc))
+    .tap(doc => handleTestInvocation(store, doc))
     .unwrap()
 
   await rotateInvocations(fastify, invocation.functionName)
@@ -223,40 +224,50 @@ export async function failWithMessage(
 }
 
 export async function handleTestInvocation(
-  database: FastifyInstance['database'],
+  store: FastifyInstance['store'],
   invocation: Invocation,
 ) {
   if (
     isTestRun(invocation) &&
     (invocation.status === 'completed' || invocation.status === 'failed')
   ) {
-    await database.functions
-      .find(getFunctionId(invocation.functionName))
-      .filter(fn => fn.image === invocation.image)
+    await store.functions
+      .from(asIterable(store, invocation))
+      .filter(fn => isSameImage(invocation.image, fn.image))
       .update(fn => setFunctionRuntime(fn, invocation))
       .unwrap()
   }
 }
 
-export async function rotateInvocations(
-  { database, log }: FastifyInstance,
-  functionName: string,
+async function* asIterable(
+  store: FastifyInstance['store'],
+  invocation: Invocation,
 ) {
-  log.debug({ functionName }, 'rotate invocations')
-  return database.invocations
-    .filter({
-      functionName,
-      status: {
-        $in: ['completed', 'failed'],
-      },
-    })
-    .delete()
-    .consume({
-      skip: 10, // TODO: options
-      sort: [
-        { functionName: 'desc' },
-        { createdAt: 'desc' },
-        { status: 'desc' },
-      ],
-    })
+  const fn = await getFunctionByName(store, invocation.functionName)
+  if (fn) {
+    yield fn
+  }
+}
+
+export async function rotateInvocations(
+  { log, store }: FastifyInstance,
+  fnName: string,
+) {
+  const fn = await getFunctionByName(store, fnName)
+  if (fn) {
+    log.debug({ functionName: fnName }, 'rotate invocations')
+    return store.invocations
+      .filter({
+        _design: 'default',
+        _view: 'dead',
+        startkey: [fnName, {}],
+        endkey: [fnName, null],
+      })
+      .delete()
+      .consume({
+        descending: true,
+        purge: true,
+        skip: fn.historyLimit || 10,
+      })
+  }
 }

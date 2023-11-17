@@ -12,8 +12,23 @@ function v1Schema() {
     .prop('_id', S.string().format('uuid'))
     .description('Invocation unique identifier.')
     .required()
+    .prop('project', S.string())
+    .required()
     .prop('functionName', S.string())
     .description('The name of the Function that generated this Invocation.')
+    .required()
+    .prop(
+      'image',
+      S.object()
+        .additionalProperties(false)
+        .prop('host', S.string())
+        .required()
+        .prop('name', S.string())
+        .required()
+        .prop('tag', S.string())
+        .required(),
+    )
+    .description('Container image URL info.')
     .required()
     .prop('status', status())
     .description('Current Invocation status.')

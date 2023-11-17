@@ -22,15 +22,19 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { database, kubernetes } = this
-    const { params } = request
+    const { auth, kubernetes, store } = this
+    const { params, session } = request
 
-    const invocation = await database.invocations
+    const invocation = await store.invocations
       .find(params.invocationId)
       .unwrap()
-
     if (!invocation) {
       return reply.code(404).error({ message: 'Invocation not found.' })
+    }
+
+    const result = await auth.authorize(session, 'admin', invocation.project)
+    if (result.isErr) {
+      return reply.error(result.unwrapErr())
     }
 
     await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
@@ -43,7 +47,7 @@ export default (): RouteOptions<RouteGeneric> => ({
       getLabelSelector({ invocationId: invocation._id }),
     )
 
-    await database.invocations.from(invocation).delete().unwrap()
+    await store.invocations.from(invocation).delete().unwrap()
 
     return reply.code(204).send()
   },

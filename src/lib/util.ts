@@ -1,3 +1,7 @@
+import { type Entity } from 'mutent'
+
+import { type CouchDocument } from './adapter.js'
+
 /**
  * Get last item of an array
  */
@@ -27,4 +31,35 @@ export function isPlainObject(value: unknown): value is Record<any, any> {
   return typeof value === 'object' && value !== null
     ? Object.getPrototypeOf(value) === Object.prototype
     : false
+}
+
+/**
+ * This function will delete from db all duplicates and remove the draft
+ * flag from the correct entity.
+ */
+export async function* fixDuplicates<T extends CouchDocument>(
+  iterable: AsyncIterable<Entity<T>>,
+  entityId: string | undefined,
+) {
+  let found = false
+  for await (const entity of iterable) {
+    if (!found) {
+      if (!entity.target.draft) {
+        found = true
+      } else if (entity.target._id === entityId) {
+        entity.update({ ...entity.target, draft: undefined })
+        found = true
+      } else if (isOlderThan(entity.target.createdAt || 0, 60)) {
+        entity.delete()
+      }
+    } else {
+      entity.delete()
+    }
+
+    yield entity
+  }
+}
+
+export function pickFirst(value: unknown, index: number) {
+  return index === 0
 }

@@ -1,17 +1,32 @@
-import type { FastifyInstance, RouteOptions } from '@brer/fastify'
+import type {
+  FastifyInstance,
+  FastifyRequest,
+  RouteOptions,
+} from '@brer/fastify'
 import type { FnEnv } from '@brer/function'
 import type { Invocation } from '@brer/invocation'
 import type { V1Secret } from '@kubernetes/client-node'
 import S from 'fluent-json-schema-es'
 
+import type { RequestResult } from '../../../lib/error.js'
 import {
-  getFunctionId,
+  createFunction,
+  getFunctionByName,
   getFunctionSecretName,
   updateFunction,
 } from '../../../lib/function.js'
+import {
+  type ContainerImage,
+  parseImagePath,
+  IMAGE_PATH_REGEXP,
+  IMAGE_TAG_REGEXP,
+  IMAGE_HOST_REGEXP,
+  IMAGE_NAME_REGEXP,
+} from '../../../lib/image.js'
 import { createInvocation } from '../../../lib/invocation.js'
+import * as Result from '../../../lib/result.js'
 
-interface RouteGeneric {
+export interface RouteGeneric {
   Body: {
     env?: {
       name: string
@@ -19,7 +34,9 @@ interface RouteGeneric {
       secretName?: string
       secretKey?: string
     }[]
-    image: string
+    image: string | ContainerImage
+    project?: string
+    historyLimit?: number
   }
   Params: {
     functionName: string
@@ -43,7 +60,32 @@ export default (): RouteOptions<RouteGeneric> => ({
       .required(),
     body: S.object()
       .additionalProperties(false)
-      .prop('image', S.string().minLength(3).maxLength(256))
+      .prop(
+        'image',
+        S.oneOf([
+          S.string().minLength(3).maxLength(256).pattern(IMAGE_PATH_REGEXP),
+          S.object()
+            .additionalProperties(false)
+            .prop(
+              'host',
+              S.string().minLength(1).maxLength(512).pattern(IMAGE_HOST_REGEXP),
+            )
+            .required()
+            .prop(
+              'name',
+              S.string()
+                .minLength(1)
+                .maxLength(4096)
+                .pattern(IMAGE_NAME_REGEXP),
+            )
+            .required()
+            .prop(
+              'tag',
+              S.string().minLength(1).maxLength(128).pattern(IMAGE_TAG_REGEXP),
+            )
+            .required(),
+        ]),
+      )
       .required()
       .prop(
         'env',
@@ -64,118 +106,178 @@ export default (): RouteOptions<RouteGeneric> => ({
               .prop('secretName', S.string().maxLength(256).minLength(1))
               .prop('secretKey', S.string().maxLength(256).minLength(1)),
           ),
-      ),
+      )
+      .prop(
+        'project',
+        S.string()
+          .default('default')
+          .maxLength(128)
+          .pattern(/^[a-zA-Z0-9_\-]+$/),
+      )
+      .prop('historyLimit', S.integer().minimum(0)),
     response: {
-      200: S.object()
-        .prop('function', S.ref('https://brer.io/schema/v1/function.json'))
-        .required(),
-      202: S.object()
+      '2xx': S.object()
         .prop('function', S.ref('https://brer.io/schema/v1/function.json'))
         .required()
-        .prop('invocation', S.ref('https://brer.io/schema/v1/invocation.json'))
-        .required(),
+        .prop('invocation', S.ref('https://brer.io/schema/v1/invocation.json')),
     },
   },
   async handler(request, reply) {
-    const { database } = this
-    const { body, params } = request
+    const { auth, store } = this
+    const { log, params, session } = request
 
-    const counter: Record<string, number | undefined> = {}
-    const envs = body.env || []
+    const bodyResult = parseRequest(request)
+    if (bodyResult.isErr) {
+      return reply.code(400).error(bodyResult.unwrapErr())
+    }
 
-    for (const env of envs) {
-      if (counter[env.name]) {
-        // No duplicates
-        return reply.code(400).error({
-          message: `Env ${env.name} was already declared.`,
-          info: { env },
-        })
-      }
+    const body = bodyResult.unwrap()
 
-      counter[env.name] = 1
-      if (/^BRER_/i.test(env.name)) {
-        // All `BRER_` envs are reserved
-        return reply.code(400).error({
-          message: `Env ${env.name} uses a reserved name.`,
-          info: { env },
-        })
-      } else if (env.value && env.secretName && env.secretKey) {
-        // Secrets writings is allowed only for scoped secrets
-        return reply.code(400).error({
-          message: `Env ${env.name} tries to write a private secret.`,
-          info: { env },
-        })
-      } else if (env.secretName && !env.secretKey) {
-        // Secret references must be complete
-        return reply.code(400).error({
-          message: `Env ${env.name} is missing secret key reference.`,
-          info: { env },
-        })
-      } else if (!env.value && !env.secretKey) {
-        // Disallow unreferenced secrets
-        return reply.code(400).error({
-          message: `Env ${env.name} does not reference any secret.`,
-          info: { env },
-        })
+    const oldFn = await getFunctionByName(store, params.functionName)
+    if (oldFn) {
+      const readResult = await auth.authorize(session, 'admin', oldFn.project)
+      if (readResult.isErr) {
+        return reply.error(readResult.unwrapErr())
       }
     }
 
-    // TODO: handle errors
-    await pushPrivateSecrets(this, params.functionName, envs)
+    const writeResult = await auth.authorize(session, 'admin', body.project)
+    if (writeResult.isErr) {
+      return reply.error(writeResult.unwrapErr())
+    }
 
-    let invocation: Invocation | undefined
+    try {
+      await pushPrivateSecrets(this, params.functionName, body.env)
+    } catch (err) {
+      log.error({ err }, 'secret write error')
+      return reply
+        .code(409)
+        .error({ message: 'Cannot write scoped Kubernetes secrets.' })
+    }
 
-    const functionId = getFunctionId(params.functionName)
-    const fn = await database.functions
-      .read(functionId)
-      .ensure({
-        _id: functionId,
-        name: params.functionName,
-        image: '',
-        env: [],
+    let created = false
+    const newFn = await store.functions
+      .from(oldFn)
+      .ensure(() => {
+        created = true
+        return createFunction(params.functionName)
       })
-      .update(fn =>
-        updateFunction(fn, {
-          env: envs,
-          image: body.image,
-        }),
-      )
-      .tap(async fn => {
-        if (!fn.runtime) {
-          // Create Invocation before Fn commit
-          invocation = await database.invocations
-            .create(
-              createInvocation({
-                fn,
-                env: {
-                  BRER_MODE: 'test',
-                },
-              }),
-            )
-            .unwrap()
-        }
-      })
+      .update(fn => updateFunction(fn, body))
       .unwrap()
 
-    if (invocation) {
+    const reference = await getFunctionByName(
+      store,
+      params.functionName,
+      newFn._id,
+    )
+    if (reference?._id !== newFn._id) {
+      return reply.error({
+        message: 'This operation conflicted with another.',
+        status: 409,
+      })
+    }
+
+    let invocation: Invocation | undefined
+    if (!newFn.runtime) {
+      // Create Invocation before Fn write
+      invocation = await store.invocations
+        .create(
+          createInvocation({
+            fn: newFn,
+            env: {
+              BRER_MODE: 'test',
+            },
+          }),
+        )
+        .unwrap()
+
       this.events.emit('brer.invocations.invoke', { invocation })
     }
 
-    reply.code(invocation ? 202 : 200)
+    reply.code(created ? 201 : 200)
     return {
-      function: fn,
+      function: newFn,
       invocation,
     }
   },
 })
 
+interface ParsedRequest {
+  env: FnEnv[]
+  historyLimit?: number
+  image: ContainerImage
+  name: string
+  project: string
+}
+
+function parseRequest({
+  body,
+  params,
+}: FastifyRequest<RouteGeneric>): RequestResult<ParsedRequest> {
+  const image =
+    typeof body.image === 'string' ? parseImagePath(body.image) : body.image
+  if (!image) {
+    return Result.err({
+      message: 'Invalid image.',
+      info: { image: body.image },
+    })
+  }
+
+  const counter: Record<string, boolean | undefined> = {}
+  const env = body.env || []
+
+  for (const obj of env) {
+    if (counter[obj.name]) {
+      return Result.err({
+        message: `Env ${obj.name} was already declared.`,
+        info: { env: obj },
+      })
+    }
+
+    counter[obj.name] = true
+    if (/^BRER_/i.test(obj.name)) {
+      // All `BRER_` envs are reserved
+      return Result.err({
+        message: `Env ${obj.name} uses a reserved name.`,
+        info: { env: obj },
+      })
+    } else if (obj.value && obj.secretName && obj.secretKey) {
+      // Secrets writings is allowed only for scoped secrets
+      return Result.err({
+        message: `Env ${obj.name} tries to write a private secret.`,
+        info: { env: obj },
+      })
+    } else if (obj.secretName && !obj.secretKey) {
+      // Secret references must be complete
+      return Result.err({
+        message: `Env ${obj.name} is missing secret key reference.`,
+        info: { env: obj },
+      })
+    } else if (!obj.value && !obj.secretKey) {
+      // Disallow unreferenced secrets
+      return Result.err({
+        message: `Env ${obj.name} does not reference any secret.`,
+        info: { env: obj },
+      })
+    }
+  }
+
+  return Result.ok({
+    env,
+    historyLimit: body.historyLimit,
+    image,
+    name: params.functionName,
+    project: body.project || 'default',
+  })
+}
+
 async function pushPrivateSecrets(
   { kubernetes }: FastifyInstance,
   functionName: string,
-  envs: FnEnv[],
+  env: FnEnv[],
 ) {
-  envs = Array.from(getPrivateEnvs(envs))
-  if (!envs.length) {
+  env = Array.from(getPrivateEnvs(env))
+  if (!env.length) {
     return
   }
 
@@ -192,9 +294,9 @@ async function pushPrivateSecrets(
         'brer.io/function-name': functionName,
       },
     },
-    stringData: envs.reduce(
-      (acc, item) => {
-        acc[item.secretKey!] = item.value!
+    stringData: env.reduce(
+      (acc, obj) => {
+        acc[obj.secretKey!] = obj.value!
         return acc
       },
       {} as Record<string, string>,

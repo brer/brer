@@ -26,7 +26,7 @@ async function controllerPlugin(fastify: FastifyInstance) {
 export default plugin(controllerPlugin, {
   name: 'controller',
   decorators: {
-    fastify: ['database', 'events', 'kubernetes'],
+    fastify: ['events', 'kubernetes', 'store'],
   },
   encapsulate: true,
 })

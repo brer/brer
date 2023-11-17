@@ -7,6 +7,8 @@ import type {
 import plugin from 'fastify-plugin'
 import S from 'fluent-json-schema-es'
 
+import type { Result } from './result.js'
+
 declare module 'fastify' {
   interface FastifyReply {
     /**
@@ -15,16 +17,23 @@ declare module 'fastify' {
     error(options?: ErrorOptions): object
     /**
      * Send the error body and returns the `reply` instance.
+     * Useful inside hooks.
      */
     sendError(options?: ErrorOptions): this
   }
 }
 
-interface ErrorOptions {
+export interface ErrorOptions {
+  /**
+   * ERROR_CODE.
+   */
   code?: string
   message?: string
-  info?: Record<string, any>
+  info?: Record<string, unknown>
+  status?: number
 }
+
+export type RequestResult<T = unknown> = Result<T, ErrorOptions>
 
 async function errorPlugin(fastify: FastifyInstance) {
   fastify.decorateReply('error', null)
@@ -33,15 +42,17 @@ async function errorPlugin(fastify: FastifyInstance) {
   fastify.setErrorHandler((err, request, reply) => {
     if (Object(err).validation) {
       request.log.trace({ errors: err.validation }, 'validation error')
-      reply.code(400).sendError({
+      reply.sendError({
         code: 'VALIDATION_ERROR',
         info: { errors: err.validation },
         message: 'Some request parameters are not valid.',
+        status: 400,
       })
     } else {
       request.log.error({ err }, 'unhandled error')
-      reply.code(500).sendError({
+      reply.sendError({
         message: 'Unknown error.',
+        status: 500,
       })
     }
   })
@@ -75,9 +86,14 @@ async function errorPlugin(fastify: FastifyInstance) {
   })
 
   function errorMethod(this: FastifyReply, options: ErrorOptions = {}) {
+    const statusCode = options.status || notOk(this.statusCode)
+    if (this.statusCode !== statusCode) {
+      this.code(statusCode)
+    }
+
     return {
       error: {
-        code: options.code || getDefaultErrorCode(this.statusCode),
+        code: options.code || getDefaultErrorCode(statusCode),
         message: options.message || 'An error occurred.',
         info: options.info,
       },
@@ -93,6 +109,10 @@ async function errorPlugin(fastify: FastifyInstance) {
     reply.sendError = sendErrorMethod
     done()
   })
+}
+
+function notOk(value: number) {
+  return value === 200 ? 500 : value
 }
 
 function getDefaultErrorCode(statusCode: number): string {

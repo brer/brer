@@ -1,22 +1,29 @@
-import type { FastifyContext, FastifyInstance } from '@brer/fastify'
+import type {
+  FastifyContext,
+  FastifyInstance,
+  FastifyRequest,
+  FastifySchema,
+} from '@brer/fastify'
 import type { CookieSerializeOptions } from '@fastify/cookie'
 import S from 'fluent-json-schema-es'
 
+import { type Session } from '../lib/auth.js'
+import { type RequestResult } from '../lib/error.js'
+import { parseAuthorizationHeader } from '../lib/header.js'
+import * as Result from '../lib/result.js'
+
 declare module 'fastify' {
   interface FastifyRequest {
-    session: {
-      type: 'basic' | 'cookie' | 'legacy'
-      username: string
+    session: Session & {
+      /**
+       * Session type.
+       */
+      type: 'basic' | 'cookie'
     }
   }
 }
 
 export default async function authPlugin(fastify: FastifyInstance) {
-  const adminPassword = process.env.ADMIN_PASSWORD
-  if (!adminPassword) {
-    throw new Error('Required env var ADMIN_PASSWORD is missing')
-  }
-
   const cookieName = process.env.COOKIE_NAME || 'brer_session'
 
   const cookieOptions: CookieSerializeOptions = {
@@ -29,75 +36,93 @@ export default async function authPlugin(fastify: FastifyInstance) {
     signed: true,
   }
 
+  const getRequestSession = async (
+    request: FastifyRequest<any>,
+  ): Promise<RequestResult<FastifyRequest['session']>> => {
+    const { cookies, headers } = request
+    const rawCookie = cookies[cookieName]
+    const auth = parseAuthorizationHeader(headers.authorization)
+
+    let session: FastifyRequest['session'] | undefined
+    if (auth?.type === 'basic') {
+      const result = await fastify.auth.authenticate(
+        auth.username,
+        auth.password,
+      )
+      if (result.isErr) {
+        return result.expectErr()
+      } else {
+        session = {
+          ...result.unwrap(),
+          type: 'basic',
+        }
+      }
+    } else if (rawCookie) {
+      const unsigned = fastify.unsignCookie(rawCookie)
+      if (unsigned.valid && unsigned.value) {
+        const { username } = JSON.parse(
+          Buffer.from(unsigned.value, 'base64').toString(),
+        )
+
+        const result = await fastify.auth.fetch(username)
+        if (result.isErr) {
+          return result.expectErr()
+        } else {
+          session = {
+            ...result.unwrap(),
+            type: 'cookie',
+          }
+        }
+      }
+    }
+
+    if (session) {
+      return Result.ok(session)
+    } else {
+      return Result.err({
+        message: 'Invalid credentials.',
+        status: 401,
+      })
+    }
+  }
+
   fastify.decorateRequest('session', null)
 
-  fastify.addHook<any, FastifyContext>('onRequest', async (request, reply) => {
-    const { cookies, headers } = request
+  fastify.addHook<any, FastifyContext, FastifySchema>(
+    'onRequest',
+    async (request, reply) => {
+      const adminOnly = !!request.routeOptions.config.admin
+      const optionalAuth =
+        !adminOnly && (request.routeOptions.config.public || false)
 
-    let message: string | undefined
+      const result = await getRequestSession(request)
 
-    if (typeof headers.authorization === 'string') {
-      if (/^Basic /.test(headers.authorization)) {
-        const chunks = Buffer.from(headers.authorization.substring(6), 'base64')
-          .toString('utf-8')
-          .split(':')
-
-        if (
-          chunks.length === 2 &&
-          chunks[0] === 'admin' &&
-          chunks[1] === adminPassword
-        ) {
-          request.session = {
-            type: 'basic',
-            username: chunks[0],
-          }
-        } else {
-          message = 'Invalid credentials.'
-        }
-      } else if (
-        process.env.SECRET_TOKEN &&
-        /^Bearer /.test(headers.authorization)
-      ) {
-        if (headers.authorization === `Bearer ${process.env.SECRET_TOKEN}`) {
-          request.session = {
-            type: 'legacy',
-            username: 'admin',
-          }
-        } else {
-          message = 'Invalid credentials.'
-        }
+      if (result.isErr && optionalAuth) {
+        request.log.trace('optional authentication failed')
+      } else if (result.isErr) {
+        return reply.sendError(result.unwrapErr())
       } else {
-        message = 'Unsupported authorization scheme.'
-      }
-    } else {
-      const raw = cookies[cookieName]
-      if (raw) {
-        const unsigned = fastify.unsignCookie(raw)
-        if (unsigned.valid && unsigned.value === 'admin') {
-          request.session = {
-            type: 'cookie',
-            username: unsigned.value,
-          }
+        const session = result.unwrap()
+        if (adminOnly && session.username !== 'admin') {
+          return reply.sendError({
+            message: 'Insufficient permissions.',
+            status: 403,
+          })
         } else {
-          message = 'Session is not valid.'
+          request.session = session
         }
-      }
-    }
-
-    if (!request.session && !request.routeConfig.public) {
-      return reply.code(401).sendError({ message })
-    }
-  })
-
-  fastify.route<
-    {
-      Body: {
-        username: string
-        password: string
       }
     },
-    FastifyContext
-  >({
+  )
+
+  interface RouteGeneric {
+    Body: {
+      username: string
+      password: string
+    }
+  }
+
+  fastify.route<RouteGeneric, FastifyContext>({
     method: 'POST',
     url: '/api/session',
     config: {
@@ -118,6 +143,8 @@ export default async function authPlugin(fastify: FastifyInstance) {
             S.object()
               .additionalProperties(false)
               .prop('username', S.string())
+              .required()
+              .prop('projects', S.array().items(S.string()))
               .required(),
           )
           .required(),
@@ -125,16 +152,25 @@ export default async function authPlugin(fastify: FastifyInstance) {
     },
     async handler(request, reply) {
       const { body } = request
-      if (body.username !== 'admin' || body.password !== adminPassword) {
-        return reply.code(401).error({
-          message: 'Invalid credentials.',
-        })
+
+      const result = await this.auth.authenticate(body.username, body.password)
+      if (result.isErr) {
+        return reply.error(result.unwrapErr())
       }
 
-      reply.setCookie(cookieName, body.username, cookieOptions)
+      const session = result.unwrap()
+      const content = Buffer.from(
+        JSON.stringify({
+          date: Date.now(),
+          username: session.username,
+        }),
+      ).toString('base64')
+
+      reply.setCookie(cookieName, content, cookieOptions)
       return {
         user: {
-          username: body.username,
+          username: session.username,
+          projects: session.projects,
         },
       }
     },
@@ -156,7 +192,7 @@ export default async function authPlugin(fastify: FastifyInstance) {
             'session',
             S.object()
               .additionalProperties(false)
-              .prop('type', S.string().enum(['basic', 'cookie', 'legacy']))
+              .prop('type', S.string().enum(['basic', 'cookie']))
               .required(),
           )
           .prop(
@@ -164,13 +200,18 @@ export default async function authPlugin(fastify: FastifyInstance) {
             S.object()
               .additionalProperties(false)
               .prop('username', S.string())
+              .required()
+              .prop('projects', S.array().items(S.string()))
               .required(),
           ),
       },
     },
     async handler(request) {
       const user = request.session
-        ? { username: request.session.username }
+        ? {
+            username: request.session.username,
+            projects: request.session.projects,
+          }
         : undefined
 
       const session = request.session
