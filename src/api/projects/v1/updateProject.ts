@@ -29,14 +29,6 @@ export default (): RouteOptions<RouteGeneric> => ({
     params: S.object().prop('projectName', S.string()).required(),
     body: S.object()
       .prop(
-        'namespace',
-        S.string()
-          .minLength(3)
-          .maxLength(32)
-          .pattern(/^[a-zA-Z0-9_\-]+$/),
-      )
-      .required()
-      .prop(
         'roles',
         S.object().additionalProperties(
           S.string().enum(['publisher', 'viewer', 'invoker', 'admin']),

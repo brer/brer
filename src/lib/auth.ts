@@ -19,7 +19,7 @@ declare module 'fastify' {
        */
       fetch(username: string): Promise<RequestResult<Session>>
       /**
-       * Resolves with the project name.
+       * Resolves with the Project's name.
        */
       authorize(
         session: Session,
@@ -89,21 +89,20 @@ async function authPlugin(
       )
     },
     fetch: doFetch,
-    async authorize(session, role, project) {
+    async authorize(session, role, projectName) {
       if (session.username === 'admin') {
-        return Result.ok(project)
+        return Result.ok(projectName)
       }
 
-      const doc = await getProjectByName(fastify.store, project)
-
-      if (isAuthorized(role, doc?.roles[session.username])) {
-        return Result.ok(project)
+      const project = await getProjectByName(fastify.store, projectName)
+      if (isAuthorized(role, project?.roles[session.username])) {
+        return Result.ok(projectName)
       } else {
         return Result.err({
           message: 'Permission denied.',
           info: {
             role,
-            project,
+            project: projectName,
           },
           status: 403,
         })

@@ -13,8 +13,6 @@ function v1Schema() {
     .required()
     .prop('name', S.string())
     .required()
-    .prop('namespace', S.string())
-    .required()
     .prop('roles', S.object().additionalProperties(S.string()))
     .required()
     .prop('createdAt', S.string().format('date-time'))

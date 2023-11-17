@@ -9,18 +9,16 @@ export function createProject(projectName: string): Project {
     _id: uuid(),
     draft: true,
     name: projectName,
-    namespace: 'default',
     roles: {},
   }
 }
 
 export function updateProject(
   project: Project,
-  options: Pick<Project, 'namespace' | 'roles'>,
+  options: Pick<Project, 'roles'>,
 ): Project {
   return {
     ...project,
-    namespace: options.namespace,
     roles: {
       ...options.roles,
       admin: 'admin',

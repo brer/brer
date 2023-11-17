@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from '@brer/fastify'
+import type { Invocation } from '@brer/invocation'
 import type { Readable } from 'node:stream'
 import { Pool } from 'undici'
 
@@ -7,6 +8,7 @@ import { updateFunction } from '../lib/function.js'
 import { parseAuthorizationHeader } from '../lib/header.js'
 import { createInvocation } from '../lib/invocation.js'
 import * as Result from '../lib/result.js'
+
 export interface PluginOptions {
   publicUrl: URL
   registryUrl: URL
@@ -104,7 +106,6 @@ export default async function registryPlugin(
     )
 
     const projects = results.filter(r => r.isOk).map(r => r.unwrap())
-
     if (!projects.length) {
       // No projects, no api :)
       return Result.err({ status: 404 })
@@ -132,7 +133,7 @@ export default async function registryPlugin(
       })
 
       if (response.statusCode === 201) {
-        const iterable = fastify.store.functions
+        const fns = fastify.store.functions
           .filter({
             _design: 'default',
             _view: 'registry',
@@ -158,31 +159,34 @@ export default async function registryPlugin(
             sorted: false,
           })
 
-        let fnIds: string[] = []
+        const invocations: Invocation[] = []
         try {
-          fnIds = await mapAndCollect(iterable, fn => fn._id)
+          for await (const fn of fns) {
+            invocations.push(
+              createInvocation({
+                fn,
+                env: {
+                  BRER_MODE: 'test',
+                },
+              }),
+            )
+          }
         } catch (err) {
           request.log.error({ err }, 'failed to update functions image tag')
         }
 
-        if (fnIds.length) {
-          this.tasks.push(async () => {
-            for (const id of fnIds) {
-              const fn = await this.store.functions.read(id).unwrap()
-              const invocation = await this.store.invocations
-                .create(
-                  createInvocation({
-                    fn,
-                    env: {
-                      BRER_MODE: 'test',
-                    },
-                  }),
-                )
-                .unwrap()
-
-              this.events.emit('brer.invocations.invoke', { invocation })
-            }
-          })
+        if (invocations.length) {
+          this.tasks.push(() =>
+            this.store.invocations
+              .create(invocations)
+              .commit()
+              .tap(doc =>
+                this.events.emit('brer.invocations.invoke', {
+                  invocation: doc,
+                }),
+              )
+              .consume(),
+          )
         }
       }
 
@@ -244,15 +248,4 @@ function prepareHeaders(headers: Headers): Headers {
   delete result['upgrade']
 
   return result
-}
-
-async function mapAndCollect<A, B>(
-  iterable: AsyncIterable<A>,
-  fn: (value: A) => B,
-): Promise<B[]> {
-  const results: B[] = []
-  for await (const item of iterable) {
-    results.push(fn(item))
-  }
-  return results
 }

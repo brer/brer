@@ -139,7 +139,10 @@ async function init() {
       startkey: [projectName, null],
       endkey: [projectName, {}],
     })
-    .ensure(() => ({ ...createProject('default'), draft: undefined }))
+    .ensure(() => ({
+      ...createProject(projectName),
+      draft: undefined,
+    }))
     .consume()
 }
 

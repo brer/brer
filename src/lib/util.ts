@@ -41,16 +41,22 @@ export async function* fixDuplicates<T extends CouchDocument>(
   iterable: AsyncIterable<Entity<T>>,
   entityId: string | undefined,
 ) {
-  let index = 0
+  let found = false
   for await (const entity of iterable) {
-    if (index === 0 && entity.target.draft && entity.target._id === entityId) {
-      yield entity.update({ ...entity.target, draft: undefined })
-    } else if (index > 0 || isOlderThan(entity.target.createdAt || 0, 60)) {
-      yield entity.delete()
+    if (!found) {
+      if (!entity.target.draft) {
+        found = true
+      } else if (entity.target._id === entityId) {
+        entity.update({ ...entity.target, draft: undefined })
+        found = true
+      } else if (isOlderThan(entity.target.createdAt || 0, 60)) {
+        entity.delete()
+      }
     } else {
-      yield entity
+      entity.delete()
     }
-    index++
+
+    yield entity
   }
 }
 

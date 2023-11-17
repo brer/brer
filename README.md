@@ -10,8 +10,6 @@ The whole point of this project is to be a simple and effective task runner with
 
 ## Roadmap
 
-Proposals for future versions.
-
 - [x] Invocation init timeout
 - [x] See Invocations' logs
 - [x] Use Kubernetes secrets
@@ -21,20 +19,20 @@ Proposals for future versions.
 - [x] [Web UI](https://github.com/brer/brer-web)
 - [x] [Node.js bindings](https://github.com/brer/brer-nodejs)
 - [x] Previous Invocations history limit
+- [x] Authentication and authorization
+- [x] Docker repository integration
+- [x] Stop Invocations
 - [ ] Max running Invocations limit
-- [ ] OpenAPI
-- [ ] Integration tests
-- [ ] Support namespaces
+- [ ] Swagger/OpenAPI
 - [ ] Configure pod resources (cpu and memory)
-- [ ] Authentication and authorization (users and policies)
 - [ ] Helm chart
 - [ ] Invocation attempts (retry)
 - [ ] Callback URL
 - [ ] Go bindings
 - [ ] Rust bindings
-- [ ] PHP bindings
-- [ ] Brer CLI
-- [ ] Docker repository integration
+- [ ] CLI
+- [ ] Play/Pause Invocations
+- [ ] Progress update
 
 ## Acknowledgements
 
