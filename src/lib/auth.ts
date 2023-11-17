@@ -52,13 +52,15 @@ async function authPlugin(
   fastify: FastifyInstance,
   { adminPassword, gatewayUrl }: PluginOptions,
 ) {
-  if (!adminPassword) {
-    throw new Error('Env ADMIN_PASSWORD is missing')
-  }
-
   const doAuthenticate = gatewayUrl
-    ? useGateway(fastify, adminPassword, gatewayUrl)
-    : adminOnly(fastify, adminPassword)
+    ? useGateway(fastify, gatewayUrl, adminPassword)
+    : adminPassword
+      ? adminOnly(fastify, adminPassword)
+      : undefined
+
+  if (!doAuthenticate) {
+    throw new Error('Both admin password and gateway URL are undefined')
+  }
 
   const doFetch = async (username: string): Promise<RequestResult<Session>> => {
     const response = await fastify.store.projects.adapter.nano.view<string[]>(
@@ -79,7 +81,7 @@ async function authPlugin(
 
     return projects.length
       ? Result.ok({ projects, username })
-      : Result.err({ message: 'Permission denied.', status: 403 })
+      : Result.err({ message: 'Insufficient permissions.', status: 403 })
   }
 
   const decorator: FastifyInstance['auth'] = {
@@ -89,19 +91,21 @@ async function authPlugin(
       )
     },
     fetch: doFetch,
-    async authorize(session, role, projectName) {
+    async authorize(session, requestedRole, projectName) {
       if (session.username === 'admin') {
         return Result.ok(projectName)
       }
 
       const project = await getProjectByName(fastify.store, projectName)
-      if (isAuthorized(role, project?.roles[session.username])) {
+      const userRole = project?.roles[session.username] || 'none'
+
+      if (isAuthorized(requestedRole, userRole)) {
         return Result.ok(projectName)
       } else {
         return Result.err({
-          message: 'Permission denied.',
+          message: 'Insufficient permissions.',
           info: {
-            role,
+            role: userRole,
             project: projectName,
           },
           status: 403,
@@ -115,7 +119,7 @@ async function authPlugin(
 
 function isAuthorized(
   requestedRole: ProjectRole,
-  userRole: ProjectRole | undefined,
+  userRole: ProjectRole | 'none' | undefined,
 ): boolean {
   switch (requestedRole) {
     case 'admin':
@@ -153,15 +157,18 @@ function adminOnly(
 
 function useGateway(
   fastify: FastifyInstance,
-  adminPassword: string,
   gatewayUrl: URL,
+  adminPassword: string | undefined,
 ): Authenticator {
-  fastify.log.info({ gateway: gatewayUrl.host }, 'using authentication gateway')
-  const pool = new Pool(gatewayUrl, { pipelining: 1 })
+  fastify.log.info(
+    { gateway: gatewayUrl.origin },
+    'using authentication gateway',
+  )
+  const pool = new Pool(gatewayUrl.origin, { pipelining: 1 })
   fastify.addHook('onClose', () => pool.close())
 
   return async (username, password) => {
-    if (username === 'admin' && password === adminPassword) {
+    if (adminPassword && username === 'admin' && password === adminPassword) {
       return Result.ok(username)
     }
 
@@ -178,8 +185,11 @@ function useGateway(
       }),
     })
 
-    // TODO: Is this always needed? (consume the stream or something like that)
     const text = await response.body.text()
+    fastify.log.trace(
+      { statusCode: response.statusCode, body: text },
+      'gateway response',
+    )
 
     if (response.statusCode >= 200 && response.statusCode < 300) {
       return Result.ok(username)

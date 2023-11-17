@@ -110,7 +110,7 @@ async function init() {
       if (!doc.draft) {
         emit('admin', [doc.name])
         for (var username in Object(doc.roles)) {
-          if (username !== 'admin' && doc.roles[username] !== 'publisher') {
+          if (username !== 'admin') {
             emit(username, [doc.name])
           }
         }

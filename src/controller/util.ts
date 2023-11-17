@@ -147,8 +147,8 @@ export async function syncInvocationState(
         !pod
           ? 'pod deletion'
           : podStatus === 'Succeeded'
-          ? 'early termination'
-          : 'runtime failure',
+            ? 'early termination'
+            : 'runtime failure',
       )
     }
   }

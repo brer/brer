@@ -104,7 +104,10 @@ export default async function authPlugin(fastify: FastifyInstance) {
       } else {
         const session = result.unwrap()
         if (adminOnly && session.username !== 'admin') {
-          return reply.sendError({ message: 'Permission denied.', status: 403 })
+          return reply.sendError({
+            message: 'Insufficient permissions.',
+            status: 403,
+          })
         } else {
           request.session = session
         }
