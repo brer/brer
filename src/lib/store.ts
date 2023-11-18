@@ -32,7 +32,9 @@ export interface PluginOptions {
   password?: string
 }
 
-async function storePlugin(fastify: FastifyInstance, options: PluginOptions) {
+export function createFastifyStore(
+  options: PluginOptions,
+): FastifyInstance['store'] {
   const couchUrl = options.url || 'http://127.0.0.1:5984/'
   const agent = /^https/.test(couchUrl) ? new HttpsAgent() : new HttpAgent() // TODO: agent options?
 
@@ -86,7 +88,7 @@ async function storePlugin(fastify: FastifyInstance, options: PluginOptions) {
     })
   }
 
-  const decorator: FastifyInstance['store'] = {
+  return {
     nano: serverScope,
     functions: getStore('functions', 1, {
       1: obj => ({
@@ -106,8 +108,10 @@ async function storePlugin(fastify: FastifyInstance, options: PluginOptions) {
     }),
     projects: getStore('projects'),
   }
+}
 
-  fastify.decorate('store', decorator)
+async function storePlugin(fastify: FastifyInstance, options: PluginOptions) {
+  fastify.decorate('store', createFastifyStore(options))
 }
 
 export default plugin(storePlugin, {
