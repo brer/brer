@@ -1,8 +1,8 @@
-import type { CouchDocument } from '../lib/adapter.js'
 import type { ContainerImage } from '../lib/image.js'
+import type { BrerDocument } from './document.js'
 import type { FnEnv } from './function.js'
 
-export interface Invocation extends CouchDocument {
+export interface Invocation extends BrerDocument {
   /**
    * Current status.
    * See `InvocationStatus` type for more info.
@@ -62,11 +62,15 @@ export interface InvocationPhase {
   /**
    * Phase status.
    */
-  status: InvocationStatus
+  status: InvocationStatus | 'progress'
   /**
    * ISO 8601 date string.
    */
   date: string
+  /**
+   * Progress update data.
+   */
+  result?: any
 }
 
 export interface InvocationLog {
@@ -78,4 +82,8 @@ export interface InvocationLog {
    * Date of arrival. ISO 8601 date string.
    */
   date: string
+  /**
+   * MD5 digest.
+   */
+  digest: string
 }

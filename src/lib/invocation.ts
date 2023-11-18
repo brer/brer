@@ -1,15 +1,15 @@
-import type { CouchDocumentAttachment } from '@brer/couchdb'
 import type { Fn, FnEnv } from '@brer/function'
 import type {
   Invocation,
   InvocationLog,
   InvocationStatus,
 } from '@brer/invocation'
+import { type CouchDocumentAttachment } from 'mutent-couchdb'
 import { createHash } from 'node:crypto'
-import * as uuid from 'uuid'
+import { v4 as uuid } from 'uuid'
 
 import { getFunctionSecretName } from './function.js'
-import { isOlderThan } from './util.js'
+import { isOlderThan, tail } from './util.js'
 
 function pushInvocationStatus(
   invocation: Invocation,
@@ -48,7 +48,7 @@ export function createInvocation(options: CreateInvocationOptions): Invocation {
   }
 
   return {
-    _id: uuid.v4(),
+    _id: uuid(),
     _attachments: attachments,
     status,
     phases: [
@@ -101,7 +101,7 @@ function getInvocationEnv(options: CreateInvocationOptions): FnEnv[] {
  */
 export function handleInvocation(invocation: Invocation): Invocation {
   if (invocation.status !== 'pending') {
-    throw new Error()
+    throw new Error('Invocation must be pending to init')
   }
   return pushInvocationStatus(invocation, 'initializing')
 }
@@ -111,9 +111,33 @@ export function handleInvocation(invocation: Invocation): Invocation {
  */
 export function runInvocation(invocation: Invocation): Invocation {
   if (invocation.status !== 'initializing') {
-    throw new Error()
+    throw new Error('Invocation must be initializing to run')
   }
   return pushInvocationStatus(invocation, 'running')
+}
+
+export function progressInvocation(
+  invocation: Invocation,
+  result: unknown = null,
+): Invocation {
+  if (invocation.status !== 'running') {
+    throw new Error('Invocation must be running to progress')
+  }
+  if (!isOlderThan(tail(invocation.phases)!.date, 2)) {
+    throw new Error('Cannot progress an Invocation too quickly')
+  }
+  return {
+    ...invocation,
+    result,
+    phases: [
+      ...invocation.phases,
+      {
+        date: new Date().toISOString(),
+        status: 'progress',
+        result,
+      },
+    ],
+  }
 }
 
 /**
@@ -121,10 +145,10 @@ export function runInvocation(invocation: Invocation): Invocation {
  */
 export function completeInvocation(
   invocation: Invocation,
-  result: any = null,
+  result: unknown = null,
 ): Invocation {
   if (invocation.status !== 'running') {
-    throw new Error()
+    throw new Error('Invocation must be running to complete')
   }
   return pushInvocationStatus({ ...invocation, result }, 'completed')
 }
@@ -134,7 +158,7 @@ export function completeInvocation(
  */
 export function failInvocation(
   invocation: Invocation,
-  reason: any = 'unknown error',
+  reason: unknown = 'unknown error',
 ): Invocation {
   switch (invocation.status) {
     case 'failed':
@@ -176,14 +200,8 @@ export function hasTimedOut(invocation: Invocation): boolean {
 
 export function pushLines(doc: Invocation, buffer: Buffer): Invocation {
   const digest = getDigest(buffer)
-
-  if (doc._attachments) {
-    for (const attachment of Object.values(doc._attachments)) {
-      if (attachment.digest === digest) {
-        // This log chunk was already uploaded before (no changes)
-        return doc
-      }
-    }
+  if (tail(doc.logs)?.digest === digest) {
+    return doc
   }
 
   const index = (doc.logs?.length || 0).toString().padStart(2, '0')
@@ -192,6 +210,7 @@ export function pushLines(doc: Invocation, buffer: Buffer): Invocation {
   const log: InvocationLog = {
     attachment: `page_${index}.txt`,
     date: now.toISOString(),
+    digest,
   }
 
   return {
@@ -208,8 +227,12 @@ export function pushLines(doc: Invocation, buffer: Buffer): Invocation {
   }
 }
 
+/**
+ * Today this is the same of CouchDB, but tomorrow CouchDB could update its
+ * digest algorithm.
+ */
 function getDigest(buffer: Buffer): string {
-  return `md5-${createHash('md5').update(buffer).digest('base64')}`
+  return 'md5-' + createHash('md5').update(buffer).digest('base64')
 }
 
 export function isTestRun(invocation: Invocation): boolean {

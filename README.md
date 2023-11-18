@@ -22,6 +22,7 @@ The whole point of this project is to be a simple and effective task runner with
 - [x] Authentication and authorization
 - [x] Docker repository integration
 - [x] Stop Invocations
+- [x] Progress update
 - [ ] Max running Invocations limit
 - [ ] Swagger/OpenAPI
 - [ ] Configure pod resources (cpu and memory)
@@ -32,7 +33,6 @@ The whole point of this project is to be a simple and effective task runner with
 - [ ] Rust bindings
 - [ ] CLI
 - [ ] Play/Pause Invocations
-- [ ] Progress update
 
 ## Acknowledgements
 

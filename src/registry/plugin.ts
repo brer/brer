@@ -5,7 +5,7 @@ import { Pool } from 'undici'
 
 import { type RequestResult } from '../lib/error.js'
 import { updateFunction } from '../lib/function.js'
-import { parseAuthorizationHeader } from '../lib/header.js'
+import { parseAuthorization } from '../lib/header.js'
 import { createInvocation } from '../lib/invocation.js'
 import * as Result from '../lib/result.js'
 
@@ -40,8 +40,8 @@ export default async function registryPlugin(
     // https://distribution.github.io/distribution/spec/api/#api-version-check
     reply.header('docker-distribution-api-version', 'registry/2.0')
 
-    const auth = parseAuthorizationHeader(request.headers.authorization)
-    if (auth?.type !== 'basic') {
+    const authorization = parseAuthorization(request.headers)
+    if (authorization?.type !== 'basic') {
       return reply
         .code(401)
         .header('www-authenticate', 'Basic')
@@ -49,7 +49,10 @@ export default async function registryPlugin(
     }
 
     // Cache set after authentication AND authorization
-    const result = await fastify.auth.authenticate(auth.username, auth.password)
+    const result = await fastify.auth.authenticate(
+      authorization.username,
+      authorization.password,
+    )
     if (result.isErr) {
       return reply.sendError(result.unwrapErr())
     }
@@ -87,7 +90,7 @@ export default async function registryPlugin(
   const authorizeRegistryAction = async (
     request: FastifyRequest<RouteGeneric>,
   ): Promise<RequestResult<string[]>> => {
-    const response = await fastify.store.functions.adapter.nano.view<any>(
+    const response = await fastify.store.functions.adapter.scope.view<any>(
       'default',
       'registry',
       {

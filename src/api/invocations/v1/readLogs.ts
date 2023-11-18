@@ -51,7 +51,7 @@ async function* iterateLogs(
 ): AsyncGenerator<Buffer> {
   if (invocation.logs) {
     for (const item of invocation.logs) {
-      yield store.invocations.adapter.nano.attachment.get(
+      yield store.invocations.adapter.scope.attachment.get(
         invocation._id,
         item.attachment,
       )

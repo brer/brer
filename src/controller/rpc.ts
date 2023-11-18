@@ -2,9 +2,11 @@ import type { FastifyInstance } from '@brer/fastify'
 import type { Invocation } from '@brer/invocation'
 import S from 'fluent-json-schema-es'
 
+import { parseAuthorization } from '../lib/header.js'
 import {
   completeInvocation,
   failInvocation,
+  progressInvocation,
   pushLines,
   runInvocation,
 } from '../lib/invocation.js'
@@ -23,13 +25,10 @@ export default async function rpcPlugin(fastify: FastifyInstance) {
   fastify.addHook('onRequest', async (request, reply) => {
     const { headers, log } = request
 
-    const value =
-      typeof headers.authorization === 'string' &&
-      /^Bearer ./.test(headers.authorization)
-        ? headers.authorization.substring(7)
-        : null
+    const authorization = parseAuthorization(headers)
 
-    if (!value) {
+    const raw = authorization?.type === 'bearer' ? authorization.token : null
+    if (!raw) {
       return reply.code(401).sendError({
         code: 'UNAUTHORIZED',
         message: 'Auth info not provided.',
@@ -37,7 +36,7 @@ export default async function rpcPlugin(fastify: FastifyInstance) {
     }
 
     try {
-      const token = decodeToken(value)
+      const token = decodeToken(raw)
       if (token) {
         const invocation = await fastify.store.invocations
           .find(token.id)
@@ -52,7 +51,7 @@ export default async function rpcPlugin(fastify: FastifyInstance) {
         }
       }
     } catch (err) {
-      log.debug({ token: value, err }, 'unknown invocation token')
+      log.debug({ token: raw, err }, 'unknown invocation token')
     }
 
     if (!request.invocation) {
@@ -131,7 +130,7 @@ export default async function rpcPlugin(fastify: FastifyInstance) {
         return reply.code(204).send()
       }
 
-      const buffer = await store.invocations.adapter.nano.attachment.get(
+      const buffer = await store.invocations.adapter.scope.attachment.get(
         invocation._id,
         'payload',
       )
@@ -141,7 +140,34 @@ export default async function rpcPlugin(fastify: FastifyInstance) {
     },
   })
 
-  fastify.route<{ Body: { result: any } }>({
+  fastify.route<{ Body: { result: unknown } }>({
+    method: 'POST',
+    url: '/rpc/v1/progress',
+    schema: {
+      body: S.object().prop('result'),
+    },
+    async handler(request, reply) {
+      const { store } = this
+      const { body } = request
+
+      const invocation = await store.invocations
+        .from(request.invocation)
+        .update(doc =>
+          doc.status === 'running' ? progressInvocation(doc, body.result) : doc,
+        )
+        .unwrap()
+
+      if (invocation?.status !== 'running') {
+        return reply.code(409).error({
+          message: 'Invalid Invocation status.',
+        })
+      }
+
+      return reply.code(204).send()
+    },
+  })
+
+  fastify.route<{ Body: { result: unknown } }>({
     method: 'POST',
     url: '/rpc/v1/complete',
     schema: {

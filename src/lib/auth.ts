@@ -63,7 +63,7 @@ async function authPlugin(
   }
 
   const doFetch = async (username: string): Promise<RequestResult<Session>> => {
-    const response = await fastify.store.projects.adapter.nano.view<string[]>(
+    const response = await fastify.store.projects.adapter.scope.view<string[]>(
       'default',
       'by_user',
       {

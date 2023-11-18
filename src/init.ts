@@ -1,4 +1,4 @@
-import type { CouchDocument, CouchStore } from '@brer/couchdb'
+import type { CouchDocument, CouchStore } from 'mutent-couchdb'
 import type { ViewDocument } from 'nano'
 
 import { createProject } from './lib/project.js'
@@ -13,9 +13,11 @@ async function init() {
 
   log.info('initialize database')
   await Promise.all([
-    store.nano.db.create(store.functions.adapter.database).catch(existsOk),
-    store.nano.db.create(store.invocations.adapter.database).catch(existsOk),
-    store.nano.db.create(store.projects.adapter.database).catch(existsOk),
+    store.nano.db.create(store.functions.adapter.databaseName).catch(existsOk),
+    store.nano.db
+      .create(store.invocations.adapter.databaseName)
+      .catch(existsOk),
+    store.nano.db.create(store.projects.adapter.databaseName).catch(existsOk),
   ])
 
   const reduceArrays = `
@@ -156,10 +158,10 @@ async function design<T extends CouchDocument>(
   store: CouchStore<T>,
   doc: ViewDocument<T> & { _rev?: string },
 ) {
-  const nano = store.adapter.nano
+  const scope = store.adapter.scope
 
   try {
-    const result = await nano.get(doc._id)
+    const result = await scope.get(doc._id)
     doc._rev = result._rev
   } catch (err) {
     if (Object(err).statusCode !== 404) {
@@ -167,7 +169,7 @@ async function design<T extends CouchDocument>(
     }
   }
 
-  await nano.insert(doc)
+  await scope.insert(doc)
 }
 
 try {

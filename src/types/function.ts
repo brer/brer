@@ -1,7 +1,7 @@
-import type { CouchDocument } from '../lib/adapter.js'
 import type { ContainerImage } from '../lib/image.js'
+import type { BrerDocument } from './document.js'
 
-export interface Fn extends CouchDocument {
+export interface Fn extends BrerDocument {
   /**
    * The name of this function (param case).
    */

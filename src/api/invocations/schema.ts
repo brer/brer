@@ -41,7 +41,8 @@ function v1Schema() {
           .prop('status', status())
           .required()
           .prop('date', S.string().format('date-time'))
-          .required(),
+          .required()
+          .prop('result'),
       ),
     )
     .description('List of status change phases.')
@@ -63,5 +64,6 @@ function status() {
     'running',
     'completed',
     'failed',
+    'progress',
   ])
 }

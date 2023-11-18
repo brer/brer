@@ -9,7 +9,7 @@ import S from 'fluent-json-schema-es'
 
 import { type Session } from '../lib/auth.js'
 import { type RequestResult } from '../lib/error.js'
-import { parseAuthorizationHeader } from '../lib/header.js'
+import { parseAuthorization } from '../lib/header.js'
 import * as Result from '../lib/result.js'
 
 declare module 'fastify' {
@@ -41,13 +41,13 @@ export default async function authPlugin(fastify: FastifyInstance) {
   ): Promise<RequestResult<FastifyRequest['session']>> => {
     const { cookies, headers } = request
     const rawCookie = cookies[cookieName]
-    const auth = parseAuthorizationHeader(headers.authorization)
+    const authorization = parseAuthorization(headers)
 
     let session: FastifyRequest['session'] | undefined
-    if (auth?.type === 'basic') {
+    if (authorization?.type === 'basic') {
       const result = await fastify.auth.authenticate(
-        auth.username,
-        auth.password,
+        authorization.username,
+        authorization.password,
       )
       if (result.isErr) {
         return result.expectErr()

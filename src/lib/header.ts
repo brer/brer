@@ -43,3 +43,7 @@ export function parseAuthorizationHeader(
   }
   return null
 }
+
+export function parseAuthorization(headers: unknown) {
+  return parseAuthorizationHeader(Object(headers).authorization)
+}

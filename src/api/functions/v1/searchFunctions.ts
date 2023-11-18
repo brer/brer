@@ -51,7 +51,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     }
 
     const descending = query.direction === 'desc'
-    const response = await store.functions.adapter.nano.view(
+    const response = await store.functions.adapter.scope.view(
       'default',
       'by_project',
       {

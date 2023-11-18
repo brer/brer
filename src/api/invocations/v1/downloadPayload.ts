@@ -37,7 +37,7 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.code(204).send()
     }
 
-    const buffer = await store.invocations.adapter.nano.attachment.get(
+    const buffer = await store.invocations.adapter.scope.attachment.get(
       invocation._id,
       'payload',
     )
