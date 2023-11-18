@@ -59,9 +59,9 @@ export default function createServer() {
   })
 
   fastify.register(store, {
-    url: process.env.COUCH_URL,
-    username: process.env.COUCH_USERNAME,
-    password: process.env.COUCH_PASSWORD,
+    url: process.env.COUCHDB_URL,
+    username: process.env.COUCHDB_USERNAME,
+    password: process.env.COUCHDB_PASSWORD,
   })
 
   fastify.register(probes)

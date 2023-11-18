@@ -37,15 +37,18 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.error(result.unwrapErr())
     }
 
-    await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
-      kubernetes.namespace,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      getLabelSelector({ invocationId: invocation._id }),
-    )
+    if (invocation.status !== 'completed' && invocation.status !== 'failed') {
+      // TODO: call controller (stop invocation)
+      await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
+        kubernetes.namespace,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        getLabelSelector({ invocationId: invocation._id }),
+      )
+    }
 
     await store.invocations.from(invocation).delete().unwrap()
 

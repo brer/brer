@@ -42,6 +42,7 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.error(result.unwrapErr())
     }
 
+    // TODO: call controller
     await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
       kubernetes.namespace,
       undefined,

@@ -55,11 +55,13 @@ export default (): RouteOptions<RouteGeneric> => ({
       })
     }
 
+    // TODO: call controller (stop invocation)
     const newInvocation = await store.invocations
       .from(oldInvocation)
       .update(i => failInvocation(i, 'stopped manually'))
       .unwrap()
 
+    // TODO: call controller (stop invocation)
     await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
       kubernetes.namespace,
       undefined,

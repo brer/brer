@@ -1,4 +1,4 @@
-import { type BrerDocument } from '@brer/document'
+import { type BrerDocument } from '@brer/couchdb'
 import { type Entity } from 'mutent'
 
 /**

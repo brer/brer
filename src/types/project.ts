@@ -1,4 +1,4 @@
-import type { BrerDocument } from './document.js'
+import type { BrerDocument } from './couchdb.js'
 
 export interface Project extends BrerDocument {
   /**

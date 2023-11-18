@@ -4,12 +4,10 @@
     "esModuleInterop": false,
     "module": "Node16",
     "moduleResolution": "Node16",
-    "noEmit": true,
     "noImplicitAny": true,
     "noUnusedLocals": true,
     "outDir": "./build",
     "paths": {
-      "@brer/couchdb": ["./src/lib/adapter.js"],
       "@brer/*": ["./src/types/*.js"]
     },
     "removeComments": true,

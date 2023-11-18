@@ -1,5 +1,5 @@
 import type { ContainerImage } from '../lib/image.js'
-import type { BrerDocument } from './document.js'
+import type { BrerDocument } from './couchdb.js'
 import type { FnEnv } from './function.js'
 
 export interface Invocation extends BrerDocument {

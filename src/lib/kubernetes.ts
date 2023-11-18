@@ -32,11 +32,6 @@ const labelNames = {
 
 const managedBy = 'brer.io'
 
-export interface X {
-  publicUrl?: URL
-  registryUrl?: URL
-}
-
 export function getPodTemplate(
   invocation: Invocation,
   url: string,

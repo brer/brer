@@ -1,5 +1,5 @@
 import type { FastifyInstance } from '@brer/fastify'
-import type { BrerDocument } from '@brer/document'
+import type { BrerDocument } from '@brer/couchdb'
 import type { Fn } from '@brer/function'
 import type { Invocation } from '@brer/invocation'
 import type { Project } from '@brer/project'

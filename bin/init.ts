@@ -1,15 +1,18 @@
 #!/usr/bin/env -S node_modules/.bin/tsx -r dotenv/config
 
 import type { CouchDocument, CouchStore } from 'mutent-couchdb'
+import minimist from 'minimist'
 import type { ViewDocument } from 'nano'
 
 import { createProject } from '../src/lib/project.js'
 import { createFastifyStore } from '../src/lib/store.js'
 
+const args = minimist(process.argv.slice(2))
+
 const store = createFastifyStore({
-  url: process.env.COUCH_URL,
-  username: process.env.COUCH_USERNAME,
-  password: process.env.COUCH_PASSWORD,
+  url: args.url || process.env.COUCHDB_URL,
+  username: args.username || process.env.COUCHDB_USERNAME,
+  password: args.password || process.env.COUCHDB_PASSWORD,
 })
 
 console.log('test couchdb connection')
@@ -24,7 +27,7 @@ await Promise.all([
 
 const reduceArrays = `
     function (keys, values, rereduce) {
-      return values.reduce((a, b) => a.concat(b))
+      return values.reduce((a, b) => a.concat(b), [])
     }
   `
 

@@ -8,7 +8,7 @@
     "prebuild": "rimraf *.tsbuildinfo build",
     "build": "tsc -p ./tsconfig.build.json",
     "start": "npm run prebuild && npm run watch:build && npm run watch:start",
-    "test": "NODE_OPTIONS='--loader=tsx' ava",
+    "test": "ava",
     "watch": "npm run prebuild && nodemon -w src -e ts --exec 'npm run watch:build && npm run watch:start'",
     "watch:build": "tsc --incremental -p ./tsconfig.build.json",
     "watch:start": "node --inspect -r source-map-support/register -r dotenv/config build/start.js dotenv_config_path=$npm_config_env | pino-pretty -t"
@@ -36,11 +36,14 @@
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@ava/typescript": "^4.1.0",
     "@fastify/swagger": "^8.12.0",
+    "@types/minimist": "^1.2.5",
     "@types/node": "^20.9.1",
     "@types/uuid": "^9.0.7",
     "ava": "^5.3.1",
     "dotenv": "^16.3.1",
+    "minimist": "^1.2.8",
     "nodemon": "^3.0.1",
     "pino-pretty": "^10.2.3",
     "prettier": "^3.1.0",
@@ -51,10 +54,22 @@
   },
   "ava": {
     "environmentVariables": {
+      "ADMIN_PASSWORD": "admin",
+      "COUCHDB_URL": "http://127.0.0.1:5555",
+      "COUCHDB_USERNAME": "admin",
+      "COUCHDB_PASSWORD": "admin",
       "HMAC_SECRET": "c3e5ab21-86b2-423c-890b-7b98cc674a1a"
     },
-    "extensions": {
-      "ts": "module"
+    "nodeArguments": [
+      "--import",
+      "dotenv/config"
+    ],
+    "typescript": {
+      "compile": "tsc",
+      "rewritePaths": {
+        "src/": "build/src/",
+        "test/": "build/test/"
+      }
     }
   }
 }
