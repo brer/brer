@@ -67,10 +67,6 @@ export interface InvocationPhase {
    * ISO 8601 date string.
    */
   date: string
-  /**
-   * Progress update data.
-   */
-  result?: any
 }
 
 export interface InvocationLog {

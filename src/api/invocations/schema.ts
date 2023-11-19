@@ -41,14 +41,13 @@ function v1Schema() {
           .prop('status', status())
           .required()
           .prop('date', S.string().format('date-time'))
-          .required()
-          .prop('result'),
+          .required(),
       ),
     )
     .description('List of status change phases.')
     .required()
     .prop('result')
-    .description('Completition result value.')
+    .description('Progress or completition result value.')
     .prop('reason')
     .description('Failure reason.')
     .prop('createdAt', S.string().format('date-time'))

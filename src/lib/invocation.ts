@@ -123,18 +123,16 @@ export function progressInvocation(
   if (invocation.status !== 'running') {
     throw new Error('Invocation must be running to progress')
   }
-  if (!isOlderThan(tail(invocation.phases)!.date, 2)) {
-    throw new Error('Cannot progress an Invocation too quickly')
-  }
+
+  const phases = invocation.phases.filter(p => p.status !== 'progress')
   return {
     ...invocation,
     result,
     phases: [
-      ...invocation.phases,
+      ...phases,
       {
         date: new Date().toISOString(),
         status: 'progress',
-        result,
       },
     ],
   }
@@ -166,7 +164,14 @@ export function failInvocation(
     case 'initializing':
     case 'pending':
     case 'running':
-      return pushInvocationStatus({ ...invocation, reason }, 'failed')
+      return pushInvocationStatus(
+        {
+          ...invocation,
+          reason,
+          result: undefined, // clean last progress update
+        },
+        'failed',
+      )
     default:
       throw new Error(
         `Cannot fail Invocation ${invocation._id} (status is ${invocation.status})`,

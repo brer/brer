@@ -11,6 +11,7 @@ import {
   runInvocation,
 } from '../lib/invocation.js'
 import { decodeToken } from '../lib/token.js'
+import { isOlderThan, tail } from '../lib/util.js'
 import { handleTestInvocation, rotateInvocations } from './util.js'
 
 declare module 'fastify' {
@@ -149,6 +150,12 @@ export default async function rpcPlugin(fastify: FastifyInstance) {
     async handler(request, reply) {
       const { store } = this
       const { body } = request
+
+      if (!isOlderThan(tail(request.invocation.phases)!.date, 2)) {
+        return reply.code(409).error({
+          message: 'Cannot progress an Invocation too quickly',
+        })
+      }
 
       const invocation = await store.invocations
         .from(request.invocation)
