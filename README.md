@@ -56,7 +56,7 @@ npm run watch
 ### Test
 
 ```
-chmod +x ./bin/test.sh && ./bin/test.sh
+npm test
 ```
 
 ## Authentication for other Users

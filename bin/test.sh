@@ -19,7 +19,7 @@ sleep 5
 echo "init database"
 npm run init -- --url=http://127.0.0.1:$COUCHDB_PORT/ --username=$COUCHDB_USERNAME --password=$COUCHDB_PASSWORD 1> /dev/null
 
-npx ava
+npx c8 ava
 
 echo "stop couchdb container"
 docker container stop $CONTAINER_NAME 1> /dev/null
