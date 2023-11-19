@@ -1,18 +1,12 @@
-import type {
-  FastifyInstance,
-  FastifyRequest,
-  RouteOptions,
-} from '@brer/fastify'
+import type { FastifyRequest, RouteOptions } from '@brer/fastify'
 import type { FnEnv } from '@brer/function'
 import type { Invocation } from '@brer/invocation'
-import type { V1Secret } from '@kubernetes/client-node'
 import S from 'fluent-json-schema-es'
 
 import type { RequestResult } from '../../../lib/error.js'
 import {
   createFunction,
   getFunctionByName,
-  getFunctionSecretName,
   updateFunction,
 } from '../../../lib/function.js'
 import {
@@ -123,7 +117,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { auth, store } = this
+    const { auth, helmsman, store } = this
     const { log, params, session } = request
 
     const bodyResult = parseRequest(request)
@@ -147,7 +141,10 @@ export default (): RouteOptions<RouteGeneric> => ({
     }
 
     try {
-      await pushPrivateSecrets(this, params.functionName, body.env)
+      await helmsman.pushFunctionSecrets(
+        params.functionName,
+        serializeFunctionSecrets(body.env),
+      )
     } catch (err) {
       log.error({ err }, 'secret write error')
       return reply
@@ -191,7 +188,7 @@ export default (): RouteOptions<RouteGeneric> => ({
         )
         .unwrap()
 
-      this.events.emit('brer.invocations.invoke', { invocation })
+      await helmsman.invoke(invocation)
     }
 
     reply.code(created ? 201 : 200)
@@ -271,73 +268,12 @@ function parseRequest({
   })
 }
 
-async function pushPrivateSecrets(
-  { kubernetes }: FastifyInstance,
-  functionName: string,
-  env: FnEnv[],
-) {
-  env = Array.from(getPrivateEnvs(env))
-  if (!env.length) {
-    return
-  }
-
-  const secretName = getFunctionSecretName(functionName)
-
-  const template: V1Secret = {
-    apiVersion: 'v1',
-    kind: 'Secret',
-    type: 'Opaque',
-    metadata: {
-      name: secretName,
-      labels: {
-        'app.kubernetes.io/managed-by': 'brer.io',
-        'brer.io/function-name': functionName,
-      },
-    },
-    stringData: env.reduce(
-      (acc, obj) => {
-        acc[obj.secretKey!] = obj.value!
-        return acc
-      },
-      {} as Record<string, string>,
-    ),
-  }
-
-  const exists = await kubernetes.api.CoreV1Api.readNamespacedSecret(
-    secretName,
-    kubernetes.namespace,
-    undefined,
-  ).catch(err =>
-    err?.response?.statusCode === 404 ? null : Promise.reject(err),
-  )
-  if (exists) {
-    await kubernetes.api.CoreV1Api.patchNamespacedSecret(
-      secretName,
-      kubernetes.namespace,
-      template,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      {
-        headers: {
-          'content-type': 'application/merge-patch+json',
-        },
-      },
-    )
-  } else {
-    await kubernetes.api.CoreV1Api.createNamespacedSecret(
-      kubernetes.namespace,
-      template,
-    )
-  }
-}
-
-function* getPrivateEnvs(envs: FnEnv[]) {
-  for (const env of envs) {
-    if (env.value && env.secretKey && !env.secretName) {
-      yield env
+function serializeFunctionSecrets(env: FnEnv[]): Record<string, string> {
+  const secrets: Record<string, string> = {}
+  for (const obj of env) {
+    if (obj.value && obj.secretKey && !obj.secretName) {
+      secrets[obj.secretKey] = obj.value
     }
   }
+  return secrets
 }

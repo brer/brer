@@ -5,7 +5,7 @@ import noAdditionalProperties from 'fastify-no-additional-properties'
 
 import auth from './lib/auth.js'
 import error from './lib/error.js'
-import events from './lib/events.js'
+import helmsman from './lib/helmsman.js'
 import probes from './lib/probes.js'
 import store from './lib/store.js'
 import tasks from './lib/tasks.js'
@@ -33,7 +33,6 @@ export default function createServer() {
   })
 
   fastify.register(error)
-  fastify.register(events)
   fastify.register(tasks)
   fastify.register(noAdditionalProperties.default)
   fastify.register(auth, {
@@ -57,6 +56,7 @@ export default function createServer() {
     user: process.env.K8S_USER,
     namespace: process.env.K8S_NAMESPACE,
   })
+  fastify.register(helmsman)
 
   fastify.register(store, {
     url: process.env.COUCHDB_URL,

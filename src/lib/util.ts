@@ -62,3 +62,7 @@ export async function* fixDuplicates<T extends BrerDocument>(
 export function pickFirst(value: unknown, index: number) {
   return index === 0
 }
+
+export function noop() {
+  // nothing to do
+}

@@ -56,7 +56,7 @@ export default async function plugin(fastify: FastifyInstance) {
       },
     },
     async handler(request, reply) {
-      const { auth, store } = this
+      const { auth, helmsman, store } = this
       const { body, headers, params, session } = request
 
       const fn = await getFunctionByName(store, params.functionName)
@@ -95,7 +95,7 @@ export default async function plugin(fastify: FastifyInstance) {
         )
         .unwrap()
 
-      this.events.emit('brer.invocations.invoke', { invocation })
+      await helmsman.invoke(invocation)
 
       reply.code(202)
       return {

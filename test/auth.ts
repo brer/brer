@@ -2,11 +2,9 @@ import test from 'ava'
 
 import createTestServer from './_server.js'
 
-const fastify = createTestServer()
+const { authorization, fastify } = createTestServer()
 test.before(() => fastify.ready())
 test.after(() => fastify.close())
-
-const authorization = 'Basic ' + Buffer.from('admin:admin').toString('base64')
 
 test('server authentication', async t => {
   const anonymous = await fastify.inject({

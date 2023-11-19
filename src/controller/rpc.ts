@@ -65,26 +65,6 @@ export default async function rpcPlugin(fastify: FastifyInstance) {
 
   fastify.route({
     method: 'POST',
-    url: '/rpc/v1/invoke',
-    schema: {
-      body: S.object(),
-    },
-    async handler(request, reply) {
-      const { invocation } = request
-
-      if (invocation?.status !== 'pending') {
-        return reply.code(409).error({
-          message: 'Invalid Invocation status.',
-        })
-      }
-
-      this.events.emit('brer.invocations.invoke', { invocation })
-      return reply.code(204).send()
-    },
-  })
-
-  fastify.route({
-    method: 'POST',
     url: '/rpc/v1/run',
     schema: {
       body: S.object(),

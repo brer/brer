@@ -2,7 +2,6 @@ import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
 import { getFunctionByName } from '../../../lib/function.js'
-import { getLabelSelector } from '../../../lib/kubernetes.js'
 
 export interface RouteGeneric {
   Params: {
@@ -29,7 +28,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { auth, kubernetes, store, tasks } = this
+    const { auth, helmsman, store, tasks } = this
     const { params, session } = request
 
     const fn = await getFunctionByName(store, params.functionName)
@@ -42,21 +41,10 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.error(result.unwrapErr())
     }
 
-    // TODO: call controller
-    await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
-      kubernetes.namespace,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      undefined,
-      getLabelSelector({ functionName: fn.name }),
-    )
+    await store.functions.from(fn).delete().consume()
 
-    await store.functions.from(fn).delete().consume({ purge: true })
-
-    tasks.push(async log => {
-      const count = await store.invocations
+    tasks.push(log =>
+      store.invocations
         .filter({
           _design: 'default',
           _view: 'by_project',
@@ -64,13 +52,14 @@ export default (): RouteOptions<RouteGeneric> => ({
           endkey: [fn.project, fn.name, {}],
         })
         .delete()
+        .commit()
+        .tap(invocation => helmsman.deleteInvocationPods(invocation._id))
         .consume({
           purge: true,
           sorted: false,
         })
-
-      log.debug(`deleted ${count} ${fn.name} invocation(s)`)
-    })
+        .then(count => log.debug(`deleted ${count} ${fn.name} invocation(s)`)),
+    )
 
     return reply.code(204).send()
   },

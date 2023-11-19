@@ -41,6 +41,14 @@ Create a `.env` file with the following envs:
 
 ### Start
 
+Initialize the database:
+
+```
+npm run init -- --url=couchdb_url --username=couchdb_username --password=couchdb_username
+```
+
+Start the server:
+
 ```
 npm run watch
 ```

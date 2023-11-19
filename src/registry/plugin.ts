@@ -183,11 +183,7 @@ export default async function registryPlugin(
             this.store.invocations
               .create(invocations)
               .commit()
-              .tap(doc =>
-                this.events.emit('brer.invocations.invoke', {
-                  invocation: doc,
-                }),
-              )
+              .tap(doc => this.helmsman.invoke(doc))
               .consume(),
           )
         }

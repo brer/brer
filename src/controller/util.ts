@@ -13,7 +13,6 @@ import {
 } from '../lib/invocation.js'
 import {
   type WatchPhase,
-  getPodByInvocationId,
   getPodStatus,
   getPodTemplate,
 } from '../lib/kubernetes.js'
@@ -33,7 +32,7 @@ export async function handlePodEvent(
     return null
   }
 
-  const { kubernetes, log, store } = fastify
+  const { helmsman, log, store } = fastify
 
   let invocation = await store.invocations.find(invocationId).unwrap()
   let deletePod = false
@@ -53,17 +52,7 @@ export async function handlePodEvent(
 
   if (deletePod) {
     log.debug(`delete pod ${pod.metadata?.name}`)
-    try {
-      await kubernetes.api.CoreV1Api.deleteNamespacedPod(
-        pod.metadata!.name!,
-        kubernetes.namespace,
-      )
-    } catch (err) {
-      if (Object(err).statusCode !== 404) {
-        // Pod was previously deleted
-        return Promise.reject(err)
-      }
-    }
+    await helmsman.deletePod(pod)
   }
 
   return invocation
@@ -112,7 +101,7 @@ export async function syncInvocationState(
   fastify: FastifyInstance,
   invocation: Invocation,
 ): Promise<Invocation> {
-  const { kubernetes } = fastify
+  const { helmsman } = fastify
 
   if (invocation.status === 'pending') {
     // Invoke event was lost
@@ -122,7 +111,7 @@ export async function syncInvocationState(
       // Stuck inside Kubernetes somehow (ex. missing secret)
       invocation = await failWithMessage(fastify, invocation, 'timed out')
     } else {
-      const pod = await getPodByInvocationId(kubernetes, invocation._id)
+      const pod = await helmsman.getPodByInvocationId(invocation._id)
       const podStatus = pod ? getPodStatus(pod) : 'Failed'
       if (!pod) {
         // Previous Pod spawn failed
@@ -137,7 +126,7 @@ export async function syncInvocationState(
       }
     }
   } else if (invocation.status === 'running') {
-    const pod = await getPodByInvocationId(kubernetes, invocation._id)
+    const pod = await helmsman.getPodByInvocationId(invocation._id)
     const podStatus = pod ? getPodStatus(pod) : 'Failed'
 
     if (podStatus === 'Failed' || podStatus === 'Succeeded') {
@@ -157,7 +146,7 @@ export async function syncInvocationState(
 }
 
 export async function spawnInvocationPod(
-  { kubernetes, log }: FastifyInstance,
+  { helmsman, log }: FastifyInstance,
   invocation: Invocation,
   token: InvocationToken,
 ) {
@@ -168,12 +157,11 @@ export async function spawnInvocationPod(
   }
 
   log.debug({ invocationId: invocation._id }, 'spawn invocation pod')
-  await kubernetes.api.CoreV1Api.createNamespacedPod(
-    kubernetes.namespace,
+  await helmsman.createPod(
     getPodTemplate(
       invocation,
       process.env.RPC_URL ||
-        `http://brer-controller.${kubernetes.namespace}.svc.cluster.local/`,
+        `http://brer-controller.${helmsman.namespace}.svc.cluster.local/`,
       token.value,
     ),
   )

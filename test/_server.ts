@@ -1,11 +1,16 @@
+import type { FastifyInstance } from '@brer/fastify'
 import Fastify from 'fastify'
 import noAdditionalProperties from 'fastify-no-additional-properties'
+import { v4 as uuid } from 'uuid'
 
 import auth from '../src/lib/auth.js'
 import error from '../src/lib/error.js'
+import { handleInvocation, setTokenSignature } from '../src/lib/invocation.js'
 import store from '../src/lib/store.js'
+import { noop } from '../src/lib/util.js'
 
 import api from '../src/api/plugin.js'
+import controller from '../src/controller/plugin.js'
 
 /**
  * See `package.json` for test envs.
@@ -24,15 +29,20 @@ export default function createTestServer() {
     caseSensitive: true,
     ignoreTrailingSlash: false,
     logger: {
-      level: 'silent',
+      level: 'error',
     },
   })
 
+  // Just a random password
+  const adminPassword = uuid()
+
+  // Authorization header
+  const authorization =
+    'Basic ' + Buffer.from(`admin:${adminPassword}`).toString('base64')
+
   fastify.register(error)
   fastify.register(noAdditionalProperties.default)
-  fastify.register(auth, {
-    adminPassword: process.env.ADMIN_PASSWORD,
-  })
+  fastify.register(auth, { adminPassword })
 
   fastify.decorate('kubernetes', {
     getter() {
@@ -40,11 +50,24 @@ export default function createTestServer() {
     },
   })
 
-  fastify.decorate('events', {
-    getter() {
-      throw new Error('Events plugin not available')
-    },
-  })
+  const asyncNoop = () => Promise.resolve()
+  const helmsman: FastifyInstance['helmsman'] = {
+    namespace: 'default',
+    createPod: pod => Promise.resolve(pod),
+    deleteInvocationPods: asyncNoop,
+    deletePod: asyncNoop,
+    getPodByInvocationId: () => Promise.resolve(null),
+    invoke: invocation =>
+      fastify.store.invocations
+        .from(invocation)
+        .update(handleInvocation)
+        .update(doc => setTokenSignature(doc, 'test'))
+        .unwrap(),
+    pushFunctionSecrets: asyncNoop,
+    watchPods: () => noop,
+  }
+
+  fastify.decorate('helmsman', helmsman)
 
   fastify.decorate('tasks', {
     getter() {
@@ -59,11 +82,12 @@ export default function createTestServer() {
   })
 
   fastify.register(api, { cookieSecret: 'test' })
+  fastify.register(controller)
 
   // Test database connection
   fastify.addHook('onReady', async () => {
     await fastify.store.nano.info()
   })
 
-  return fastify
+  return { authorization, fastify }
 }

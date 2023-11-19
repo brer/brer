@@ -1,4 +1,3 @@
-import type { FastifyInstance } from '@brer/fastify'
 import type { Invocation } from '@brer/invocation'
 import type { V1EnvVar, V1Pod } from '@kubernetes/client-node'
 import { randomBytes } from 'node:crypto'
@@ -136,52 +135,4 @@ function serializeLabelSelector(key: string, value: string | string[]): string {
     }
     return `${key}=${value}`
   }
-}
-
-/**
- * Get the last created Pod by its Invocation identifier.
- */
-export async function getPodByInvocationId(
-  kubernetes: FastifyInstance['kubernetes'],
-  invocationId: string,
-): Promise<V1Pod | null> {
-  const response = await kubernetes.api.CoreV1Api.listNamespacedPod(
-    kubernetes.namespace,
-    undefined,
-    undefined,
-    undefined,
-    undefined,
-    getLabelSelector({ invocationId }),
-  )
-  if (!response.body.items.length) {
-    return null
-  }
-  return response.body.items.reduce((a, b) => {
-    if (
-      a.metadata?.creationTimestamp &&
-      b.metadata?.creationTimestamp &&
-      a.metadata.creationTimestamp > b.metadata.creationTimestamp
-    ) {
-      return a
-    } else {
-      return b
-    }
-  })
-}
-
-export async function findPodByName(
-  kubernetes: FastifyInstance['kubernetes'],
-  podName: string,
-  namespace?: string,
-): Promise<V1Pod | null> {
-  const result = await kubernetes.api.CoreV1Api.listNamespacedPod(
-    namespace || kubernetes.namespace,
-    undefined,
-    undefined,
-    undefined,
-    `metadata.name=${podName}`,
-    undefined,
-    1,
-  )
-  return result.body.items[0] || null
 }

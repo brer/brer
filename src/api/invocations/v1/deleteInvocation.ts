@@ -1,9 +1,7 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
-import { getLabelSelector } from '../../../lib/kubernetes.js'
-
-interface RouteGeneric {
+export interface RouteGeneric {
   Params: {
     invocationId: string
   }
@@ -22,7 +20,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { auth, kubernetes, store } = this
+    const { auth, helmsman, store } = this
     const { params, session } = request
 
     const invocation = await store.invocations
@@ -37,20 +35,9 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.error(result.unwrapErr())
     }
 
-    if (invocation.status !== 'completed' && invocation.status !== 'failed') {
-      // TODO: call controller (stop invocation)
-      await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
-        kubernetes.namespace,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        undefined,
-        getLabelSelector({ invocationId: invocation._id }),
-      )
-    }
-
     await store.invocations.from(invocation).delete().unwrap()
+
+    await helmsman.deleteInvocationPods(invocation._id)
 
     return reply.code(204).send()
   },
