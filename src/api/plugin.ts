@@ -2,38 +2,53 @@ import type { FastifyInstance } from '@brer/fastify'
 import cookies from '@fastify/cookie'
 
 import authRoutes from './auth.js'
-import functionsRoutes from './functions/plugin.js'
-import functionsSchema from './functions/schema.js'
-import invocationsRoutes from './invocations/plugin.js'
-import invocationsSchema from './invocations/schema.js'
-import projectsRoutes from './projects/plugin.js'
-import projectsSchema from './projects/schema.js'
+
+import deleteFunctionV1 from './functions/deleteFunction.js'
+import patchFunctionV1 from './functions/patchFunction.js'
+import readFunctionV1 from './functions/readFunction.js'
+import searchFunctionsV1 from './functions/searchFunctions.js'
+import triggerFunctionV1 from './functions/triggerFunction.js'
+import updateFunctionV1 from './functions/updateFunction.js'
+
+import deleteInvocationV1 from './invocations/deleteInvocation.js'
+import downloadPayloadV1 from './invocations/downloadPayload.js'
+import readInvocationV1 from './invocations/readInvocation.js'
+import readLogsV1 from './invocations/readLogs.js'
+import searchInvocationsV1 from './invocations/searchInvocations.js'
+import stopInvocationV1 from './invocations/stopInvocation.js'
+
+import readProjectV1 from './projects/readProject.js'
+import updateProjectV1 from './projects/updateProject.js'
 
 export interface PluginOptions {
-  cookieSecret?: string
-  notifyController?: boolean
+  invokerUrl: URL
 }
 
 export default async function apiPlugin(
   fastify: FastifyInstance,
-  options: PluginOptions,
+  { invokerUrl }: PluginOptions,
 ) {
-  if (!options.cookieSecret) {
-    throw new Error('Required env var COOKIE_SECRET is missing')
-  }
+  const invoker = fastify.createPool(invokerUrl)
 
-  fastify.register(cookies, {
-    hook: 'onRequest',
-    secret: options.cookieSecret,
-  })
-
-  // Register global schema ($ref)
-  functionsSchema(fastify)
-  invocationsSchema(fastify)
-  projectsSchema(fastify)
+  fastify.register(cookies, { hook: 'onRequest' })
 
   await authRoutes(fastify)
-  await functionsRoutes(fastify)
-  await invocationsRoutes(fastify)
-  await projectsRoutes(fastify)
+
+  fastify
+    .route(deleteFunctionV1(invoker))
+    .route(patchFunctionV1(invoker))
+    .route(readFunctionV1())
+    .route(searchFunctionsV1())
+    .register(triggerFunctionV1, { invoker })
+    .route(updateFunctionV1(invoker))
+
+  fastify
+    .route(deleteInvocationV1(invoker))
+    .route(downloadPayloadV1())
+    .route(readInvocationV1())
+    .route(readLogsV1())
+    .route(searchInvocationsV1())
+    .route(stopInvocationV1(invoker))
+
+  fastify.route(readProjectV1()).route(updateProjectV1())
 }

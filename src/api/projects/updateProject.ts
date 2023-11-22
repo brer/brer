@@ -6,7 +6,7 @@ import {
   createProject,
   getProjectByName,
   updateProject,
-} from '../../../lib/project.js'
+} from '../../lib/project.js'
 
 export interface RouteGeneric {
   Body: {

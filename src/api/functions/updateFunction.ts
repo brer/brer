@@ -1,14 +1,14 @@
 import type { FastifyRequest, RouteOptions } from '@brer/fastify'
 import type { FnEnv } from '@brer/function'
-import type { Invocation } from '@brer/invocation'
 import S from 'fluent-json-schema-es'
+import { type Pool } from 'undici'
 
-import type { RequestResult } from '../../../lib/error.js'
+import type { RequestResult } from '../../lib/error.js'
 import {
   createFunction,
   getFunctionByName,
   updateFunction,
-} from '../../../lib/function.js'
+} from '../../lib/function.js'
 import {
   type ContainerImage,
   parseImagePath,
@@ -16,9 +16,9 @@ import {
   IMAGE_TAG_REGEXP,
   IMAGE_HOST_REGEXP,
   IMAGE_NAME_REGEXP,
-} from '../../../lib/image.js'
-import { createInvocation } from '../../../lib/invocation.js'
-import * as Result from '../../../lib/result.js'
+} from '../../lib/image.js'
+import * as Result from '../../lib/result.js'
+import { invoke } from './triggerFunction.js'
 
 export interface RouteGeneric {
   Body: {
@@ -37,7 +37,7 @@ export interface RouteGeneric {
   }
 }
 
-export default (): RouteOptions<RouteGeneric> => ({
+export default (invoker: Pool): RouteOptions<RouteGeneric> => ({
   method: 'PUT',
   url: '/api/v1/functions/:functionName',
   schema: {
@@ -120,24 +120,24 @@ export default (): RouteOptions<RouteGeneric> => ({
     const { auth, helmsman, store } = this
     const { log, params, session } = request
 
-    const bodyResult = parseRequest(request)
-    if (bodyResult.isErr) {
-      return reply.code(400).error(bodyResult.unwrapErr())
+    const resBody = parseRequest(request)
+    if (resBody.isErr) {
+      return reply.code(400).error(resBody.unwrapErr())
     }
 
-    const body = bodyResult.unwrap()
+    const body = resBody.unwrap()
 
     const oldFn = await getFunctionByName(store, params.functionName)
     if (oldFn) {
-      const readResult = await auth.authorize(session, 'admin', oldFn.project)
-      if (readResult.isErr) {
-        return reply.error(readResult.unwrapErr())
+      const resRead = await auth.authorize(session, 'admin', oldFn.project)
+      if (resRead.isErr) {
+        return reply.error(resRead.unwrapErr())
       }
     }
 
-    const writeResult = await auth.authorize(session, 'admin', body.project)
-    if (writeResult.isErr) {
-      return reply.error(writeResult.unwrapErr())
+    const resWrite = await auth.authorize(session, 'admin', body.project)
+    if (resWrite.isErr) {
+      return reply.error(resWrite.unwrapErr())
     }
 
     try {
@@ -174,21 +174,16 @@ export default (): RouteOptions<RouteGeneric> => ({
       })
     }
 
-    let invocation: Invocation | undefined
+    let invocation: any
     if (!newFn.runtime) {
-      // Create Invocation before Fn write
-      invocation = await store.invocations
-        .create(
-          createInvocation({
-            fn: newFn,
-            env: {
-              BRER_MODE: 'test',
-            },
-          }),
-        )
-        .unwrap()
-
-      await helmsman.invoke(invocation)
+      const resInvoke = await invoke(invoker, session.username, newFn, {
+        runtimeTest: true,
+      })
+      if (resInvoke.isErr) {
+        return reply.error(resInvoke.unwrapErr())
+      } else {
+        invocation = resInvoke.unwrap()
+      }
     }
 
     reply.code(created ? 201 : 200)

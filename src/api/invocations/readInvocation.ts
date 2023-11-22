@@ -8,19 +8,22 @@ export interface RouteGeneric {
 }
 
 export default (): RouteOptions<RouteGeneric> => ({
-  method: 'DELETE',
+  method: 'GET',
   url: '/api/v1/invocations/:invocationId',
   schema: {
     tags: ['invocation'],
     params: S.object()
+      .additionalProperties(false)
       .prop('invocationId', S.string().format('uuid'))
       .required(),
     response: {
-      204: S.null(),
+      200: S.object()
+        .prop('invocation', S.ref('https://brer.io/schema/v1/invocation.json'))
+        .required(),
     },
   },
   async handler(request, reply) {
-    const { auth, helmsman, store } = this
+    const { auth, store } = this
     const { params, session } = request
 
     const invocation = await store.invocations
@@ -30,15 +33,11 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.code(404).error({ message: 'Invocation not found.' })
     }
 
-    const result = await auth.authorize(session, 'admin', invocation.project)
+    const result = await auth.authorize(session, 'viewer', invocation.project)
     if (result.isErr) {
       return reply.error(result.unwrapErr())
     }
 
-    await store.invocations.from(invocation).delete().unwrap()
-
-    await helmsman.deleteInvocationPods(invocation._id)
-
-    return reply.code(204).send()
+    return { invocation }
   },
 })

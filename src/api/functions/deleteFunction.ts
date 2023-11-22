@@ -1,7 +1,9 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
+import { type Pool } from 'undici'
 
-import { getFunctionByName } from '../../../lib/function.js'
+import { getFunctionByName } from '../../lib/function.js'
+import { deleteInvocation } from '../invocations/deleteInvocation.js'
 
 export interface RouteGeneric {
   Params: {
@@ -9,7 +11,7 @@ export interface RouteGeneric {
   }
 }
 
-export default (): RouteOptions<RouteGeneric> => ({
+export default (invoker: Pool): RouteOptions<RouteGeneric> => ({
   method: 'DELETE',
   url: '/api/v1/functions/:functionName',
   schema: {
@@ -28,8 +30,8 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { auth, helmsman, store, tasks } = this
-    const { params, session } = request
+    const { auth, store, tasks } = this
+    const { log, params, session } = request
 
     const fn = await getFunctionByName(store, params.functionName)
     if (!fn) {
@@ -43,7 +45,7 @@ export default (): RouteOptions<RouteGeneric> => ({
 
     await store.functions.from(fn).delete().consume()
 
-    tasks.push(log =>
+    tasks.push(() =>
       store.invocations
         .filter({
           _design: 'default',
@@ -51,14 +53,20 @@ export default (): RouteOptions<RouteGeneric> => ({
           startkey: [fn.project, fn.name, null],
           endkey: [fn.project, fn.name, {}],
         })
-        .delete()
-        .commit()
-        .tap(invocation => helmsman.deleteInvocationPods(invocation._id))
-        .consume({
-          purge: true,
-          sorted: false,
+        .tap(async doc => {
+          const result = await deleteInvocation(
+            invoker,
+            session.username,
+            doc._id,
+          )
+          if (result.isErr) {
+            log.error(
+              { invocationId: doc._id, err: result.unwrapErr() },
+              'failed to delete invocation',
+            )
+          }
         })
-        .then(count => log.debug(`deleted ${count} ${fn.name} invocation(s)`)),
+        .consume({ sorted: false }),
     )
 
     return reply.code(204).send()

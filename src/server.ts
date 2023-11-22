@@ -6,12 +6,14 @@ import noAdditionalProperties from 'fastify-no-additional-properties'
 import auth from './lib/auth.js'
 import error from './lib/error.js'
 import helmsman from './lib/helmsman.js'
+import pools from './lib/pools.js'
 import probes from './lib/probes.js'
+import { addSchema } from './lib/schema.js'
 import store from './lib/store.js'
 import tasks from './lib/tasks.js'
 
 import api from './api/plugin.js'
-import controller from './controller/plugin.js'
+import invoker from './invoker/plugin.js'
 import registry from './registry/plugin.js'
 
 export default function createServer() {
@@ -32,6 +34,9 @@ export default function createServer() {
     },
   })
 
+  addSchema(fastify)
+
+  fastify.register(pools)
   fastify.register(error)
   fastify.register(tasks)
   fastify.register(noAdditionalProperties.default)
@@ -66,31 +71,24 @@ export default function createServer() {
 
   fastify.register(probes)
 
+  const defaultUrl = 'http://127.0.0.1:3000/'
+  const apiUrl = new URL(process.env.INVOKER_URL || defaultUrl)
+  const invokerUrl = new URL(process.env.INVOKER_URL || defaultUrl)
+  const registryUrl = new URL(process.env.REGISTRY_URL || defaultUrl)
+  const publicUrl = new URL(process.env.PUBLIC_URL || defaultUrl)
+
   const modes = process.env.SERVER_MODE?.split(',') || ['api']
   if (modes.includes('api')) {
     fastify.log.debug('api plugin enabled')
-    fastify.register(api, {
-      cookieSecret: process.env.COOKIE_SECRET,
-      notifyController:
-        !!process.env.KUBERNETES_SERVICE_HOST && !modes.includes('controller'),
-    })
+    fastify.register(api, { invokerUrl })
   }
-  if (modes.includes('controller')) {
-    fastify.log.debug('controller plugin enabled')
-    fastify.register(controller)
+  if (modes.includes('invoker')) {
+    fastify.log.debug('invoker plugin enabled')
+    fastify.register(invoker, { invokerUrl })
   }
   if (modes.includes('registry')) {
     fastify.log.debug('registry plugin enabled')
-    if (!process.env.PUBLIC_URL) {
-      throw new Error('Env PUBLIC_URL is missing')
-    }
-    if (!process.env.REGISTRY_URL) {
-      throw new Error('Env REGISTRY_URL is missing')
-    }
-    fastify.register(registry, {
-      publicUrl: new URL(process.env.PUBLIC_URL),
-      registryUrl: new URL(process.env.REGISTRY_URL),
-    })
+    fastify.register(registry, { apiUrl, publicUrl, registryUrl })
   }
 
   return fastify

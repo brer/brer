@@ -1,85 +1,108 @@
-import { createHmac, randomBytes } from 'node:crypto'
-import * as uuid from 'uuid'
+import { SignJWT, jwtVerify } from 'jose'
+import { v4 as uuid } from 'uuid'
 
-/**
- * Node.js (this) process random signature.
- */
-const randomness = randomBytes(4)
-
-/**
- * HMAC signature secret.
- */
-const secret = process.env.HMAC_SECRET || ''
-if (!secret) {
-  throw new Error('Env HMAC_SECRET is missing')
+if (!process.env.JWT_SECRET) {
+  throw new Error('Env value for JWT_SECRET is missing')
 }
 
-export interface InvocationToken {
-  /**
-   * Invocation identifier.
-   */
+const JWT_ALGORITHM = 'HS256'
+const JWT_SECRET = Buffer.from(process.env.JWT_SECRET)
+
+export interface Token {
   id: string
-  /**
-   * Token creation date.
-   */
-  date: Date
-  /**
-   * Token signature.
-   */
-  signature: string
-  /**
-   * Raw base64 token string.
-   */
-  value: string
+  subject: string
+  raw: string
+  issuer: string
 }
 
-/**
- * Returns a 56 bytes long base64 encoded token string.
- */
-export function encodeToken(id: string): InvocationToken {
-  // Seconds since UNIX epoch
-  const date = Math.round(Date.now() / 1000)
+export async function signUserToken(username: string): Promise<Token> {
+  const id = uuid()
+  const issuer = 'brer.io/api'
+  const ms = 900000 // 15 minutes (milliseconds)
 
-  const chunks = [
-    // 4 bytes (seconds since unix epoch)
-    Buffer.alloc(4),
-    // 4 bytes process unique identifier
-    randomness,
-    // 16 bytes (binary uuid)
-    Buffer.from(uuid.parse(id)),
-  ]
-
-  chunks[0].writeUInt32LE(date)
-
-  const signature = getSignature(Buffer.concat(chunks))
+  const raw = await new SignJWT()
+    .setProtectedHeader({ alg: JWT_ALGORITHM })
+    .setIssuedAt()
+    .setExpirationTime(Date.now() + ms)
+    .setJti(id)
+    .setIssuer(issuer)
+    .setAudience(['brer.io/api', 'brer.io/invoker'])
+    .setSubject(username)
+    .sign(JWT_SECRET)
 
   return {
-    date: new Date(date * 1000),
     id,
-    signature: signature.toString('base64'),
-    value: Buffer.concat([...chunks, signature]).toString('base64'),
+    issuer,
+    raw,
+    subject: username,
   }
 }
 
-export function decodeToken(token: string): InvocationToken | false {
-  const buffer = Buffer.from(token, 'base64')
-  if (buffer.byteLength === 56) {
-    const signature = getSignature(buffer.subarray(0, 24))
-    if (signature.compare(buffer.subarray(24)) === 0) {
-      return {
-        date: new Date(buffer.readUint32LE() * 1000),
-        id: uuid.stringify(buffer, 8),
-        signature: signature.toString('base64'),
-        value: token,
-      }
-    }
+export async function signInvocationToken(
+  invocationId: string,
+): Promise<Token> {
+  const id = uuid()
+  const issuer = 'brer.io/invoker'
+  const ms = 86400000 // 24 hours (milliseconds)
+
+  const raw = await new SignJWT()
+    .setProtectedHeader({ alg: JWT_ALGORITHM })
+    .setIssuedAt()
+    .setExpirationTime(Date.now() + ms)
+    .setJti(id)
+    .setIssuer(issuer)
+    .setAudience('brer.io/invoker')
+    .setSubject(invocationId)
+    .sign(JWT_SECRET)
+
+  return {
+    id,
+    issuer,
+    raw,
+    subject: invocationId,
   }
-  return false
+}
+
+export async function signRegistryToken(username: string): Promise<Token> {
+  const id = uuid()
+  const issuer = 'brer.io/registry'
+  const ms = 300000 // 5 minutes (milliseconds)
+
+  const raw = await new SignJWT()
+    .setProtectedHeader({ alg: JWT_ALGORITHM })
+    .setIssuedAt()
+    .setExpirationTime(Date.now() + ms)
+    .setJti(id)
+    .setIssuer(issuer)
+    .setAudience('brer.io/api')
+    .setSubject(username)
+    .sign(JWT_SECRET)
+
+  return {
+    id,
+    issuer,
+    raw,
+    subject: '',
+  }
 }
 
 /**
- * Returns a 32 bytes long buffer.
+ * Resolves with JWT subject (`invocationId` or `username`).
  */
-export function getSignature(data: Buffer) {
-  return createHmac('sha256', secret).update(data).digest()
+export async function verifyToken(
+  raw: string,
+  audience: string,
+  issuer: string | string[] = ['brer.io/api', 'brer.io/invoker'],
+): Promise<Token> {
+  const { payload } = await jwtVerify(raw, JWT_SECRET, {
+    algorithms: [JWT_ALGORITHM],
+    issuer,
+    audience,
+  })
+  return {
+    id: payload.jti || uuid(),
+    issuer: payload.iss || '',
+    raw,
+    subject: payload.sub || '',
+  }
 }

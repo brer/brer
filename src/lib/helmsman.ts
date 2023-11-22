@@ -1,11 +1,9 @@
 import type { FastifyInstance } from '@brer/fastify'
-import type { Invocation } from '@brer/invocation'
 import { Watch, type V1Pod, type V1Secret } from '@kubernetes/client-node'
 import plugin from 'fastify-plugin'
 
 import { getFunctionSecretName } from './function.js'
 import { type WatchPhase, getLabelSelector } from './kubernetes.js'
-import { handleInvokeEvent } from '../controller/util.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -23,7 +21,6 @@ declare module 'fastify' {
         functionName: string,
         secrets: Record<string, string>,
       ): Promise<void>
-      invoke(invocation: Invocation): Promise<Invocation>
     }
   }
 }
@@ -37,13 +34,16 @@ async function helmsmanPlugin(fastify: FastifyInstance) {
     watchPods: watchPods.bind(null, fastify),
     getPodByInvocationId: getPodByInvocationId.bind(null, fastify),
     pushFunctionSecrets: pushFunctionSecrets.bind(null, fastify),
-    invoke: handleInvokeEvent.bind(null, fastify),
   }
 
   fastify.decorate('helmsman', decorator)
 }
 
-async function createPod({ kubernetes }: FastifyInstance, template: V1Pod) {
+async function createPod(
+  { kubernetes, log }: FastifyInstance,
+  template: V1Pod,
+) {
+  log.trace('spawn new pod')
   const response = await kubernetes.api.CoreV1Api.createNamespacedPod(
     kubernetes.namespace,
     template,
@@ -51,13 +51,14 @@ async function createPod({ kubernetes }: FastifyInstance, template: V1Pod) {
   return response.body
 }
 
-async function deletePod({ kubernetes }: FastifyInstance, pod: V1Pod) {
+async function deletePod({ kubernetes, log }: FastifyInstance, pod: V1Pod) {
   const podName = pod.metadata?.name
   if (!podName) {
     throw new Error('Unnamed Pod')
   }
 
   try {
+    log.trace(`delete ${podName} pod`)
     await kubernetes.api.CoreV1Api.deleteNamespacedPod(
       podName,
       kubernetes.namespace,
@@ -70,9 +71,10 @@ async function deletePod({ kubernetes }: FastifyInstance, pod: V1Pod) {
 }
 
 async function deleteInvocationPods(
-  { kubernetes }: FastifyInstance,
+  { kubernetes, log }: FastifyInstance,
   invocationId: string,
 ) {
+  log.trace({ invocationId }, 'delete invocation pods')
   await kubernetes.api.CoreV1Api.deleteCollectionNamespacedPod(
     kubernetes.namespace,
     undefined,

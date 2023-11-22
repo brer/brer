@@ -26,32 +26,38 @@ await Promise.all([
 ])
 
 const reduceArrays = `
-    function (keys, values, rereduce) {
-      return values.reduce((a, b) => a.concat(b), [])
-    }
-  `
+  function (keys, values, rereduce) {
+    return values.reduce((a, b) => a.concat(b), [])
+  }
+`
 
 const mapFunctionsByName = `
-    function (doc) {
-      emit([doc.name, doc.createdAt], null)
-    }
-  `
+  function (doc) {
+    emit([doc.name, doc.createdAt], null)
+  }
+`
 
 const mapFunctionsByProject = `
-    function (doc) {
-      if (!doc.draft) {
-        emit([doc.project, doc.name], null)
-      }
+  function (doc) {
+    if (!doc.draft) {
+      emit([doc.project, doc.name], null)
     }
-  `
+  }
+`
 
 const mapRegistryFunctions = `
-    function (doc) {
-      if (!doc.draft && typeof doc.image === 'object') {
-        emit([doc.image.host, doc.image.name], [doc.project])
-      }
+  function (doc) {
+    if (!doc.draft && typeof doc.image === 'object') {
+      emit(
+        [doc.image.host, doc.image.name],
+        {
+          name: doc.name,
+          project: doc.project
+        }
+      )
     }
-    `
+  }
+`
 
 console.log('write functions views')
 await design(store.functions, {
@@ -71,26 +77,26 @@ await design(store.functions, {
 })
 
 const mapInvocationsByProject = `
-    function (doc) {
-      emit([doc.project, doc.functionName, doc.createdAt], null)
-    }
-  `
+  function (doc) {
+    emit([doc.project, doc.functionName, doc.createdAt], null)
+  }
+`
 
 const mapAliveInvocations = `
-    function (doc) {
-      if (doc.status === 'pending' || doc.status === 'initializing' || doc.status === 'running') {
-        emit(doc.createdAt, null)
-      }
+  function (doc) {
+    if (doc.status === 'pending' || doc.status === 'initializing' || doc.status === 'running') {
+      emit(doc.createdAt, null)
     }
-  `
+  }
+`
 
 const mapDeadInvocations = `
-    function (doc) {
-      if (doc.status === 'completed' || doc.status === 'failed') {
-        emit([doc.functionName, doc.createdAt], null)
-      }
+  function (doc) {
+    if (doc.status === 'completed' || doc.status === 'failed') {
+      emit([doc.functionName, doc.createdAt], null)
     }
-  `
+  }
+`
 
 console.log('write invocations views')
 await design(store.invocations, {
@@ -109,23 +115,23 @@ await design(store.invocations, {
 })
 
 const mapProjectsByName = `
-    function (doc) {
-      emit([doc.name, doc.createdAt], null)
-    }
-  `
+  function (doc) {
+    emit([doc.name, doc.createdAt], null)
+  }
+`
 
 const mapProjectsByUser = `
-    function (doc) {
-      if (!doc.draft) {
-        emit('admin', [doc.name])
-        for (var username in Object(doc.roles)) {
-          if (username !== 'admin') {
-            emit(username, [doc.name])
-          }
+  function (doc) {
+    if (!doc.draft) {
+      emit('admin', [doc.name])
+      for (var username in Object(doc.roles)) {
+        if (username !== 'admin') {
+          emit(username, [doc.name])
         }
       }
     }
-  `
+  }
+`
 
 console.log('write projects views')
 await design(store.projects, {

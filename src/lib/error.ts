@@ -35,11 +35,14 @@ export interface ErrorOptions {
 
 export type RequestResult<T = unknown> = Result<T, ErrorOptions>
 
+export type AsyncRequestResult<T = unknown> = Promise<Result<T, ErrorOptions>>
+
 async function errorPlugin(fastify: FastifyInstance) {
   fastify.decorateReply('error', null)
   fastify.decorateReply('sendError', null)
 
   fastify.setErrorHandler((err, request, reply) => {
+    // TODO: handle couchdb "conflict" error
     if (Object(err).validation) {
       request.log.trace({ errors: err.validation }, 'validation error')
       reply.sendError({

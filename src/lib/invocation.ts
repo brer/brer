@@ -1,15 +1,10 @@
-import type { Fn, FnEnv } from '@brer/function'
 import type {
   Invocation,
   InvocationLog,
   InvocationStatus,
 } from '@brer/invocation'
-import { type CouchDocumentAttachment } from 'mutent-couchdb'
-import { createHash } from 'node:crypto'
-import { v4 as uuid } from 'uuid'
 
-import { getFunctionSecretName } from './function.js'
-import { isOlderThan, tail } from './util.js'
+import { isOlderThan } from './util.js'
 
 function pushInvocationStatus(
   invocation: Invocation,
@@ -26,74 +21,6 @@ function pushInvocationStatus(
       },
     ],
   }
-}
-
-export interface CreateInvocationOptions {
-  contentType?: string
-  env?: Record<string, string>
-  fn: Fn
-  payload?: Buffer
-}
-
-export function createInvocation(options: CreateInvocationOptions): Invocation {
-  const now = new Date()
-  const status = 'pending'
-
-  const attachments: Record<string, CouchDocumentAttachment> = {}
-  if (options.payload?.byteLength) {
-    attachments.payload = {
-      content_type: options.contentType || 'application/octet-stream',
-      data: options.payload.toString('base64'),
-    }
-  }
-
-  return {
-    _id: uuid(),
-    _attachments: attachments,
-    status,
-    phases: [
-      {
-        date: now.toISOString(),
-        status,
-      },
-    ],
-    env: getInvocationEnv(options),
-    image: options.fn.image,
-    functionName: options.fn.name,
-    project: options.fn.project,
-    createdAt: now.toISOString(),
-  }
-}
-
-function getInvocationEnv(options: CreateInvocationOptions): FnEnv[] {
-  const keys = Object.keys(options.env || {})
-  const secret = getFunctionSecretName(options.fn.name)
-
-  const envs: FnEnv[] = keys
-    .map(key => ({
-      name: key,
-      value: options.env![key],
-    }))
-    .filter(item => item.value.length > 0) // Empty strings will remove some envs
-
-  for (const env of options.fn.env) {
-    if (!keys.includes(env.name)) {
-      if (env.secretKey) {
-        envs.push({
-          name: env.name,
-          secretName: env.secretName || secret,
-          secretKey: env.secretKey,
-        })
-      } else {
-        envs.push({
-          name: env.name,
-          value: env.value,
-        })
-      }
-    }
-  }
-
-  return envs
 }
 
 /**
@@ -203,41 +130,45 @@ export function hasTimedOut(invocation: Invocation): boolean {
   return false
 }
 
-export function pushLines(doc: Invocation, buffer: Buffer): Invocation {
-  const digest = getDigest(buffer)
-  if (tail(doc.logs)?.digest === digest) {
-    return doc
-  }
-
-  const index = (doc.logs?.length || 0).toString().padStart(2, '0')
+export function putLogPage(
+  doc: Invocation,
+  buffer: Buffer,
+  index: number,
+): Invocation {
   const now = new Date()
 
-  const log: InvocationLog = {
-    attachment: `page_${index}.txt`,
-    date: now.toISOString(),
-    digest,
+  // actual attachment name to use (default to this value, or retrived from previous value)
+  let attachment = `page_${index}.txt`
+
+  const logs: InvocationLog[] = []
+  if (doc.logs) {
+    for (const obj of doc.logs) {
+      if (obj.index === index) {
+        attachment = obj.attachment
+      } else {
+        logs.push(obj)
+      }
+    }
   }
+  logs.push({
+    attachment,
+    date: now.toISOString(),
+    index,
+  })
+  logs.sort((a, b) => a.index - b.index)
 
   return {
     ...doc,
     _attachments: {
       ...doc._attachments,
-      [log.attachment]: {
+      [attachment]: {
         content_type: 'text/plain; charset=utf-8',
         data: buffer.toString('base64'),
       },
     },
-    logs: [...(doc.logs || []), log],
+    logs,
     updatedAt: now.toISOString(),
   }
-}
-
-/**
- * Today this is the same of CouchDB, but tomorrow CouchDB could update its
- * digest algorithm.
- */
-function getDigest(buffer: Buffer): string {
-  return 'md5-' + createHash('md5').update(buffer).digest('base64')
 }
 
 export function isTestRun(invocation: Invocation): boolean {
@@ -246,15 +177,15 @@ export function isTestRun(invocation: Invocation): boolean {
   )
 }
 
-export function setTokenSignature(
+export function setTokenId(
   invocation: Invocation,
-  tokenSignature: string,
+  tokenId: string,
 ): Invocation {
   if (invocation.status !== 'initializing') {
     throw new Error(`Expected Invocation ${invocation._id} to be initializing`)
   }
   return {
     ...invocation,
-    tokenSignature,
+    tokenId,
   }
 }

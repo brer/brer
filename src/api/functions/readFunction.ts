@@ -1,7 +1,7 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
-import { getFunctionByName } from '../../../lib/function.js'
+import { getFunctionByName } from '../../lib/function.js'
 
 export interface RouteGeneric {
   Params: {

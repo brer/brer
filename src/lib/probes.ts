@@ -11,7 +11,7 @@ async function probesPlugin(fastify: FastifyInstance) {
     async handler(request, reply) {
       const [couchdb] = await Promise.all([
         this.store.nano.info(),
-        this.kubernetes.api.CoreApi.getAPIVersions(),
+        this.kubernetes ? this.kubernetes.api.CoreApi.getAPIVersions() : null,
       ])
       if (couchdb.couchdb !== 'Welcome') {
         request.log.warn({ response: couchdb }, 'unexpected couchdb response')

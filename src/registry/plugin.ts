@@ -1,33 +1,61 @@
 import type { FastifyInstance, FastifyRequest } from '@brer/fastify'
-import type { Invocation } from '@brer/invocation'
+import plugin from 'fastify-plugin'
 import type { Readable } from 'node:stream'
-import { Pool } from 'undici'
 
 import { type RequestResult } from '../lib/error.js'
-import { updateFunction } from '../lib/function.js'
 import { parseAuthorization } from '../lib/header.js'
-import { createInvocation } from '../lib/invocation.js'
 import * as Result from '../lib/result.js'
+import { signRegistryToken } from '../lib/token.js'
 
 export interface PluginOptions {
+  apiUrl: URL
   publicUrl: URL
   registryUrl: URL
 }
 
-export default async function registryPlugin(
+async function registryPlugin(
   fastify: FastifyInstance,
-  { publicUrl, registryUrl }: PluginOptions,
+  { apiUrl, publicUrl, registryUrl }: PluginOptions,
 ) {
+  const api = fastify.createPool(apiUrl)
+
+  const patchImageTag = async (
+    username: string,
+    fnName: string,
+    imageTag: string,
+  ) => {
+    const token = await signRegistryToken(username)
+
+    const response = await api.request({
+      method: 'PATCH',
+      path: `/api/v1/functions/${fnName}`,
+      headers: {
+        accept: '*/*',
+        authorization: `Bearer ${token.raw}`,
+        'content-type': 'application/json; charset=utf-8',
+      },
+      body: JSON.stringify({
+        image: {
+          tag: imageTag,
+        },
+      }),
+    })
+
+    const text = await response.body.text()
+    if (response.statusCode === 200) {
+      fastify.log.debug('image tag updated')
+    } else if (response.statusCode === 404) {
+      fastify.log.warn('function not found')
+    } else {
+      fastify.log.error(
+        { body: text, status: response.statusCode },
+        'cannot update function image tag',
+      )
+    }
+  }
+
   const authorization = getAuthorizationHeader()
-
-  const pool = new Pool(registryUrl.origin, {
-    connections: 32,
-    pipelining: 1,
-  })
-
-  fastify.addHook('onClose', async () => {
-    await pool.close()
-  })
+  const registry = fastify.createPool(registryUrl)
 
   fastify.removeAllContentTypeParsers()
   fastify.addContentTypeParser('*', function (request, payload, done) {
@@ -75,7 +103,7 @@ export default async function registryPlugin(
     method: 'GET',
     url: '/v2/',
     async handler(request: FastifyRequest<RouteGeneric>, reply) {
-      const response = await pool.request({
+      const response = await registry.request({
         method: 'GET',
         path: request.url,
         headers: prepareHeaders({ ...request.headers, authorization }),
@@ -87,34 +115,54 @@ export default async function registryPlugin(
     },
   })
 
+  interface PartialFn {
+    name: string
+    project: string
+  }
+
+  /**
+   * Resolves with the list of functions to update.
+   */
   const authorizeRegistryAction = async (
     request: FastifyRequest<RouteGeneric>,
   ): Promise<RequestResult<string[]>> => {
-    const response = await fastify.store.functions.adapter.scope.view<any>(
-      'default',
-      'registry',
-      {
-        group: true,
-        key: [publicUrl.host, request.params.imageName],
-        reduce: true,
-        sorted: false,
-      },
-    )
+    const response = await fastify.store.functions.adapter.scope.view<
+      PartialFn[]
+    >('default', 'registry', {
+      group: true,
+      key: [publicUrl.host, request.params.imageName],
+      reduce: true,
+      sorted: false,
+    })
 
     // All projects with this image
-    const values: string[] = response.rows[0]?.value || []
+    const partials = response.rows[0]?.value || []
 
-    const results = await Promise.all(
-      values.map(p => fastify.auth.authorize(request.session, 'publisher', p)),
+    const allProjects: string[] = []
+    for (const { project } of partials) {
+      if (!allProjects.includes(project)) {
+        allProjects.push(project)
+      }
+    }
+
+    const authResults = await Promise.all(
+      allProjects.map(p =>
+        fastify.auth.authorize(request.session, 'publisher', p),
+      ),
     )
 
-    const projects = results.filter(r => r.isOk).map(r => r.unwrap())
-    if (!projects.length) {
+    const okProjects = authResults.filter(r => r.isOk).map(r => r.unwrap())
+
+    const fns = partials
+      .filter(obj => okProjects.includes(obj.project))
+      .map(obj => obj.name)
+
+    if (!fns.length) {
       // No projects, no api :)
       return Result.err({ status: 404 })
     }
 
-    return Result.ok(projects)
+    return Result.ok(fns)
   }
 
   fastify.route({
@@ -126,9 +174,7 @@ export default async function registryPlugin(
         return reply.code(403).error(result.unwrapErr())
       }
 
-      const projects = result.unwrap()
-
-      const response = await pool.request({
+      const response = await registry.request({
         method: 'PUT',
         path: request.url,
         headers: prepareHeaders({ ...request.headers, authorization }),
@@ -136,57 +182,19 @@ export default async function registryPlugin(
       })
 
       if (response.statusCode === 201) {
-        const fns = fastify.store.functions
-          .filter({
-            _design: 'default',
-            _view: 'registry',
-            key: [publicUrl.host, request.params.imageName],
-          })
-          .filter(fn => projects.includes(fn.project))
-          .tap(fn =>
-            request.log.trace(
-              { tag: request.params.imageTag },
-              `update ${fn.name} image tag`,
-            ),
-          )
-          .update(fn =>
-            updateFunction(fn, {
-              ...fn,
-              image: {
-                ...fn.image,
-                tag: request.params.imageTag,
-              },
-            }),
-          )
-          .iterate({
-            sorted: false,
-          })
-
-        const invocations: Invocation[] = []
-        try {
-          for await (const fn of fns) {
-            invocations.push(
-              createInvocation({
-                fn,
-                env: {
-                  BRER_MODE: 'test',
-                },
-              }),
-            )
-          }
-        } catch (err) {
-          request.log.error({ err }, 'failed to update functions image tag')
-        }
-
-        if (invocations.length) {
-          this.tasks.push(() =>
-            this.store.invocations
-              .create(invocations)
-              .commit()
-              .tap(doc => this.helmsman.invoke(doc))
-              .consume(),
-          )
-        }
+        fastify.tasks.push(() =>
+          Promise.all(
+            result
+              .unwrap()
+              .map(fnName =>
+                patchImageTag(
+                  request.session.username,
+                  fnName,
+                  request.params.imageTag,
+                ),
+              ),
+          ),
+        )
       }
 
       reply.code(response.statusCode)
@@ -204,7 +212,7 @@ export default async function registryPlugin(
         return reply.code(403).error(result.unwrapErr())
       }
 
-      const resRegistry = await pool.request({
+      const resRegistry = await registry.request({
         method: request.method as any,
         path: request.url,
         headers: prepareHeaders({ ...request.headers, authorization }),
@@ -248,3 +256,11 @@ function prepareHeaders(headers: Headers): Headers {
 
   return result
 }
+
+export default plugin(registryPlugin, {
+  name: 'registry',
+  decorators: {
+    fastify: ['store'],
+  },
+  encapsulate: true,
+})

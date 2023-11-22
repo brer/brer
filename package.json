@@ -29,6 +29,7 @@
     "fastify-plugin": "^4.5.1",
     "fastq": "^1.15.0",
     "fluent-json-schema-es": "^4.1.0",
+    "jose": "^5.1.1",
     "mutent": "^5.1.0",
     "mutent-couchdb": "^0.1.0",
     "mutent-migration": "^0.3.1",
@@ -58,8 +59,7 @@
     "environmentVariables": {
       "COUCHDB_URL": "http://127.0.0.1:5555",
       "COUCHDB_USERNAME": "admin",
-      "COUCHDB_PASSWORD": "admin",
-      "HMAC_SECRET": "c3e5ab21-86b2-423c-890b-7b98cc674a1a"
+      "COUCHDB_PASSWORD": "admin"
     },
     "nodeArguments": [
       "--import",

@@ -5,12 +5,11 @@ import { v4 as uuid } from 'uuid'
 
 import auth from '../src/lib/auth.js'
 import error from '../src/lib/error.js'
-import { handleInvocation, setTokenSignature } from '../src/lib/invocation.js'
 import store from '../src/lib/store.js'
 import { noop } from '../src/lib/util.js'
 
 import api from '../src/api/plugin.js'
-import controller from '../src/controller/plugin.js'
+import invoker from '../src/invoker/plugin.js'
 
 /**
  * See `package.json` for test envs.
@@ -50,6 +49,28 @@ export default function createTestServer() {
     },
   })
 
+  // Super Power Ninja Turbo Neo Ultra Hyper Mega Multi Alpha Meta Extra Uber Prefix __HACK__
+  const pool: any = {
+    async request(options: any) {
+      const response = await fastify.inject({
+        method: options.method,
+        path: options.path,
+        headers: options.headers,
+        body: options.body,
+      })
+
+      return {
+        statusCode: response.statusCode,
+        headers: response.headers,
+        body: {
+          text: async () => response.payload,
+          json: async () => response.json(),
+        },
+      }
+    },
+  }
+  fastify.decorate('createPool', () => pool)
+
   const asyncNoop = () => Promise.resolve()
   const helmsman: FastifyInstance['helmsman'] = {
     namespace: 'default',
@@ -57,12 +78,6 @@ export default function createTestServer() {
     deleteInvocationPods: asyncNoop,
     deletePod: asyncNoop,
     getPodByInvocationId: () => Promise.resolve(null),
-    invoke: invocation =>
-      fastify.store.invocations
-        .from(invocation)
-        .update(handleInvocation)
-        .update(doc => setTokenSignature(doc, 'test'))
-        .unwrap(),
     pushFunctionSecrets: asyncNoop,
     watchPods: () => noop,
   }
@@ -81,8 +96,9 @@ export default function createTestServer() {
     password: process.env.COUCHDB_PASSWORD,
   })
 
-  fastify.register(api, { cookieSecret: 'test' })
-  fastify.register(controller)
+  const invokerUrl = new URL('http://127.0.0.1:3000')
+  fastify.register(api, { invokerUrl })
+  fastify.register(invoker, { invokerUrl })
 
   // Test database connection
   fastify.addHook('onReady', async () => {

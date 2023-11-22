@@ -34,10 +34,8 @@ Create a `.env` file with the following envs:
 | K8S_CLUSTER       | Expected context's cluster.
 | K8S_USER          | Expected context's user.
 | K8S_NAMESPACE     | Expected kubeconfig namespace.
-| **HMAC_SECRET**   | Secret used to hash Invocations' tokens.
 | ADMIN_PASSWORD    | User's password for `admin`. Optional if `GATEWAY_URL` is defined.
 | GATEWAY_URL       | Authentication gateway URL. Optional if `ADMIN_PASSWORD` is defined.
-| COOKIE_SECRET     | Secret used to hash cookies (see [brer-web](https://github.com/brer/brer-web)).
 
 ### Start
 
@@ -54,6 +52,8 @@ npm run watch
 ```
 
 ### Test
+
+Install Docker Engine (the `docker` command) and run:
 
 ```
 npm test
@@ -90,7 +90,7 @@ Also set the next envs:
 - [x] [Node.js bindings](https://github.com/brer/brer-nodejs)
 - [x] Previous Invocations history limit
 - [x] Authentication and authorization
-- [x] Docker repository integration
+- [x] Docker Registry integration
 - [x] Stop Invocations
 - [x] Progress update
 - [ ] Max running Invocations limit

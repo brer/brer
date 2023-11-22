@@ -29,9 +29,9 @@ export interface Invocation extends BrerDocument {
    */
   env: FnEnv[]
   /**
-   * Current token signature.
+   * JWT identifier.
    */
-  tokenSignature?: string
+  tokenId?: string
   /**
    * Internal property. List of received log pages.
    */
@@ -40,6 +40,10 @@ export interface Invocation extends BrerDocument {
    * Invocation's owner.
    */
   project: string
+  /**
+   *
+   */
+  runtimeTest?: boolean
 }
 
 /**
@@ -75,11 +79,11 @@ export interface InvocationLog {
    */
   attachment: string
   /**
-   * Date of arrival. ISO 8601 date string.
+   * Date of log acquisition. ISO 8601 date string.
    */
   date: string
   /**
-   * MD5 digest.
+   * Page log ordering index.
    */
-  digest: string
+  index: number
 }

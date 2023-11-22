@@ -33,13 +33,17 @@ const managedBy = 'brer.io'
 
 export function getPodTemplate(
   invocation: Invocation,
-  url: string,
-  token: string,
+  invokerUrl: URL,
+  rawToken: string,
 ): V1Pod {
   const env: V1EnvVar[] = [
-    { name: 'BRER_URL', value: url },
-    { name: 'BRER_TOKEN', value: token },
+    { name: 'BRER_URL', value: invokerUrl.href },
+    { name: 'BRER_TOKEN', value: rawToken },
+    { name: 'BRER_INVOCATION_ID', value: invocation._id },
   ]
+  if (invocation.runtimeTest) {
+    env.push({ name: 'BRER_MODE', value: 'test' })
+  }
 
   const defaultSecretName = getFunctionSecretName(invocation.functionName)
   for (const item of invocation.env) {

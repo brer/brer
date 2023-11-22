@@ -1,7 +1,6 @@
 import type { FastifyInstance } from '@brer/fastify'
 import type { ProjectRole } from '@brer/project'
 import plugin from 'fastify-plugin'
-import { Pool } from 'undici'
 
 import type { RequestResult } from './error.js'
 import { getProjectByName } from './project.js'
@@ -164,8 +163,7 @@ function useGateway(
     { gateway: gatewayUrl.origin },
     'using authentication gateway',
   )
-  const pool = new Pool(gatewayUrl.origin, { pipelining: 1 })
-  fastify.addHook('onClose', () => pool.close())
+  const pool = fastify.createPool(gatewayUrl, { pipelining: 1 })
 
   return async (username, password) => {
     if (adminPassword && username === 'admin' && password === adminPassword) {

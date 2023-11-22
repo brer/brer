@@ -1,11 +1,15 @@
 import type { FastifyContext, FastifyInstance } from '@brer/fastify'
+import type { Fn, FnEnv } from '@brer/function'
 import { constantCase } from 'case-anything'
 import S from 'fluent-json-schema-es'
 import { Readable, Writable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
+import { type Pool } from 'undici'
 
-import { getFunctionByName } from '../../../lib/function.js'
-import { createInvocation } from '../../../lib/invocation.js'
+import { AsyncRequestResult } from '../../lib/error.js'
+import { getFunctionByName, getFunctionSecretName } from '../../lib/function.js'
+import * as Result from '../../lib/result.js'
+import { signUserToken } from '../../lib/token.js'
 
 export interface RouteGeneric {
   Body: Buffer
@@ -14,7 +18,14 @@ export interface RouteGeneric {
   }
 }
 
-export default async function plugin(fastify: FastifyInstance) {
+export interface PluginOptions {
+  invoker: Pool
+}
+
+export default async function plugin(
+  fastify: FastifyInstance,
+  { invoker }: PluginOptions,
+) {
   fastify.removeAllContentTypeParsers()
 
   fastify.addContentTypeParser('*', (request, payload, done) => {
@@ -56,7 +67,7 @@ export default async function plugin(fastify: FastifyInstance) {
       },
     },
     async handler(request, reply) {
-      const { auth, helmsman, store } = this
+      const { auth, store } = this
       const { body, headers, params, session } = request
 
       const fn = await getFunctionByName(store, params.functionName)
@@ -84,23 +95,19 @@ export default async function plugin(fastify: FastifyInstance) {
         }
       }
 
-      const invocation = await store.invocations
-        .create(
-          createInvocation({
-            contentType: headers['content-type'],
-            env,
-            fn,
-            payload: body,
-          }),
-        )
-        .unwrap()
-
-      await helmsman.invoke(invocation)
+      const resInvoke = await invoke(invoker, session.username, fn, {
+        contentType: headers['content-type'],
+        env,
+        payload: body,
+      })
+      if (resInvoke.isErr) {
+        return reply.error(resInvoke.unwrapErr())
+      }
 
       reply.code(202)
       return {
         function: fn,
-        invocation,
+        invocation: resInvoke.unwrap(),
       }
     },
   })
@@ -123,4 +130,89 @@ async function toBuffer(readable: Readable) {
   )
 
   return Buffer.concat(chunks)
+}
+
+export interface InvokeOptions {
+  /**
+   * Override some envs.
+   */
+  env?: Record<string, string>
+  /**
+   * Optional Invocation payload.
+   */
+  payload?: Buffer
+  /**
+   * Payload's content type.
+   */
+  contentType?: string
+  /**
+   * Execute "runtime test" mode.
+   */
+  runtimeTest?: boolean
+}
+
+export async function invoke(
+  invoker: Pool,
+  username: string,
+  fn: Fn,
+  options: InvokeOptions = {},
+): AsyncRequestResult {
+  const token = await signUserToken(username)
+
+  const response = await invoker.request({
+    method: 'POST',
+    path: '/invoker/v1/invocations',
+    headers: {
+      accept: 'application/json',
+      authorization: `Bearer ${token.raw}`,
+      'content-type': 'application/json; charset=utf-8',
+    },
+    body: JSON.stringify({
+      env: mergeEnv(fn, options.env),
+      runtimeTest: options.runtimeTest,
+      image: fn.image,
+      functionName: fn.name,
+      project: fn.project,
+      payload: options.payload?.toString('base64'),
+      contentType: options?.contentType,
+    }),
+  })
+
+  const body: any = await response.body.json()
+  if (response.statusCode === 201) {
+    return Result.ok(body.invocation)
+  } else {
+    return Result.err({ ...body.error, status: response.statusCode })
+  }
+}
+
+function mergeEnv(fn: Fn, record: Record<string, string> = {}) {
+  const keys = Object.keys(record)
+  const secret = getFunctionSecretName(fn.name)
+
+  const env: FnEnv[] = keys
+    .map(key => ({
+      name: key,
+      value: record[key],
+    }))
+    .filter(item => item.value.length > 0) // Empty strings will remove some envs
+
+  for (const obj of fn.env) {
+    if (!keys.includes(obj.name)) {
+      if (obj.secretKey) {
+        env.push({
+          name: obj.name,
+          secretName: obj.secretName || secret,
+          secretKey: obj.secretKey,
+        })
+      } else {
+        env.push({
+          name: obj.name,
+          value: obj.value,
+        })
+      }
+    }
+  }
+
+  return env
 }

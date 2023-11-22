@@ -1,6 +1,7 @@
 import type {
   FastifyContext,
   FastifyInstance,
+  FastifyReply,
   FastifyRequest,
   FastifySchema,
 } from '@brer/fastify'
@@ -11,6 +12,7 @@ import { type Session } from '../lib/auth.js'
 import { type RequestResult } from '../lib/error.js'
 import { parseAuthorization } from '../lib/header.js'
 import * as Result from '../lib/result.js'
+import { signUserToken, verifyToken } from '../lib/token.js'
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -23,7 +25,7 @@ declare module 'fastify' {
   }
 }
 
-export default async function authPlugin(fastify: FastifyInstance) {
+export default async function apiAuthPlugin(fastify: FastifyInstance) {
   const cookieName = process.env.COOKIE_NAME || 'brer_session'
 
   const cookieOptions: CookieSerializeOptions = {
@@ -33,57 +35,51 @@ export default async function authPlugin(fastify: FastifyInstance) {
     path: '/',
     sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
     secure: process.env.NODE_ENV === 'production',
-    signed: true,
+    signed: false,
   }
 
   const getRequestSession = async (
     request: FastifyRequest<any>,
+    reply: FastifyReply,
   ): Promise<RequestResult<FastifyRequest['session']>> => {
-    const { cookies, headers } = request
-    const rawCookie = cookies[cookieName]
-    const authorization = parseAuthorization(headers)
+    const authorization = parseAuthorization(request.headers)
 
-    let session: FastifyRequest['session'] | undefined
     if (authorization?.type === 'basic') {
-      const result = await fastify.auth.authenticate(
-        authorization.username,
-        authorization.password,
-      )
-      if (result.isErr) {
-        return result.expectErr()
-      } else {
-        session = {
-          ...result.unwrap(),
-          type: 'basic',
-        }
-      }
-    } else if (rawCookie) {
-      const unsigned = fastify.unsignCookie(rawCookie)
-      if (unsigned.valid && unsigned.value) {
-        const { username } = JSON.parse(
-          Buffer.from(unsigned.value, 'base64').toString(),
+      return fastify.auth
+        .authenticate(authorization.username, authorization.password)
+        .then(result => result.map(session => ({ ...session, type: 'basic' })))
+    }
+
+    const cookie = request.cookies[cookieName]
+    const token =
+      authorization?.type === 'bearer' ? authorization.token : cookie
+
+    let username: string | undefined
+    if (token) {
+      try {
+        const { subject } = await verifyToken(
+          token,
+          'brer.io/api',
+          request.routeOptions.config.tokenIssuer || 'brer.io/api',
         )
-
-        const result = await fastify.auth.fetch(username)
-        if (result.isErr) {
-          return result.expectErr()
-        } else {
-          session = {
-            ...result.unwrap(),
-            type: 'cookie',
-          }
+        username = subject
+      } catch (err) {
+        request.log.debug({ err }, 'jwt verification failed')
+        if (cookie) {
+          reply.clearCookie(cookieName, cookieOptions)
         }
       }
     }
-
-    if (session) {
-      return Result.ok(session)
-    } else {
-      return Result.err({
-        message: 'Invalid credentials.',
-        status: 401,
-      })
+    if (username) {
+      return fastify.auth
+        .fetch(username)
+        .then(result => result.map(session => ({ ...session, type: 'cookie' })))
     }
+
+    return Result.err({
+      message: 'Usupported authorization scheme.',
+      status: 401,
+    })
   }
 
   fastify.decorateRequest('session', null)
@@ -92,10 +88,9 @@ export default async function authPlugin(fastify: FastifyInstance) {
     'onRequest',
     async (request, reply) => {
       const adminOnly = !!request.routeOptions.config.admin
-      const optionalAuth =
-        !adminOnly && (request.routeOptions.config.public || false)
+      const optionalAuth = !adminOnly && !!request.routeOptions.config.public
 
-      const result = await getRequestSession(request)
+      const result = await getRequestSession(request, reply)
 
       if (result.isErr && optionalAuth) {
         request.log.trace('optional authentication failed')
@@ -159,14 +154,9 @@ export default async function authPlugin(fastify: FastifyInstance) {
       }
 
       const session = result.unwrap()
-      const content = Buffer.from(
-        JSON.stringify({
-          date: Date.now(),
-          username: session.username,
-        }),
-      ).toString('base64')
+      const token = await signUserToken(session.username)
 
-      reply.setCookie(cookieName, content, cookieOptions)
+      reply.setCookie(cookieName, token.raw, cookieOptions)
       return {
         user: {
           username: session.username,
