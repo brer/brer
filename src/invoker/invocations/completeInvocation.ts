@@ -2,7 +2,7 @@ import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
 import { completeInvocation } from '../../lib/invocation.js'
-import { handleTestInvocation, rotateInvocations } from '../lib.js'
+import { handleTestInvocation } from '../lib.js'
 
 export interface RouteGeneric {
   Body: {
@@ -16,9 +16,6 @@ export interface RouteGeneric {
 export default (): RouteOptions<RouteGeneric> => ({
   method: 'PUT',
   url: '/invoker/v1/invocations/:invocationId/status/completed',
-  config: {
-    tokenIssuer: 'brer.io/invoker',
-  },
   schema: {
     params: S.object()
       .prop('invocationId', S.string().format('uuid'))
@@ -46,10 +43,7 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.code(409).error({ message: 'Invalid Invocation status.' })
     }
 
-    await Promise.all([
-      handleTestInvocation(store, invocation),
-      rotateInvocations(this, invocation.functionName),
-    ])
+    await handleTestInvocation(this, invocation, token)
 
     return { invocation }
   },

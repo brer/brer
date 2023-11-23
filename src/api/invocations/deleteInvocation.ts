@@ -1,10 +1,7 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
-import { type Pool } from 'undici'
 
-import { type AsyncRequestResult } from '../../lib/error.js'
-import * as Result from '../../lib/result.js'
-import { signUserToken } from '../../lib/token.js'
+import { deleteInvocation } from '../request.js'
 
 export interface RouteGeneric {
   Params: {
@@ -12,7 +9,7 @@ export interface RouteGeneric {
   }
 }
 
-export default (invoker: Pool): RouteOptions<RouteGeneric> => ({
+export default (): RouteOptions<RouteGeneric> => ({
   method: 'DELETE',
   url: '/api/v1/invocations/:invocationId',
   schema: {
@@ -41,9 +38,9 @@ export default (invoker: Pool): RouteOptions<RouteGeneric> => ({
     }
 
     const resDelete = await deleteInvocation(
-      invoker,
-      session.username,
-      invocation._id,
+      this,
+      session.token,
+      params.invocationId,
     )
     if (resDelete.isErr) {
       return reply.error(resAuth.unwrapErr())
@@ -52,29 +49,3 @@ export default (invoker: Pool): RouteOptions<RouteGeneric> => ({
     return reply.code(204).send()
   },
 })
-
-export async function deleteInvocation(
-  invoker: Pool,
-  username: string,
-  invocationId: String,
-): AsyncRequestResult<null> {
-  const token = await signUserToken(username)
-
-  const response = await invoker.request({
-    method: 'DELETE',
-    path: `/invoker/v1/invocations/${invocationId}`,
-    headers: {
-      accept: 'application/json',
-      authorization: `Bearer ${token.raw}`,
-      'content-type': 'application/json; charset=utf-8',
-    },
-    body: '{}',
-  })
-
-  const body: any = await response.body.json()
-  if (response.statusCode === 204 || response.statusCode === 404) {
-    return Result.ok(null)
-  } else {
-    return Result.err({ ...body.error, status: response.statusCode })
-  }
-}

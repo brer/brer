@@ -2,6 +2,7 @@ import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
 import { asInteger } from '../../lib/qs.js'
+import { API_ISSUER } from '../../lib/token.js'
 
 export interface RouteGeneric {
   Querystring: {
@@ -15,7 +16,10 @@ export interface RouteGeneric {
 
 export default (): RouteOptions<RouteGeneric> => ({
   method: 'GET',
-  url: '/api/v1/invocations',
+  url: '/invoker/v1/invocations',
+  config: {
+    tokenIssuer: API_ISSUER,
+  },
   schema: {
     tags: ['invocation'],
     querystring: S.object()
@@ -45,7 +49,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     const { auth, store } = this
     const { query, session } = request
 
-    const project = query.project || session.projects[0] || 'default'
+    const project = query.project || 'default'
 
     const result = await auth.authorize(session, 'viewer', project)
     if (result.isErr) {

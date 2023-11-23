@@ -2,10 +2,12 @@ import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
 import { failInvocation } from '../../lib/invocation.js'
-import { handleTestInvocation, rotateInvocations } from '../lib.js'
+import { API_ISSUER, INVOKER_ISSUER } from '../../lib/token.js'
+import { handleTestInvocation } from '../lib.js'
 
 export interface RouteGeneric {
   Body: {
+    kill?: boolean
     reason?: unknown
   }
   Params: {
@@ -16,6 +18,9 @@ export interface RouteGeneric {
 export default (): RouteOptions<RouteGeneric> => ({
   method: 'PUT',
   url: '/invoker/v1/invocations/:invocationId/status/failed',
+  config: {
+    tokenIssuer: [API_ISSUER, INVOKER_ISSUER],
+  },
   schema: {
     params: S.object()
       .prop('invocationId', S.string().format('uuid'))
@@ -37,7 +42,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     } else if (oldInvocation.status === 'failed') {
       return { invocation: oldInvocation }
     } else if (
-      token.issuer === 'brer.io/invoker' &&
+      token.issuer === INVOKER_ISSUER &&
       oldInvocation.tokenId !== token.id
     ) {
       return reply.code(403).error({ message: 'Token invalidated.' })
@@ -49,9 +54,8 @@ export default (): RouteOptions<RouteGeneric> => ({
       .unwrap()
 
     await Promise.all([
-      handleTestInvocation(store, newInvocation),
-      helmsman.deleteInvocationPods(newInvocation._id),
-      rotateInvocations(this, newInvocation.functionName),
+      handleTestInvocation(this, newInvocation, token),
+      body.kill ? helmsman.deleteInvocationPods(newInvocation._id) : null,
     ])
 
     return { invocation: newInvocation }

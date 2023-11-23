@@ -16,9 +16,6 @@ export interface RouteGeneric {
 export default (): RouteOptions<RouteGeneric> => ({
   method: 'PUT',
   url: '/invoker/v1/invocations/:invocationId/status/progress',
-  config: {
-    tokenIssuer: 'brer.io/invoker',
-  },
   schema: {
     params: S.object()
       .prop('invocationId', S.string().format('uuid'))

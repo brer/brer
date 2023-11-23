@@ -45,6 +45,9 @@ export function isSameImage(a: ContainerImage, b: ContainerImage): boolean {
   return a.host === b.host && a.name === b.name && a.tag === b.tag
 }
 
+/**
+ * TODO: avoid using envs here
+ */
 export function serializeImage(image: ContainerImage): string {
   let host = image.host
   if (process.env.PUBLIC_URL && process.env.REGISTRY_URL) {

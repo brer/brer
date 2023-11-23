@@ -171,12 +171,6 @@ export function putLogPage(
   }
 }
 
-export function isTestRun(invocation: Invocation): boolean {
-  return (
-    invocation.env.find(item => item.name === 'BRER_MODE')?.value === 'test'
-  )
-}
-
 export function setTokenId(
   invocation: Invocation,
   tokenId: string,

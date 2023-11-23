@@ -1,7 +1,6 @@
 import type { FastifyInstance } from '@brer/fastify'
-import cookies from '@fastify/cookie'
-
-import authRoutes from './auth.js'
+import cookies, { type CookieSerializeOptions } from '@fastify/cookie'
+import plugin from 'fastify-plugin'
 
 import deleteFunctionV1 from './functions/deleteFunction.js'
 import patchFunctionV1 from './functions/patchFunction.js'
@@ -11,44 +10,83 @@ import triggerFunctionV1 from './functions/triggerFunction.js'
 import updateFunctionV1 from './functions/updateFunction.js'
 
 import deleteInvocationV1 from './invocations/deleteInvocation.js'
-import downloadPayloadV1 from './invocations/downloadPayload.js'
 import readInvocationV1 from './invocations/readInvocation.js'
 import readLogsV1 from './invocations/readLogs.js'
+import readPayloadV1 from './invocations/readPayload.js'
 import searchInvocationsV1 from './invocations/searchInvocations.js'
 import stopInvocationV1 from './invocations/stopInvocation.js'
 
 import readProjectV1 from './projects/readProject.js'
 import updateProjectV1 from './projects/updateProject.js'
 
+import createSessionV1 from './session/createSession.js'
+import readSessionV1 from './session/readSession.js'
+
+import auth from './auth.js'
+
 export interface PluginOptions {
+  adminPassword?: string
+  cookieName?: string
+  gatewayUrl?: URL
   invokerUrl: URL
 }
 
-export default async function apiPlugin(
+async function apiPlugin(
   fastify: FastifyInstance,
-  { invokerUrl }: PluginOptions,
+  {
+    cookieName = 'brer_session',
+    invokerUrl,
+    adminPassword,
+    gatewayUrl,
+  }: PluginOptions,
 ) {
-  const invoker = fastify.createPool(invokerUrl)
+  fastify.pools.set('invoker', invokerUrl)
+
+  const cookieOptions: CookieSerializeOptions = {
+    domain: process.env.COOKIE_DOMAIN,
+    httpOnly: true,
+    maxAge: 600, // 10 minutes (seconds)
+    path: '/',
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    signed: false,
+  }
 
   fastify.register(cookies, { hook: 'onRequest' })
-
-  await authRoutes(fastify)
+  fastify.register(auth, {
+    adminPassword,
+    gatewayUrl,
+    cookieName,
+    cookieOptions,
+  })
 
   fastify
-    .route(deleteFunctionV1(invoker))
-    .route(patchFunctionV1(invoker))
+    .route(deleteFunctionV1())
+    .route(patchFunctionV1())
     .route(readFunctionV1())
     .route(searchFunctionsV1())
-    .register(triggerFunctionV1, { invoker })
-    .route(updateFunctionV1(invoker))
+    .register(triggerFunctionV1)
+    .route(updateFunctionV1())
 
   fastify
-    .route(deleteInvocationV1(invoker))
-    .route(downloadPayloadV1())
+    .route(deleteInvocationV1())
     .route(readInvocationV1())
     .route(readLogsV1())
+    .route(readPayloadV1())
     .route(searchInvocationsV1())
-    .route(stopInvocationV1(invoker))
+    .route(stopInvocationV1())
+
+  fastify
+    .route(createSessionV1(cookieName, cookieOptions))
+    .route(readSessionV1())
 
   fastify.route(readProjectV1()).route(updateProjectV1())
 }
+
+export default plugin(apiPlugin, {
+  name: 'api',
+  decorators: {
+    fastify: ['store'],
+  },
+  encapsulate: true,
+})

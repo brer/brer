@@ -2,8 +2,8 @@ import type { Invocation } from '@brer/invocation'
 import type { V1EnvVar, V1Pod } from '@kubernetes/client-node'
 import { randomBytes } from 'node:crypto'
 
-import { getFunctionSecretName } from './function.js'
-import { serializeImage } from './image.js'
+import { getFunctionSecretName } from '../lib/function.js'
+import { serializeImage } from '../lib/image.js'
 
 export type WatchPhase = 'ADDED' | 'MODIFIED' | 'DELETED'
 
@@ -84,7 +84,8 @@ export function getPodTemplate(
         {
           name: 'job',
           image: serializeImage(invocation.image),
-          imagePullPolicy: 'IfNotPresent',
+          imagePullPolicy:
+            invocation.image.tag === 'latest' ? 'Always' : 'IfNotPresent',
           env,
           // TODO: make editable
           resources: {

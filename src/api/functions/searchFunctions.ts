@@ -43,7 +43,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     const { auth, store } = this
     const { query, session } = request
 
-    const project = query.project || session.projects[0] || 'default'
+    const project = query.project || 'default'
 
     const result = await auth.authorize(session, 'viewer', project)
     if (result.isErr) {

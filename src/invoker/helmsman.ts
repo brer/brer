@@ -2,7 +2,7 @@ import type { FastifyInstance } from '@brer/fastify'
 import { Watch, type V1Pod, type V1Secret } from '@kubernetes/client-node'
 import plugin from 'fastify-plugin'
 
-import { getFunctionSecretName } from './function.js'
+import { getFunctionSecretName } from '../lib/function.js'
 import { type WatchPhase, getLabelSelector } from './kubernetes.js'
 
 declare module 'fastify' {

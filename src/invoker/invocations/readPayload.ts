@@ -1,6 +1,8 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
+import { API_ISSUER } from '../../lib/token.js'
+
 export interface RouteGeneric {
   Params: {
     invocationId: string
@@ -10,6 +12,9 @@ export interface RouteGeneric {
 export default (): RouteOptions<RouteGeneric> => ({
   method: 'GET',
   url: '/invoker/v1/invocations/:invocationId/payload',
+  config: {
+    tokenIssuer: API_ISSUER,
+  },
   schema: {
     params: S.object()
       .prop('invocationId', S.string().format('uuid'))

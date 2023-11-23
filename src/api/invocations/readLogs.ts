@@ -3,6 +3,8 @@ import type { Invocation } from '@brer/invocation'
 import S from 'fluent-json-schema-es'
 import { Readable } from 'node:stream'
 
+import { API_ISSUER } from '../../lib/token.js'
+
 export interface RouteGeneric {
   Params: {
     invocationId: string
@@ -16,7 +18,10 @@ export interface RouteGeneric {
 
 export default (): RouteOptions<RouteGeneric> => ({
   method: 'GET',
-  url: '/api/v1/invocations/:invocationId/logs',
+  url: '/invoker/v1/invocations/:invocationId/logs',
+  config: {
+    tokenIssuer: API_ISSUER,
+  },
   schema: {
     tags: ['invocation'],
     params: S.object()

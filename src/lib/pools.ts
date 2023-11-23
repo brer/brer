@@ -4,23 +4,40 @@ import { Pool } from 'undici'
 
 declare module 'fastify' {
   interface FastifyInstance {
-    createPool(url: URL, options?: Pool.Options): Pool
+    pools: {
+      get(key: string): Pool
+      set(key: string, url: URL, options?: Pool.Options): Pool
+    }
   }
 }
 
 async function poolsPlugin(fastify: FastifyInstance) {
-  const pools: Pool[] = []
+  const pools = new Map<string, Pool>()
 
-  fastify.addHook('onClose', () => Promise.all(pools.map(pool => pool.close())))
+  fastify.addHook('onClose', () =>
+    Promise.all(Array.from(pools.values()).map(pool => pool.close())),
+  )
 
-  fastify.decorate('createPool', (url, options) => {
-    const pool = new Pool(url.origin, {
-      connections: 32,
-      pipelining: 1,
-      ...options,
-    })
-    pools.push(pool)
-    return pool
+  fastify.decorate('pools', {
+    get(key) {
+      const pool = pools.get(key)
+      if (!pool) {
+        throw new Error(`Pool ${key} not set`)
+      }
+      return pool
+    },
+    set(key, url, options) {
+      if (pools.has(key)) {
+        return pools.get(key)!
+      }
+      const pool = new Pool(url.origin, {
+        connections: 32,
+        pipelining: 1,
+        ...options,
+      })
+      pools.set(key, pool)
+      return pool
+    },
   })
 }
 

@@ -1,7 +1,6 @@
 import type { FastifyRequest, RouteOptions } from '@brer/fastify'
 import type { FnEnv } from '@brer/function'
 import S from 'fluent-json-schema-es'
-import { type Pool } from 'undici'
 
 import type { RequestResult } from '../../lib/error.js'
 import {
@@ -18,7 +17,7 @@ import {
   IMAGE_NAME_REGEXP,
 } from '../../lib/image.js'
 import * as Result from '../../lib/result.js'
-import { invoke } from './triggerFunction.js'
+import { invoke, pushFunctionSecrets } from '../request.js'
 
 export interface RouteGeneric {
   Body: {
@@ -37,7 +36,7 @@ export interface RouteGeneric {
   }
 }
 
-export default (invoker: Pool): RouteOptions<RouteGeneric> => ({
+export default (): RouteOptions<RouteGeneric> => ({
   method: 'PUT',
   url: '/api/v1/functions/:functionName',
   schema: {
@@ -117,8 +116,8 @@ export default (invoker: Pool): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { auth, helmsman, store } = this
-    const { log, params, session } = request
+    const { auth, store } = this
+    const { params, session } = request
 
     const resBody = parseRequest(request)
     if (resBody.isErr) {
@@ -140,16 +139,14 @@ export default (invoker: Pool): RouteOptions<RouteGeneric> => ({
       return reply.error(resWrite.unwrapErr())
     }
 
-    try {
-      await helmsman.pushFunctionSecrets(
-        params.functionName,
-        serializeFunctionSecrets(body.env),
-      )
-    } catch (err) {
-      log.error({ err }, 'secret write error')
-      return reply
-        .code(409)
-        .error({ message: 'Cannot write scoped Kubernetes secrets.' })
+    const resSecrets = await pushFunctionSecrets(
+      this,
+      session.token,
+      params.functionName,
+      serializeFunctionSecrets(body.env),
+    )
+    if (resSecrets.isErr) {
+      return reply.code(409).error(resSecrets.unwrapErr())
     }
 
     let created = false
@@ -176,7 +173,7 @@ export default (invoker: Pool): RouteOptions<RouteGeneric> => ({
 
     let invocation: any
     if (!newFn.runtime) {
-      const resInvoke = await invoke(invoker, session.username, newFn, {
+      const resInvoke = await invoke(this, session.token, newFn, {
         runtimeTest: true,
       })
       if (resInvoke.isErr) {

@@ -1,8 +1,7 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
-import { type Pool } from 'undici'
 
-import { signUserToken } from '../../lib/token.js'
+import { stopInvocation } from '../request.js'
 
 export interface RouteGeneric {
   Params: {
@@ -10,7 +9,7 @@ export interface RouteGeneric {
   }
 }
 
-export default (invoker: Pool): RouteOptions<RouteGeneric> => ({
+export default (): RouteOptions<RouteGeneric> => ({
   method: 'POST',
   url: '/api/v1/invocations/:invocationId/stop',
   schema: {
@@ -37,38 +36,24 @@ export default (invoker: Pool): RouteOptions<RouteGeneric> => ({
       return reply.code(404).error({ message: 'Invocation not found.' })
     }
 
-    const result = await auth.authorize(session, 'invoker', invocation.project)
-    if (result.isErr) {
-      return reply.code(403).error(result.unwrapErr())
+    const resAuth = await auth.authorize(session, 'invoker', invocation.project)
+    if (resAuth.isErr) {
+      return reply.code(403).error(resAuth.unwrapErr())
     }
 
     if (invocation.status === 'completed' || invocation.status === 'failed') {
       return reply.code(409).error({ message: 'Invocation not running.' })
     }
 
-    const token = await signUserToken(session.username)
-
-    const response = await invoker.request({
-      method: 'PUT',
-      path: `/invoker/v1/invocations/${invocation._id}/status/failed`,
-      headers: {
-        accept: 'application/json',
-        authorization: `Bearer ${token.raw}`,
-        'content-type': 'application/json; charset=utf-8',
-      },
-      body: JSON.stringify({
-        kill: true,
-        reason: 'stopped manually',
-      }),
-    })
-
-    const data: any = await response.body.json()
-    if (response.statusCode === 200) {
-      return { invocation: data.invocation }
-    } else if (response.statusCode === 404) {
-      return reply.code(404).error()
-    } else {
-      return reply.code(response.statusCode).error(data.error)
+    const resStop = await stopInvocation(
+      this,
+      session.token,
+      params.invocationId,
+    )
+    if (resStop.isErr) {
+      return reply.code(409).error(resAuth.unwrapErr())
     }
+
+    return { invocation: resStop.unwrap() }
   },
 })

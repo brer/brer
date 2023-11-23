@@ -3,8 +3,8 @@ import type { Invocation } from '@brer/invocation'
 import type { V1Pod } from '@kubernetes/client-node'
 import Queue from 'fastq'
 
-import { type WatchPhase, getPodStatus } from '../lib/kubernetes.js'
 import { noop } from '../lib/util.js'
+import { type WatchPhase, getPodStatus } from './kubernetes.js'
 import { failWithReason } from './lib.js'
 
 interface QueueItem {

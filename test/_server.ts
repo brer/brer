@@ -3,13 +3,16 @@ import Fastify from 'fastify'
 import noAdditionalProperties from 'fastify-no-additional-properties'
 import { v4 as uuid } from 'uuid'
 
-import auth from '../src/lib/auth.js'
 import error from '../src/lib/error.js'
+import events from '../src/lib/events.js'
+import { addSchema } from '../src/lib/schema.js'
 import store from '../src/lib/store.js'
 import { noop } from '../src/lib/util.js'
 
 import api from '../src/api/plugin.js'
-import invoker from '../src/invoker/plugin.js'
+import invokerController from '../src/invoker/controller.js'
+import invokerRouter from '../src/invoker/router.js'
+import invokerSpawn from '../src/invoker/spawn.js'
 
 /**
  * See `package.json` for test envs.
@@ -32,6 +35,8 @@ export default function createTestServer() {
     },
   })
 
+  addSchema(fastify)
+
   // Just a random password
   const adminPassword = uuid()
 
@@ -40,8 +45,8 @@ export default function createTestServer() {
     'Basic ' + Buffer.from(`admin:${adminPassword}`).toString('base64')
 
   fastify.register(error)
+  fastify.register(events)
   fastify.register(noAdditionalProperties.default)
-  fastify.register(auth, { adminPassword })
 
   fastify.decorate('kubernetes', {
     getter() {
@@ -69,7 +74,10 @@ export default function createTestServer() {
       }
     },
   }
-  fastify.decorate('createPool', () => pool)
+  fastify.decorate('pools', {
+    get: () => pool,
+    set: () => pool,
+  })
 
   const asyncNoop = () => Promise.resolve()
   const helmsman: FastifyInstance['helmsman'] = {
@@ -97,8 +105,10 @@ export default function createTestServer() {
   })
 
   const invokerUrl = new URL('http://127.0.0.1:3000')
-  fastify.register(api, { invokerUrl })
-  fastify.register(invoker, { invokerUrl })
+  fastify.register(api, { invokerUrl, adminPassword })
+  fastify.register(invokerController)
+  fastify.register(invokerRouter)
+  fastify.register(invokerSpawn, { invokerUrl })
 
   // Test database connection
   fastify.addHook('onReady', async () => {

@@ -1,16 +1,14 @@
 import type { FastifyInstance } from '@brer/fastify'
+import type { FnRuntime } from '@brer/function'
 import type { Invocation } from '@brer/invocation'
 
-import { getFunctionByName, setFunctionRuntime } from '../lib/function.js'
-import { isSameImage } from '../lib/image.js'
 import {
   failInvocation,
   handleInvocation,
-  isTestRun,
   setTokenId,
 } from '../lib/invocation.js'
-import { getPodTemplate } from '../lib/kubernetes.js'
-import { signInvocationToken } from '../lib/token.js'
+import { Token, signInvocationToken } from '../lib/token.js'
+import { getPodTemplate } from './kubernetes.js'
 
 /**
  * Instantly spawns a `"pending"` Invocation.
@@ -27,14 +25,9 @@ export async function handleInvokeEvent(
   log.debug({ invocationId: invocation._id }, 'handle invocation')
   invocation = await store.invocations
     .from(invocation)
-    .update(doc => (doc.status === 'pending' ? handleInvocation(doc) : doc))
-    .tap(doc => {
-      if (doc.status !== 'initializing') {
-        return Promise.reject(
-          new Error('Expected Invocation to be initializing'),
-        )
-      }
-    })
+    .update(doc =>
+      doc.status === 'initializing' ? doc : handleInvocation(doc),
+    )
     .update(doc => setTokenId(doc, token.id))
     .unwrap()
 
@@ -48,67 +41,67 @@ export async function failWithReason(
   fastify: FastifyInstance,
   invocation: Invocation,
   reason: unknown,
+  token?: Token,
 ) {
   const { log, store } = fastify
 
   log.debug({ invocationId: invocation._id, reason }, 'invocation has failed')
-  invocation = await store.invocations
+  return store.invocations
     .from(invocation)
     .update(doc => failInvocation(doc, reason))
-    .tap(doc => handleTestInvocation(store, doc))
+    .commit()
+    .tap(doc => handleTestInvocation(fastify, doc, token))
     .unwrap()
-
-  await rotateInvocations(fastify, invocation.functionName)
-
-  return invocation
 }
 
 export async function handleTestInvocation(
-  store: FastifyInstance['store'],
+  { log, pools }: FastifyInstance,
   invocation: Invocation,
+  token?: Token,
 ) {
+  if (!invocation.runtimeTest) {
+    return
+  }
+  if (!token) {
+    token = await signInvocationToken(invocation._id)
+  }
+
+  const response = await pools.get('api').request({
+    method: 'PATCH',
+    path: `/api/v1/functions/${invocation.functionName}`,
+    headers: {
+      accept: 'application/json',
+      authorization: `Bearer ${token.raw}`,
+      'content-type': 'application/json; charset=utf-8',
+    },
+    body: JSON.stringify({
+      runtime: getRuntime(invocation),
+    }),
+  })
+
+  const data: any = await response.body.json()
+  if (response.statusCode === 200) {
+    log.debug(
+      { functionName: invocation.functionName },
+      'image runtime updated',
+    )
+  } else if (response.statusCode === 404) {
+    log.warn({ functionName: invocation.functionName }, 'function not found')
+  } else {
+    log.error({ response: data }, 'image runtime update failed')
+  }
+}
+
+function getRuntime(invocation: Invocation): FnRuntime {
   if (
-    isTestRun(invocation) &&
-    (invocation.status === 'completed' || invocation.status === 'failed')
+    invocation.status === 'completed' &&
+    typeof invocation.result?.runtime === 'string'
   ) {
-    // TODO
-    await store.functions
-      .from(asIterable(store, invocation))
-      .filter(fn => isSameImage(invocation.image, fn.image))
-      .update(fn => setFunctionRuntime(fn, invocation))
-      .unwrap()
-  }
-}
-
-async function* asIterable(
-  store: FastifyInstance['store'],
-  invocation: Invocation,
-) {
-  const fn = await getFunctionByName(store, invocation.functionName)
-  if (fn) {
-    yield fn
-  }
-}
-
-export async function rotateInvocations(
-  { log, store }: FastifyInstance,
-  fnName: string,
-) {
-  const fn = await getFunctionByName(store, fnName)
-  if (fn) {
-    log.debug({ functionName: fnName }, 'rotate invocations')
-    return store.invocations
-      .filter({
-        _design: 'default',
-        _view: 'dead',
-        startkey: [fnName, {}],
-        endkey: [fnName, null],
-      })
-      .delete()
-      .consume({
-        descending: true,
-        purge: true,
-        skip: fn.historyLimit || 10,
-      })
+    return invocation.result.runtime
+  } else {
+    return {
+      type: 'Unknown',
+      invocationId: invocation._id,
+    }
   }
 }

@@ -1,10 +1,10 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 import { type CouchDocumentAttachment } from 'mutent-couchdb'
-import { EventEmitter } from 'node:events'
 import { v4 as uuid } from 'uuid'
 
 import { type ContainerImage } from '../../lib/image.js'
+import { API_ISSUER } from '../../lib/token.js'
 
 export interface RouteGeneric {
   Body: {
@@ -27,9 +27,12 @@ export interface RouteGeneric {
   }
 }
 
-export default (events: EventEmitter): RouteOptions<RouteGeneric> => ({
+export default (): RouteOptions<RouteGeneric> => ({
   method: 'POST',
   url: '/invoker/v1/invocations',
+  config: {
+    tokenIssuer: API_ISSUER,
+  },
   schema: {
     body: S.object()
       .prop('env', S.array().items(S.object().additionalProperties(true)))
@@ -54,7 +57,7 @@ export default (events: EventEmitter): RouteOptions<RouteGeneric> => ({
       .prop('runtimeTest', S.boolean()),
   },
   async handler(request, reply) {
-    const { store } = this
+    const { events, store } = this
     const { body } = request
 
     const invocationId = uuid()

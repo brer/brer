@@ -3,92 +3,40 @@ import plugin from 'fastify-plugin'
 import type { Readable } from 'node:stream'
 
 import { type RequestResult } from '../lib/error.js'
-import { parseAuthorization } from '../lib/header.js'
 import * as Result from '../lib/result.js'
-import { signRegistryToken } from '../lib/token.js'
+import auth from './auth.js'
+import { patchImageTag } from './request.js'
 
 export interface PluginOptions {
   apiUrl: URL
   publicUrl: URL
   registryUrl: URL
+  registryUsername?: string
+  registryPassword?: string
 }
 
 async function registryPlugin(
   fastify: FastifyInstance,
-  { apiUrl, publicUrl, registryUrl }: PluginOptions,
+  {
+    apiUrl,
+    publicUrl,
+    registryUrl,
+    registryUsername,
+    registryPassword,
+  }: PluginOptions,
 ) {
-  const api = fastify.createPool(apiUrl)
+  fastify.pools.set('api', apiUrl)
+  fastify.register(auth)
 
-  const patchImageTag = async (
-    username: string,
-    fnName: string,
-    imageTag: string,
-  ) => {
-    const token = await signRegistryToken(username)
-
-    const response = await api.request({
-      method: 'PATCH',
-      path: `/api/v1/functions/${fnName}`,
-      headers: {
-        accept: '*/*',
-        authorization: `Bearer ${token.raw}`,
-        'content-type': 'application/json; charset=utf-8',
-      },
-      body: JSON.stringify({
-        image: {
-          tag: imageTag,
-        },
-      }),
-    })
-
-    const text = await response.body.text()
-    if (response.statusCode === 200) {
-      fastify.log.debug('image tag updated')
-    } else if (response.statusCode === 404) {
-      fastify.log.warn('function not found')
-    } else {
-      fastify.log.error(
-        { body: text, status: response.statusCode },
-        'cannot update function image tag',
-      )
-    }
-  }
-
-  const authorization = getAuthorizationHeader()
-  const registry = fastify.createPool(registryUrl)
+  const authorization = getAuthorizationHeader(
+    registryUsername,
+    registryPassword,
+  )
+  const registry = fastify.pools.set('registry', registryUrl)
 
   fastify.removeAllContentTypeParsers()
   fastify.addContentTypeParser('*', function (request, payload, done) {
     done(null, payload)
-  })
-
-  fastify.decorateRequest('session', null)
-
-  fastify.addHook('onRequest', async (request: FastifyRequest, reply) => {
-    // https://distribution.github.io/distribution/spec/api/#api-version-check
-    reply.header('docker-distribution-api-version', 'registry/2.0')
-
-    const authorization = parseAuthorization(request.headers)
-    if (authorization?.type !== 'basic') {
-      return reply
-        .code(401)
-        .header('www-authenticate', 'Basic')
-        .sendError({ message: 'Unsupported auth scheme.' })
-    }
-
-    // Cache set after authentication AND authorization
-    const result = await fastify.auth.authenticate(
-      authorization.username,
-      authorization.password,
-    )
-    if (result.isErr) {
-      return reply.sendError(result.unwrapErr())
-    }
-
-    request.session = {
-      ...result.unwrap(),
-      type: 'basic',
-    }
   })
 
   interface RouteGeneric {
@@ -125,7 +73,7 @@ async function registryPlugin(
    */
   const authorizeRegistryAction = async (
     request: FastifyRequest<RouteGeneric>,
-  ): Promise<RequestResult<string[]>> => {
+  ): Promise<RequestResult<PartialFn[]>> => {
     const response = await fastify.store.functions.adapter.scope.view<
       PartialFn[]
     >('default', 'registry', {
@@ -135,34 +83,12 @@ async function registryPlugin(
       sorted: false,
     })
 
-    // All projects with this image
-    const partials = response.rows[0]?.value || []
-
-    const allProjects: string[] = []
-    for (const { project } of partials) {
-      if (!allProjects.includes(project)) {
-        allProjects.push(project)
-      }
-    }
-
-    const authResults = await Promise.all(
-      allProjects.map(p =>
-        fastify.auth.authorize(request.session, 'publisher', p),
-      ),
-    )
-
-    const okProjects = authResults.filter(r => r.isOk).map(r => r.unwrap())
-
-    const fns = partials
-      .filter(obj => okProjects.includes(obj.project))
-      .map(obj => obj.name)
-
-    if (!fns.length) {
-      // No projects, no api :)
+    const items = response.rows[0]?.value || []
+    if (items.length) {
+      return Result.ok(items)
+    } else {
       return Result.err({ status: 404 })
     }
-
-    return Result.ok(fns)
   }
 
   fastify.route({
@@ -186,10 +112,11 @@ async function registryPlugin(
           Promise.all(
             result
               .unwrap()
-              .map(fnName =>
+              .map(obj =>
                 patchImageTag(
-                  request.session.username,
-                  fnName,
+                  this,
+                  request.session.token,
+                  obj.name,
                   request.params.imageTag,
                 ),
               ),
@@ -226,14 +153,14 @@ async function registryPlugin(
   })
 }
 
-function getAuthorizationHeader() {
+function getAuthorizationHeader(username?: string, password?: string) {
   let data = ''
-  if (process.env.REGISTRY_USERNAME) {
-    data += process.env.REGISTRY_USERNAME
+  if (username) {
+    data += username
   }
   data += ':'
-  if (process.env.REGISTRY_PASSWORD) {
-    data += process.env.REGISTRY_PASSWORD
+  if (password) {
+    data += password
   }
   return 'Basic ' + Buffer.from(data).toString('base64')
 }

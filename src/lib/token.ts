@@ -8,6 +8,10 @@ if (!process.env.JWT_SECRET) {
 const JWT_ALGORITHM = 'HS256'
 const JWT_SECRET = Buffer.from(process.env.JWT_SECRET)
 
+export const API_ISSUER = 'brer.io/api'
+export const INVOKER_ISSUER = 'brer.io/invoker'
+export const REGISTRY_ISSUER = 'brer.io/registry'
+
 export interface Token {
   id: string
   subject: string
@@ -15,9 +19,8 @@ export interface Token {
   issuer: string
 }
 
-export async function signUserToken(username: string): Promise<Token> {
+export async function signApiToken(username: string): Promise<Token> {
   const id = uuid()
-  const issuer = 'brer.io/api'
   const ms = 900000 // 15 minutes (milliseconds)
 
   const raw = await new SignJWT()
@@ -25,14 +28,14 @@ export async function signUserToken(username: string): Promise<Token> {
     .setIssuedAt()
     .setExpirationTime(Date.now() + ms)
     .setJti(id)
-    .setIssuer(issuer)
-    .setAudience(['brer.io/api', 'brer.io/invoker'])
+    .setIssuer(API_ISSUER)
+    .setAudience([API_ISSUER, INVOKER_ISSUER])
     .setSubject(username)
     .sign(JWT_SECRET)
 
   return {
     id,
-    issuer,
+    issuer: API_ISSUER,
     raw,
     subject: username,
   }
@@ -42,7 +45,6 @@ export async function signInvocationToken(
   invocationId: string,
 ): Promise<Token> {
   const id = uuid()
-  const issuer = 'brer.io/invoker'
   const ms = 86400000 // 24 hours (milliseconds)
 
   const raw = await new SignJWT()
@@ -50,14 +52,14 @@ export async function signInvocationToken(
     .setIssuedAt()
     .setExpirationTime(Date.now() + ms)
     .setJti(id)
-    .setIssuer(issuer)
-    .setAudience('brer.io/invoker')
+    .setIssuer(INVOKER_ISSUER)
+    .setAudience([API_ISSUER, INVOKER_ISSUER])
     .setSubject(invocationId)
     .sign(JWT_SECRET)
 
   return {
     id,
-    issuer,
+    issuer: INVOKER_ISSUER,
     raw,
     subject: invocationId,
   }
@@ -65,7 +67,6 @@ export async function signInvocationToken(
 
 export async function signRegistryToken(username: string): Promise<Token> {
   const id = uuid()
-  const issuer = 'brer.io/registry'
   const ms = 300000 // 5 minutes (milliseconds)
 
   const raw = await new SignJWT()
@@ -73,16 +74,16 @@ export async function signRegistryToken(username: string): Promise<Token> {
     .setIssuedAt()
     .setExpirationTime(Date.now() + ms)
     .setJti(id)
-    .setIssuer(issuer)
-    .setAudience('brer.io/api')
+    .setIssuer(REGISTRY_ISSUER)
+    .setAudience([API_ISSUER, REGISTRY_ISSUER])
     .setSubject(username)
     .sign(JWT_SECRET)
 
   return {
     id,
-    issuer,
+    issuer: REGISTRY_ISSUER,
     raw,
-    subject: '',
+    subject: username,
   }
 }
 
@@ -92,7 +93,7 @@ export async function signRegistryToken(username: string): Promise<Token> {
 export async function verifyToken(
   raw: string,
   audience: string,
-  issuer: string | string[] = ['brer.io/api', 'brer.io/invoker'],
+  issuer?: string | string[],
 ): Promise<Token> {
   const { payload } = await jwtVerify(raw, JWT_SECRET, {
     algorithms: [JWT_ALGORITHM],

@@ -15,6 +15,27 @@ test('happy path', async t => {
     t.deepEqual(secrets, { stamper: 'Emphasis on Scat' })
   }
 
+  let podToken: string | undefined
+  const podCreated = new Promise<void>(resolve => {
+    // Close this Promise at shutdown
+    t.teardown(resolve)
+
+    fastify.helmsman.createPod = async template => {
+      // t.is(
+      //   template.spec?.containers[0].image,
+      //   `127.0.0.1:3000/${functionName}:latest`,
+      // )
+
+      // Save Pod token for later
+      podToken = template.spec?.containers[0].env?.find(
+        item => item.name === 'BRER_TOKEN',
+      )?.value
+
+      process.nextTick(resolve)
+      return template
+    }
+  })
+
   const resCreate = await fastify.inject({
     method: 'PUT',
     url: `/api/v1/functions/${functionName}`,
@@ -55,38 +76,34 @@ test('happy path', async t => {
     invocation: {
       functionName,
       project: 'default',
-      status: 'pending',
+      status: 'pending', // create with "pending" status
     },
   })
 
   const invocationId = resCreate.json().invocation._id
 
+  await podCreated
+
   await fastify.store.invocations
     .read(invocationId)
-    .tap(doc => t.is(doc.status, 'initializing'))
+    .tap(doc => t.is(doc.status, 'initializing')) // "initializing" status after pod start
     .unwrap()
 
-  // const resRun = await fastify.inject({
-  //   method: 'POST',
-  //   url: '/rpc/v1/run',
-  //   headers: {
-  //     authorization: `Bearer ${token.value}`,
-  //   },
-  //   payload: {},
-  // })
-  // t.like(resRun, {
-  //   statusCode: 200,
-  // })
-  // t.like(resRun.json(), {
-  //   invocation: {
-  //     _id: invocationId,
-  //     status: 'running',
-  //     env: [
-  //       {
-  //         name: 'BRER_MODE',
-  //         value: 'test',
-  //       },
-  //     ],
-  //   },
-  // })
+  const resRun = await fastify.inject({
+    method: 'PUT',
+    url: `/invoker/v1/invocations/${invocationId}/status/running`,
+    headers: {
+      authorization: `Bearer ${podToken}`,
+    },
+    payload: {},
+  })
+  t.like(resRun, {
+    statusCode: 200,
+  })
+  t.like(resRun.json(), {
+    invocation: {
+      _id: invocationId,
+      status: 'running', // "running" status after this ping
+    },
+  })
 })

@@ -1,8 +1,8 @@
-import type { FastifyInstance, FastifyRequest } from '@brer/fastify'
-import { type EventEmitter } from 'node:stream'
+import type { FastifyContext, FastifyInstance } from '@brer/fastify'
+import S from 'fluent-json-schema-es'
 
-import { parseAuthorization } from '../lib/header.js'
-import { type Token, verifyToken } from '../lib/token.js'
+import { getFunctionSecretName } from '../lib/function.js'
+import { API_ISSUER } from '../lib/token.js'
 
 import completeInvocationV1 from './invocations/completeInvocation.js'
 import createInvocationV1 from './invocations/createInvocation.js'
@@ -12,77 +12,72 @@ import progressInvocationV1 from './invocations/progressInvocation.js'
 import pushLogV1 from './invocations/pushLog.js'
 import readPayloadV1 from './invocations/readPayload.js'
 import runInvocationV1 from './invocations/runInvocation.js'
+import auth from './auth.js'
 
-declare module 'fastify' {
-  interface FastifyRequest {
-    token: Token
+export default async function routerPlugin(fastify: FastifyInstance) {
+  fastify.register(auth)
+
+  interface RouteGeneric {
+    Body: Record<string, string>
+    Params: {
+      functionName: string
+    }
   }
-}
 
-export interface PluginOptions {
-  events: EventEmitter
-}
+  fastify.route<RouteGeneric, FastifyContext>({
+    method: 'PUT',
+    url: '/invoker/v1/secrets/:functionName',
+    config: {
+      tokenIssuer: API_ISSUER,
+    },
+    schema: {
+      params: S.object().prop('functionName', S.string()).required(),
+      body: S.object().additionalProperties(S.string()).minProperties(1),
+      response: {
+        204: S.null(),
+      },
+    },
+    async handler(request, reply) {
+      const { helmsman } = this
+      const { body, params } = request
 
-export default async function invokerAuthPlugin(
-  fastify: FastifyInstance,
-  { events }: PluginOptions,
-) {
-  fastify.decorateRequest('token', null)
+      // TODO: handle errors
+      await helmsman.pushFunctionSecrets(params.functionName, body)
 
-  /**
-   * Verify JWT token.
-   */
-  fastify.addHook('onRequest', async (request: FastifyRequest, reply) => {
-    const { headers, log } = request
-
-    const authorization = parseAuthorization(headers)
-
-    const raw = authorization?.type === 'bearer' ? authorization.token : null
-    if (raw) {
-      try {
-        request.token = await verifyToken(
-          raw,
-          'brer.io/invoker',
-          request.routeOptions.config.tokenIssuer,
-        )
-      } catch (err) {
-        log.debug({ err }, 'jwt verification failed')
-      }
-    }
-
-    if (!request.token) {
-      return reply.code(401).sendError({
-        code: 'TOKEN_INVALID',
-        message: 'Auth token not valid.',
-      })
-    }
+      return reply.code(204).send()
+    },
   })
 
-  interface MaybeInvocation {
-    Params: {
-      invocationId?: string
-    }
-  }
-
-  /**
-   * Enfore token scope for Invoker's tokens.
-   */
-  fastify.addHook(
-    'preHandler',
-    async (request: FastifyRequest<MaybeInvocation>, reply) => {
-      if (
-        request.params.invocationId &&
-        request.token.issuer === 'brer.io/invoker' &&
-        request.token.subject !== request.params.invocationId
-      ) {
-        return reply.sendError({ status: 404 })
-      }
+  fastify.route<RouteGeneric, FastifyContext>({
+    method: 'DELETE',
+    url: '/invoker/v1/secrets/:functionName',
+    config: {
+      tokenIssuer: API_ISSUER,
     },
-  )
+    schema: {
+      params: S.object().prop('functionName', S.string()).required(),
+      body: S.object(),
+      response: {
+        204: S.null(),
+      },
+    },
+    async handler(request, reply) {
+      const { kubernetes } = this
+      const { params } = request
+
+      // TODO: handle 404 and move into helmsman
+      await kubernetes.api.CoreV1Api.deleteNamespacedSecret(
+        getFunctionSecretName(params.functionName),
+        kubernetes.namespace,
+      )
+
+      return reply.code(204).send()
+    },
+  })
 
   fastify
     .route(completeInvocationV1())
-    .route(createInvocationV1(events))
+    .route(createInvocationV1())
     .route(deleteInvocationV1())
     .route(failInvocationV1())
     .route(progressInvocationV1())
