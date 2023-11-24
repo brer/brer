@@ -2,10 +2,20 @@ import type { FastifyInstance } from '@brer/fastify'
 import plugin from 'fastify-plugin'
 
 import { parseAuthorization } from '../lib/header.js'
-import { signRegistryToken } from '../lib/token.js'
 import { authenticate } from './request.js'
 
+declare module 'fastify' {
+  interface FastifyRequest {
+    /**
+     * Registry authorization header for requesting API.
+     */
+    authorization: string
+  }
+}
+
 async function authPlugin(fastify: FastifyInstance) {
+  fastify.decorateRequest('authorization', null)
+
   /**
    * Verify JWT token.
    */
@@ -21,21 +31,13 @@ async function authPlugin(fastify: FastifyInstance) {
         .sendError({ message: 'Unsupported auth scheme.' })
     }
 
-    const token = await signRegistryToken(authorization.username)
-
-    const result = await authenticate(
-      fastify,
-      authorization.username,
-      authorization.password,
-    )
+    const result = await authenticate(fastify, authorization.raw)
     if (result.isOk) {
-      request.session = { type: 'basic', token }
+      request.authorization = authorization.raw
     } else {
       return reply.code(401).sendError(result.unwrapErr())
     }
   })
-
-  fastify.decorateRequest('session', null)
 }
 
 export default plugin(authPlugin, {

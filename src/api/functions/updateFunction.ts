@@ -168,6 +168,9 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.code(409).error({ message: 'Write conflict.' })
     }
 
+    // The `getFunctionByName` function will update the `drafted` flag
+    newFn = reference
+
     let invocation: any
     if (!newFn.runtime) {
       const resInvoke = await invoke(this, session.token, newFn, {

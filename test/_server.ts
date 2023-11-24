@@ -5,6 +5,7 @@ import { v4 as uuid } from 'uuid'
 
 import error from '../src/lib/error.js'
 import events from '../src/lib/events.js'
+import { basicAuthorization } from '../src/lib/header.js'
 import { addSchema } from '../src/lib/schema.js'
 import store from '../src/lib/store.js'
 import { noop } from '../src/lib/util.js'
@@ -41,8 +42,7 @@ export default function createTestServer() {
   const adminPassword = uuid()
 
   // Authorization header
-  const authorization =
-    'Basic ' + Buffer.from(`admin:${adminPassword}`).toString('base64')
+  const authorization = basicAuthorization('admin', adminPassword)
 
   fastify.register(error)
   fastify.register(events)

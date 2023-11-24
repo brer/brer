@@ -3,21 +3,17 @@ import type { FastifyInstance } from '@brer/fastify'
 import { type AsyncRequestResult } from '../lib/error.js'
 import { type ContainerImage } from '../lib/image.js'
 import * as Result from '../lib/result.js'
-import { type Token } from '../lib/token.js'
 
 export async function authenticate(
   { pools }: FastifyInstance,
-  username: string,
-  password: string,
+  authorization: string,
 ): AsyncRequestResult<true> {
-  const token = Buffer.from(`${username}:${password}`).toString('base64')
-
   const response = await pools.get('api').request({
     method: 'GET',
     path: '/api/session',
     headers: {
       accept: 'application/json',
-      authorization: `Basic ${token}`,
+      authorization,
       'content-type': 'application/json; charset=utf-8',
     },
   })
@@ -34,9 +30,36 @@ export async function authenticate(
   }
 }
 
+export async function getFunctionsList(
+  { pools }: FastifyInstance,
+  authorization: string,
+  imageHost: string,
+  imageName: string,
+): AsyncRequestResult<string[]> {
+  const response = await pools.get('api').request({
+    method: 'GET',
+    path: '/api/v1/registry/functions',
+    headers: {
+      accept: 'application/json',
+      authorization,
+    },
+    query: {
+      imageHost,
+      imageName,
+    },
+  })
+
+  const data: any = await response.body.json()
+  if (response.statusCode === 200) {
+    return Result.ok(data.functions)
+  } else {
+    return Result.err({ ...data.error, status: response.statusCode })
+  }
+}
+
 export async function patchImageTag(
   { log, pools }: FastifyInstance,
-  token: Token,
+  authorization: string,
   functionName: string,
   image: ContainerImage,
 ): Promise<void> {
@@ -45,7 +68,7 @@ export async function patchImageTag(
     path: `/api/v1/functions/${functionName}`,
     headers: {
       accept: 'application/json',
-      authorization: `Bearer ${token.raw}`,
+      authorization,
       'content-type': 'application/json; charset=utf-8',
     },
     body: JSON.stringify({

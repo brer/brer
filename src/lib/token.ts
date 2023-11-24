@@ -10,23 +10,23 @@ const JWT_SECRET = Buffer.from(process.env.JWT_SECRET)
 
 export const API_ISSUER = 'brer.io/api'
 export const INVOKER_ISSUER = 'brer.io/invoker'
-export const REGISTRY_ISSUER = 'brer.io/registry'
 
 export interface Token {
   id: string
   subject: string
   raw: string
   issuer: string
+  expires: number
 }
 
 export async function signApiToken(username: string): Promise<Token> {
   const id = uuid()
-  const ms = 900000 // 15 minutes (milliseconds)
+  const expires = Date.now() + 900000 // 15 minutes (milliseconds)
 
   const raw = await new SignJWT()
     .setProtectedHeader({ alg: JWT_ALGORITHM })
     .setIssuedAt()
-    .setExpirationTime(Date.now() + ms)
+    .setExpirationTime(expires)
     .setJti(id)
     .setIssuer(API_ISSUER)
     .setAudience([API_ISSUER, INVOKER_ISSUER])
@@ -34,6 +34,7 @@ export async function signApiToken(username: string): Promise<Token> {
     .sign(JWT_SECRET)
 
   return {
+    expires,
     id,
     issuer: API_ISSUER,
     raw,
@@ -45,12 +46,12 @@ export async function signInvocationToken(
   invocationId: string,
 ): Promise<Token> {
   const id = uuid()
-  const ms = 86400000 // 24 hours (milliseconds)
+  const expires = Date.now() + 86400000 // 24 hours (milliseconds)
 
   const raw = await new SignJWT()
     .setProtectedHeader({ alg: JWT_ALGORITHM })
     .setIssuedAt()
-    .setExpirationTime(Date.now() + ms)
+    .setExpirationTime(expires)
     .setJti(id)
     .setIssuer(INVOKER_ISSUER)
     .setAudience([API_ISSUER, INVOKER_ISSUER])
@@ -58,32 +59,11 @@ export async function signInvocationToken(
     .sign(JWT_SECRET)
 
   return {
+    expires,
     id,
     issuer: INVOKER_ISSUER,
     raw,
     subject: invocationId,
-  }
-}
-
-export async function signRegistryToken(username: string): Promise<Token> {
-  const id = uuid()
-  const ms = 300000 // 5 minutes (milliseconds)
-
-  const raw = await new SignJWT()
-    .setProtectedHeader({ alg: JWT_ALGORITHM })
-    .setIssuedAt()
-    .setExpirationTime(Date.now() + ms)
-    .setJti(id)
-    .setIssuer(REGISTRY_ISSUER)
-    .setAudience([API_ISSUER, REGISTRY_ISSUER])
-    .setSubject(username)
-    .sign(JWT_SECRET)
-
-  return {
-    id,
-    issuer: REGISTRY_ISSUER,
-    raw,
-    subject: username,
   }
 }
 
@@ -101,6 +81,7 @@ export async function verifyToken(
     audience,
   })
   return {
+    expires: payload.exp ?? Number.POSITIVE_INFINITY,
     id: payload.jti || uuid(),
     issuer: payload.iss || '',
     raw,

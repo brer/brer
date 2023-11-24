@@ -51,3 +51,18 @@ export function parseAuthorizationHeader(
 export function parseAuthorization(headers: unknown) {
   return parseAuthorizationHeader(Object(headers).authorization)
 }
+
+export function basicAuthorization(
+  username?: string,
+  password?: string,
+): string {
+  let data = ''
+  if (username) {
+    data += username
+  }
+  data += ':'
+  if (password) {
+    data += password
+  }
+  return 'Basic ' + Buffer.from(data).toString('base64')
+}

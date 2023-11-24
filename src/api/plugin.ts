@@ -20,6 +20,8 @@ import stopInvocationV1 from './invocations/stopInvocation.js'
 import readProjectV1 from './projects/readProject.js'
 import updateProjectV1 from './projects/updateProject.js'
 
+import readFunctionsV1 from './registry/readFunctions.js'
+
 import createSessionV1 from './session/createSession.js'
 import readSessionV1 from './session/readSession.js'
 
@@ -78,11 +80,13 @@ async function apiPlugin(
     .route(searchInvocationsV1())
     .route(stopInvocationV1())
 
+  fastify.route(readProjectV1()).route(updateProjectV1())
+
+  fastify.route(readFunctionsV1())
+
   fastify
     .route(createSessionV1(cookieName, cookieOptions))
     .route(readSessionV1())
-
-  fastify.route(readProjectV1()).route(updateProjectV1())
 }
 
 export default plugin(apiPlugin, {

@@ -23,7 +23,7 @@ declare module 'fastify' {
         session: ApiSession,
         role: ProjectRole,
         project: string,
-      ): Promise<RequestResult>
+      ): Promise<RequestResult<string>>
       /**
        * Get User's Projects.
        */
@@ -72,7 +72,7 @@ async function authPlugin(
     session: ApiSession,
     requestedRole: ProjectRole,
     projectName: string,
-  ): Promise<RequestResult> => {
+  ): Promise<RequestResult<string>> => {
     if (session.token.subject === 'admin') {
       return Result.ok(projectName)
     }

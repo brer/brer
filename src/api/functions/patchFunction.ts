@@ -3,7 +3,6 @@ import S from 'fluent-json-schema-es'
 
 import { getFunctionByName } from '../../lib/function.js'
 import { type ContainerImage, isSameImage } from '../../lib/image.js'
-import { REGISTRY_ISSUER, signApiToken } from '../../lib/token.js'
 import { invoke } from '../request.js'
 
 export interface RouteGeneric {
@@ -18,9 +17,6 @@ export interface RouteGeneric {
 export default (): RouteOptions<RouteGeneric> => ({
   method: 'PATCH',
   url: '/api/v1/functions/:functionName',
-  config: {
-    tokenIssuer: REGISTRY_ISSUER,
-  },
   schema: {
     tags: ['function'],
     params: S.object()
@@ -83,10 +79,7 @@ export default (): RouteOptions<RouteGeneric> => ({
       }))
       .unwrap()
 
-    // Invoker will not accept Registry tokens
-    const token = await signApiToken(session.token.subject)
-
-    const resInvoke = await invoke(this, token, newFn, {
+    const resInvoke = await invoke(this, session.token, newFn, {
       runtimeTest: true,
     })
     if (resInvoke.isErr) {

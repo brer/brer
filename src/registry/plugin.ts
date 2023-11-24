@@ -2,10 +2,9 @@ import type { FastifyInstance, FastifyRequest } from '@brer/fastify'
 import plugin from 'fastify-plugin'
 import type { Readable } from 'node:stream'
 
-import { type RequestResult } from '../lib/error.js'
-import * as Result from '../lib/result.js'
+import { basicAuthorization } from '../lib/header.js'
 import auth from './auth.js'
-import { patchImageTag } from './request.js'
+import { getFunctionsList, patchImageTag } from './request.js'
 
 export interface PluginOptions {
   apiUrl: URL
@@ -28,10 +27,7 @@ async function registryPlugin(
   fastify.pools.set('api', apiUrl)
   fastify.register(auth)
 
-  const authorization = getAuthorizationHeader(
-    registryUsername,
-    registryPassword,
-  )
+  const authorization = basicAuthorization(registryUsername, registryPassword)
   const registry = fastify.pools.set('registry', registryUrl)
 
   fastify.removeAllContentTypeParsers()
@@ -63,41 +59,16 @@ async function registryPlugin(
     },
   })
 
-  interface PartialFn {
-    name: string
-    project: string
-  }
-
-  /**
-   * Resolves with the list of functions to update.
-   * TODO: move inside "api" plugin and make a request to it
-   * TODO: also start caching some response during push requests
-   */
-  const authorizeRegistryAction = async (
-    request: FastifyRequest<RouteGeneric>,
-  ): Promise<RequestResult<PartialFn[]>> => {
-    const response = await fastify.store.functions.adapter.scope.view<
-      PartialFn[]
-    >('default', 'registry', {
-      group: true,
-      key: [publicUrl.host, request.params.imageName],
-      reduce: true,
-      sorted: false,
-    })
-
-    const items = response.rows[0]?.value || []
-    if (items.length) {
-      return Result.ok(items)
-    } else {
-      return Result.err({ status: 404 })
-    }
-  }
-
   fastify.route({
     method: 'PUT',
     url: '/v2/:imageName/manifests/:imageTag',
     async handler(request: FastifyRequest<RouteGeneric>, reply) {
-      const result = await authorizeRegistryAction(request)
+      const result = await getFunctionsList(
+        this,
+        request.authorization,
+        publicUrl.host,
+        request.params.imageName,
+      )
       if (result.isErr) {
         return reply.code(403).error(result.unwrapErr())
       }
@@ -112,8 +83,8 @@ async function registryPlugin(
       if (response.statusCode === 201) {
         fastify.tasks.push(() =>
           Promise.all(
-            result.unwrap().map(obj =>
-              patchImageTag(this, request.session.token, obj.name, {
+            result.unwrap().map(functionName =>
+              patchImageTag(this, request.authorization, functionName, {
                 host: publicUrl.host,
                 name: request.params.imageName,
                 tag: request.params.imageTag,
@@ -133,7 +104,12 @@ async function registryPlugin(
     method: ['DELETE', 'GET', 'HEAD', 'PATCH', 'POST', 'PUT'],
     url: '/v2/:imageName/*',
     async handler(request: FastifyRequest<RouteGeneric>, reply) {
-      const result = await authorizeRegistryAction(request)
+      const result = await getFunctionsList(
+        this,
+        request.authorization,
+        publicUrl.host,
+        request.params.imageName,
+      )
       if (result.isErr) {
         return reply.code(403).error(result.unwrapErr())
       }
@@ -150,18 +126,6 @@ async function registryPlugin(
       return resRegistry.body
     },
   })
-}
-
-function getAuthorizationHeader(username?: string, password?: string) {
-  let data = ''
-  if (username) {
-    data += username
-  }
-  data += ':'
-  if (password) {
-    data += password
-  }
-  return 'Basic ' + Buffer.from(data).toString('base64')
 }
 
 type Headers = Record<string, undefined | string | string[]>
@@ -186,7 +150,7 @@ function prepareHeaders(headers: Headers): Headers {
 export default plugin(registryPlugin, {
   name: 'registry',
   decorators: {
-    fastify: ['store'],
+    fastify: ['pools'],
   },
   encapsulate: true,
 })
