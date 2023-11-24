@@ -67,14 +67,15 @@ export async function handleTestInvocation(
   }
 
   const response = await pools.get('api').request({
-    method: 'PATCH',
-    path: `/api/v1/functions/${invocation.functionName}`,
+    method: 'PUT',
+    path: `/api/v1/functions/${invocation.functionName}/runtime`,
     headers: {
       accept: 'application/json',
       authorization: `Bearer ${token.raw}`,
       'content-type': 'application/json; charset=utf-8',
     },
     body: JSON.stringify({
+      image: invocation.image,
       runtime: getRuntime(invocation),
     }),
   })
@@ -88,14 +89,17 @@ export async function handleTestInvocation(
   } else if (response.statusCode === 404) {
     log.warn({ functionName: invocation.functionName }, 'function not found')
   } else {
-    log.error({ response: data }, 'image runtime update failed')
+    log.error(
+      { functionName: invocation.functionName, response: data },
+      'runtime update failed',
+    )
   }
 }
 
 function getRuntime(invocation: Invocation): FnRuntime {
   if (
     invocation.status === 'completed' &&
-    typeof invocation.result?.runtime === 'string'
+    typeof invocation.result?.runtime?.type === 'string'
   ) {
     return invocation.result.runtime
   } else {

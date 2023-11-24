@@ -49,6 +49,6 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.code(409).error({ message: 'Invalid Invocation status.' })
     }
 
-    return { invocation }
+    return reply.code(204).send()
   },
 })

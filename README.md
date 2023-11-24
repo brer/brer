@@ -20,8 +20,11 @@ The whole point of this project is to be a simple and effective task runner with
 
 Create a `.env` file with the following envs:
 
-| Name              | Usage
+#### Common
+
+| Name              | Description
 | ----------------- | -----------------
+| NODE_ENV          |
 | SERVER_HOST       | Listening host. Defaults to `127.0.0.1`.
 | SERVER_PORT       | Server's post. Defaults to `3000`.
 | SERVER_MODE       | Comma-separated values: `api`, `registry`, `controller`. Defaults to `api`.
@@ -29,13 +32,38 @@ Create a `.env` file with the following envs:
 | COUCHDB_URL       | CouchDB URL. Defaults to `http://127.0.0.1:5984/`.
 | COUCHDB_USERNAME  |
 | COUCHDB_PASSWORD  |
+| **JWT_SECRET**    |
+
+#### API
+
+| Name              | Description
+| ----------------- | -----------------
+| **INVOKER_URL**   |
+| COOKIE_NAME       | Defaults to `brer_session`.
+| COOKIE_DOMAIN     |
+| ADMIN_PASSWORD    | User's password for `admin`. Optional if `GATEWAY_URL` is defined.
+| GATEWAY_URL       | Authentication gateway URL. Optional if `ADMIN_PASSWORD` is defined.
+
+#### Invoker
+
+| Name              | Description
+| ----------------- | -----------------
+| **INVOKER_URL**   |
 | K8S_FILE          | Kubeconfig filepath. Defaults to Current User's (OS) kubeconfig filepath.
 | K8S_CONTEXT       | Kubeconfig context to use.
 | K8S_CLUSTER       | Expected context's cluster.
 | K8S_USER          | Expected context's user.
 | K8S_NAMESPACE     | Expected kubeconfig namespace.
-| ADMIN_PASSWORD    | User's password for `admin`. Optional if `GATEWAY_URL` is defined.
-| GATEWAY_URL       | Authentication gateway URL. Optional if `ADMIN_PASSWORD` is defined.
+
+#### Registry
+
+| Name              | Description
+| ----------------- | -----------------
+| **PUBLIC_URL**    |
+| **API_URL**       |
+| **REGISTRY_URL**  |
+| REGISTRY_USERNAME |
+| REGISTRY_PASSWORD |
 
 ### Start
 
@@ -73,10 +101,11 @@ Also set the next envs:
 
 | Name              | Usage
 | ----------------- | -----------------
-| **REGISTRY_URL**  | Required in `registry` mode. Docker/Distribution Registry URL to proxy.
+| **REGISTRY_URL**  | Docker/Distribution Registry URL to proxy.
 | REGISTRY_USERNAME | Registry authentication username.
 | REGISTRY_PASSWORD | Registry authentication password.
-| **PUBLIC_URL**    | Required in `registry` mode.
+| **API_URL**       | Brer API server URL.
+| **PUBLIC_URL**    |
 
 ## Roadmap
 

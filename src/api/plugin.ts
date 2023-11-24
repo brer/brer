@@ -8,6 +8,7 @@ import readFunctionV1 from './functions/readFunction.js'
 import searchFunctionsV1 from './functions/searchFunctions.js'
 import triggerFunctionV1 from './functions/triggerFunction.js'
 import updateFunctionV1 from './functions/updateFunction.js'
+import updateRuntimeV1 from './functions/updateRuntime.js'
 
 import deleteInvocationV1 from './invocations/deleteInvocation.js'
 import readInvocationV1 from './invocations/readInvocation.js'
@@ -67,6 +68,7 @@ async function apiPlugin(
     .route(searchFunctionsV1())
     .register(triggerFunctionV1)
     .route(updateFunctionV1())
+    .route(updateRuntimeV1())
 
   fastify
     .route(deleteInvocationV1())

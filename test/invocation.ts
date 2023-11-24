@@ -3,12 +3,14 @@ import test from 'ava'
 import createTestServer from './_server.js'
 
 test('happy path', async t => {
+  t.plan(12)
+
   const { authorization, fastify } = createTestServer()
   t.teardown(() => fastify.close())
 
   await fastify.ready()
 
-  const functionName = 'my-test-function'
+  const functionName = `test-${Date.now()}`
 
   fastify.helmsman.pushFunctionSecrets = async (name, secrets) => {
     t.is(name, functionName)
@@ -21,10 +23,10 @@ test('happy path', async t => {
     t.teardown(resolve)
 
     fastify.helmsman.createPod = async template => {
-      // t.is(
-      //   template.spec?.containers[0].image,
-      //   `127.0.0.1:3000/${functionName}:latest`,
-      // )
+      t.is(
+        template.spec?.containers[0].image,
+        `zombo.com/${functionName}:latest`,
+      )
 
       // Save Pod token for later
       podToken = template.spec?.containers[0].env?.find(
@@ -43,7 +45,7 @@ test('happy path', async t => {
       authorization,
     },
     payload: {
-      image: `127.0.0.1:3000/${functionName}:latest`,
+      image: `zombo.com/${functionName}:latest`,
       env: [
         {
           name: 'PRIVATE_SECRET',
@@ -60,7 +62,7 @@ test('happy path', async t => {
     function: {
       name: functionName,
       image: {
-        host: '127.0.0.1:3000',
+        host: 'zombo.com',
         name: functionName,
         tag: 'latest',
       },
@@ -104,6 +106,57 @@ test('happy path', async t => {
     invocation: {
       _id: invocationId,
       status: 'running', // "running" status after this ping
+      functionName,
+    },
+  })
+
+  // API tokens cannot use Invoker routes to directly update Invocations
+  const resNope = await fastify.inject({
+    method: 'PUT',
+    url: `/invoker/v1/invocations/${invocationId}/status/completed`,
+    headers: {
+      authorization,
+    },
+    payload: {},
+  })
+  t.like(resNope, {
+    statusCode: 401,
+  })
+
+  const resLog = await fastify.inject({
+    method: 'PUT',
+    url: `/invoker/v1/invocations/${invocationId}/log/0`,
+    headers: {
+      accept: '*/*',
+      authorization: `Bearer ${podToken}`,
+      'content-type': 'text/plain; charset=utf-8',
+    },
+    payload: 'Thank you for flying with us.',
+  })
+  t.like(resLog, {
+    statusCode: 204,
+  })
+
+  const resComplete = await fastify.inject({
+    method: 'PUT',
+    url: `/invoker/v1/invocations/${invocationId}/status/completed`,
+    headers: {
+      authorization: `Bearer ${podToken}`,
+    },
+    payload: {
+      result: {
+        hello: 'world',
+      },
+    },
+  })
+  t.like(resComplete, {
+    statusCode: 200,
+  })
+  t.like(resComplete.json(), {
+    invocation: {
+      _id: invocationId,
+      functionName,
+      status: 'completed',
     },
   })
 })

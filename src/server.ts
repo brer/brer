@@ -55,10 +55,10 @@ export default function createServer() {
   fastify.register(probes)
 
   const defaultUrl = 'http://127.0.0.1:3000/'
-  const apiUrl = new URL(process.env.INVOKER_URL || defaultUrl)
+  const apiUrl = new URL(process.env.API_URL || defaultUrl)
   const invokerUrl = new URL(process.env.INVOKER_URL || defaultUrl)
   const publicUrl = new URL(process.env.PUBLIC_URL || defaultUrl)
-  fastify.register(pools, { apiUrl, invokerUrl })
+  fastify.register(pools)
 
   const modes = process.env.SERVER_MODE?.split(',') || ['api']
 

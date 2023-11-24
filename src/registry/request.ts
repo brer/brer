@@ -1,6 +1,7 @@
 import type { FastifyInstance } from '@brer/fastify'
 
 import { type AsyncRequestResult } from '../lib/error.js'
+import { type ContainerImage } from '../lib/image.js'
 import * as Result from '../lib/result.js'
 import { type Token } from '../lib/token.js'
 
@@ -37,7 +38,7 @@ export async function patchImageTag(
   { log, pools }: FastifyInstance,
   token: Token,
   functionName: string,
-  imageTag: string,
+  image: ContainerImage,
 ): Promise<void> {
   const response = await pools.get('api').request({
     method: 'PATCH',
@@ -48,18 +49,16 @@ export async function patchImageTag(
       'content-type': 'application/json; charset=utf-8',
     },
     body: JSON.stringify({
-      image: {
-        tag: imageTag,
-      },
+      image,
     }),
   })
 
   const data = await response.body.json()
-  if (response.statusCode === 200) {
+  if (response.statusCode === 200 || response.statusCode === 201) {
     log.debug({ functionName }, 'update function image tag')
   } else if (response.statusCode === 404) {
     log.warn({ functionName }, 'function not found')
   } else {
-    log.error({ response: data }, 'image tag update failed')
+    log.error({ functionName, response: data }, 'image tag update failed')
   }
 }

@@ -11,7 +11,7 @@ export interface RouteGeneric {
 
 export default (): RouteOptions<RouteGeneric> => ({
   method: 'GET',
-  url: '/invoker/v1/invocations/:invocationId',
+  url: '/api/v1/invocations/:invocationId',
   config: {
     tokenIssuer: API_ISSUER,
   },

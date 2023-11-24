@@ -110,16 +110,13 @@ async function registryPlugin(
       if (response.statusCode === 201) {
         fastify.tasks.push(() =>
           Promise.all(
-            result
-              .unwrap()
-              .map(obj =>
-                patchImageTag(
-                  this,
-                  request.session.token,
-                  obj.name,
-                  request.params.imageTag,
-                ),
-              ),
+            result.unwrap().map(obj =>
+              patchImageTag(this, request.session.token, obj.name, {
+                host: publicUrl.host,
+                name: request.params.imageName,
+                tag: request.params.imageTag,
+              }),
+            ),
           ),
         )
       }
