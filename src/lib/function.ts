@@ -35,16 +35,12 @@ export function updateFunction(
     image: options.image,
     project: options.project,
   }
-
-  // Changing an env can fix a "Pending" Pod
   if (
-    fn.runtime?.type !== 'Failure' &&
-    isSameImage(fn.image, update.image) &&
-    update.image.tag !== 'latest'
+    !isSameImage(fn.image, update.image) ||
+    update.runtime?.type === 'Unknown'
   ) {
-    return update
+    update.runtime = undefined
   }
-
   return {
     ...update,
     runtime: undefined,

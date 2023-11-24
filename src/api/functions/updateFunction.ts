@@ -150,7 +150,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     }
 
     let created = false
-    const newFn = await store.functions
+    let newFn = await store.functions
       .from(oldFn)
       .ensure(() => {
         created = true
@@ -165,10 +165,7 @@ export default (): RouteOptions<RouteGeneric> => ({
       newFn._id,
     )
     if (reference?._id !== newFn._id) {
-      return reply.error({
-        message: 'This operation conflicted with another.',
-        status: 409,
-      })
+      return reply.code(409).error({ message: 'Write conflict.' })
     }
 
     let invocation: any
@@ -178,9 +175,18 @@ export default (): RouteOptions<RouteGeneric> => ({
       })
       if (resInvoke.isErr) {
         return reply.error(resInvoke.unwrapErr())
-      } else {
-        invocation = resInvoke.unwrap()
       }
+
+      invocation = resInvoke.unwrap()
+      newFn = await store.functions
+        .from(newFn)
+        .assign({
+          runtime: {
+            type: 'Inspecting',
+            invocationId: invocation._id,
+          },
+        })
+        .unwrap()
     }
 
     reply.code(created ? 201 : 200)

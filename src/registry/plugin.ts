@@ -70,6 +70,8 @@ async function registryPlugin(
 
   /**
    * Resolves with the list of functions to update.
+   * TODO: move inside "api" plugin and make a request to it
+   * TODO: also start caching some response during push requests
    */
   const authorizeRegistryAction = async (
     request: FastifyRequest<RouteGeneric>,

@@ -32,7 +32,6 @@ export interface FnRuntime {
   /**
    * Runtime type identifier.
    *
-   * @example "Failure"
    * @example "Go"
    * @example "Node.js"
    * @example "Rust"

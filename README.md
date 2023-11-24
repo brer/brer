@@ -91,22 +91,6 @@ npm test
 
 Brer is able to authenticate only the `admin` User. To authentication other Users add the `GATEWAY_URL` env. When an authentication is required, Brer will `POST` that URL with a JSON body containing `{ "username": "my.user", "password": "SuperS3cr3t" }`.
 
-## Registry
-
-Brer also expose a Registry proxy for Functions' images. Enable this feature adding the `registry` mode to the `SERVER_MODE` env variable.
-
-Also set the next envs:
-
-### Envs
-
-| Name              | Usage
-| ----------------- | -----------------
-| **REGISTRY_URL**  | Docker/Distribution Registry URL to proxy.
-| REGISTRY_USERNAME | Registry authentication username.
-| REGISTRY_PASSWORD | Registry authentication password.
-| **API_URL**       | Brer API server URL.
-| **PUBLIC_URL**    |
-
 ## Roadmap
 
 - [x] Invocation init timeout
