@@ -104,11 +104,17 @@ export default function createTestServer() {
     password: process.env.COUCHDB_PASSWORD,
   })
 
-  const invokerUrl = new URL('http://127.0.0.1:3000')
-  fastify.register(api, { invokerUrl, adminPassword })
+  const url = new URL('http://127.0.0.1:3000')
+  fastify.register(api, {
+    adminPassword,
+    invokerUrl: url,
+    publicUrl: url,
+  })
   fastify.register(invokerController)
   fastify.register(invokerRouter)
-  fastify.register(invokerSpawn, { invokerUrl })
+  fastify.register(invokerSpawn, {
+    invokerUrl: url,
+  })
 
   // Test database connection
   fastify.addHook('onReady', async () => {

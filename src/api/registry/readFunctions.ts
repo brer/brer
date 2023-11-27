@@ -1,29 +1,21 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
-export interface RouteGeneric {
-  Querystring: {
-    imageHost: string
-    imageName: string
-  }
-}
+import { REGISTRY_ISSUER } from '../../lib/token.js'
 
 interface PartialFn {
   name: string
   project: string
 }
 
-export default (): RouteOptions<RouteGeneric> => ({
+export default (publicUrl: URL): RouteOptions => ({
   method: 'GET',
   url: '/api/v1/registry/functions',
+  config: {
+    tokenIssuer: REGISTRY_ISSUER,
+  },
   schema: {
     tags: ['function'],
-    querystring: S.object()
-      .additionalProperties(false)
-      .prop('imageHost', S.string().minLength(1))
-      .required()
-      .prop('imageName', S.string().minLength(1))
-      .required(),
     response: {
       200: S.object()
         .additionalProperties(false)
@@ -33,14 +25,18 @@ export default (): RouteOptions<RouteGeneric> => ({
   },
   async handler(request, reply) {
     const { auth, store } = this
-    const { query, session } = request
+    const { session } = request
+
+    if (!session.token.repository) {
+      return reply.code(403).error() // skip couchdb request
+    }
 
     const response = await store.functions.adapter.scope.view<PartialFn[]>(
       'default',
       'registry',
       {
         group: true,
-        key: [query.imageHost, query.imageName],
+        key: [publicUrl.host, session.token.repository],
         reduce: true,
         sorted: false,
       },

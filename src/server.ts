@@ -71,6 +71,7 @@ export default function createServer() {
       gatewayUrl: process.env.GATEWAY_URL
         ? new URL(process.env.GATEWAY_URL)
         : undefined,
+      publicUrl,
     })
   }
 

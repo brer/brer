@@ -7,7 +7,7 @@ import {
   handleInvocation,
   setTokenId,
 } from '../lib/invocation.js'
-import { Token, signInvocationToken } from '../lib/token.js'
+import { type Token, signInvocationToken } from '../lib/token.js'
 import { getPodTemplate } from './kubernetes.js'
 
 /**
@@ -20,7 +20,10 @@ export async function handleInvokeEvent(
 ): Promise<Invocation> {
   const { helmsman, log, store } = fastify
 
-  const token = await signInvocationToken(invocation._id)
+  // TODO: move into function option
+  const expiresIn = 86400 // 24 hours (seconds)
+
+  const token = await signInvocationToken(invocation._id, expiresIn)
 
   log.debug({ invocationId: invocation._id }, 'handle invocation')
   invocation = await store.invocations
@@ -63,7 +66,7 @@ export async function handleTestInvocation(
     return
   }
   if (!token) {
-    token = await signInvocationToken(invocation._id)
+    token = await signInvocationToken(invocation._id, 60)
   }
 
   const response = await pools.get('api').request({

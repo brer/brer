@@ -1,13 +1,17 @@
 import type { FastifyInstance } from '@brer/fastify'
 
 import { type AsyncRequestResult } from '../lib/error.js'
+
 import { type ContainerImage } from '../lib/image.js'
 import * as Result from '../lib/result.js'
 
+/**
+ * Resolve with the username.
+ */
 export async function authenticate(
   { pools }: FastifyInstance,
   authorization: string,
-): AsyncRequestResult<true> {
+): AsyncRequestResult<string> {
   const response = await pools.get('api').request({
     method: 'GET',
     path: '/api/session',
@@ -21,7 +25,7 @@ export async function authenticate(
   const data: any = await response.body.json()
   if (response.statusCode === 200) {
     if (data.authenticated === true) {
-      return Result.ok(true)
+      return Result.ok(data.user.username)
     } else {
       return Result.err({ status: 401 })
     }
@@ -33,8 +37,6 @@ export async function authenticate(
 export async function getFunctionsList(
   { pools }: FastifyInstance,
   authorization: string,
-  imageHost: string,
-  imageName: string,
 ): AsyncRequestResult<string[]> {
   const response = await pools.get('api').request({
     method: 'GET',
@@ -42,10 +44,6 @@ export async function getFunctionsList(
     headers: {
       accept: 'application/json',
       authorization,
-    },
-    query: {
-      imageHost,
-      imageName,
     },
   })
 

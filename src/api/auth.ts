@@ -7,7 +7,12 @@ import { type RequestResult } from '../lib/error.js'
 import { parseAuthorization } from '../lib/header.js'
 import { getProjectByName } from '../lib/project.js'
 import * as Result from '../lib/result.js'
-import { API_ISSUER, Token, signApiToken, verifyToken } from '../lib/token.js'
+import {
+  API_ISSUER,
+  type Token,
+  signApiToken,
+  verifyToken,
+} from '../lib/token.js'
 
 declare module 'fastify' {
   interface FastifyInstance {

@@ -4,7 +4,7 @@ import { type CouchDocumentAttachment } from 'mutent-couchdb'
 import { v4 as uuid } from 'uuid'
 
 import { type ContainerImage } from '../../lib/image.js'
-import { API_ISSUER } from '../../lib/token.js'
+import { API_ISSUER, REGISTRY_ISSUER } from '../../lib/token.js'
 
 export interface RouteGeneric {
   Body: {
@@ -31,7 +31,7 @@ export default (): RouteOptions<RouteGeneric> => ({
   method: 'POST',
   url: '/invoker/v1/invocations',
   config: {
-    tokenIssuer: API_ISSUER,
+    tokenIssuer: [API_ISSUER, REGISTRY_ISSUER],
   },
   schema: {
     body: S.object()

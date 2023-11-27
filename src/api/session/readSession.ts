@@ -1,11 +1,14 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
+import { API_ISSUER, REGISTRY_ISSUER } from '../../lib/token.js'
+
 export default (): RouteOptions => ({
   method: 'GET',
   url: '/api/session',
   config: {
     public: true,
+    tokenIssuer: [API_ISSUER, REGISTRY_ISSUER],
   },
   schema: {
     response: {

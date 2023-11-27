@@ -33,6 +33,7 @@ Create a `.env` file with the following envs:
 | COUCHDB_USERNAME  |
 | COUCHDB_PASSWORD  |
 | **JWT_SECRET**    |
+| **PUBLIC_URL**    |
 
 #### API
 
@@ -59,7 +60,6 @@ Create a `.env` file with the following envs:
 
 | Name              | Description
 | ----------------- | -----------------
-| **PUBLIC_URL**    |
 | **API_URL**       |
 | **REGISTRY_URL**  |
 | REGISTRY_USERNAME |
@@ -116,6 +116,7 @@ Brer is able to authenticate only the `admin` User. To authentication other User
 - [ ] Rust bindings
 - [ ] CLI
 - [ ] Play/Pause Invocations
+- [ ] Invocation max running time (with global default)
 
 ## Acknowledgements
 
