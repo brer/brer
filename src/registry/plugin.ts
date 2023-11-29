@@ -150,6 +150,7 @@ async function registryPlugin(
                   'Bearer ' + request.token.raw,
                   functionName,
                   {
+                    realHost: registryUrl.host,
                     host: publicUrl.host,
                     name: request.params.imageName,
                     tag: request.params.imageTag,

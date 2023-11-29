@@ -1,6 +1,8 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
+import { API_ISSUER } from '../../lib/token.js'
+
 export interface RouteGeneric {
   Params: {
     invocationId: string
@@ -11,7 +13,7 @@ export default (): RouteOptions<RouteGeneric> => ({
   method: 'DELETE',
   url: '/invoker/v1/invocations/:invocationId',
   config: {
-    tokenIssuer: 'brer.io/api',
+    tokenIssuer: API_ISSUER,
   },
   schema: {
     params: S.object()

@@ -9,7 +9,7 @@ export interface Fn extends BrerDocument {
   /**
    * Container image location.
    */
-  image: ContainerImage
+  image: FnImage
   /**
    * Environment variables (value or secret).
    */
@@ -26,6 +26,13 @@ export interface Fn extends BrerDocument {
    * @default 10
    */
   historyLimit?: number
+}
+
+export interface FnImage extends ContainerImage {
+  /**
+   * Used by the Registry.
+   */
+  realHost?: string
 }
 
 export interface FnRuntime {

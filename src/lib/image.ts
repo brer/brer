@@ -53,17 +53,6 @@ export function isSameImage(a: ContainerImage, b: ContainerImage): boolean {
   )
 }
 
-/**
- * TODO: avoid using envs here
- */
 export function serializeImage(image: ContainerImage): string {
-  let host = image.host
-  if (process.env.PUBLIC_URL && process.env.REGISTRY_URL) {
-    const publicUrl = new URL(process.env.PUBLIC_URL)
-    const registryUrl = new URL(process.env.REGISTRY_URL)
-    if (host === publicUrl.host) {
-      host = registryUrl.host
-    }
-  }
-  return `${host}/${image.name}:${image.tag}`
+  return `${image.host}/${image.name}:${image.tag}`
 }

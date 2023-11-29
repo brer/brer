@@ -53,14 +53,33 @@ export default function createServer() {
   })
 
   fastify.register(probes)
-
-  const defaultUrl = 'http://127.0.0.1:3000/'
-  const apiUrl = new URL(process.env.API_URL || defaultUrl)
-  const invokerUrl = new URL(process.env.INVOKER_URL || defaultUrl)
-  const publicUrl = new URL(process.env.PUBLIC_URL || defaultUrl)
   fastify.register(pools)
 
+  const k8s = !!process.env.KUBERNETES_SERVICE_HOST
+  const namespace = process.env.K8S_NAMESPACE || 'default'
+
   const modes = process.env.SERVER_MODE?.split(',') || ['api']
+
+  const brerPort = parseInt(process.env.SERVER_PORT || '3000')
+  const brerUrl = `http://127.0.0.1:${brerPort}/`
+
+  const apiUrl = url(
+    process.env.API_URL,
+    k8s && !modes.includes('api')
+      ? `http://brer-api.${namespace}.svc.cluster.local/`
+      : undefined,
+    brerUrl,
+  )
+
+  const invokerUrl = url(
+    process.env.INVOKER_URL,
+    k8s && !modes.includes('invoker')
+      ? `http://brer-invoker.${namespace}.svc.cluster.local/`
+      : undefined,
+    brerUrl,
+  )
+
+  const publicUrl = url(process.env.PUBLIC_URL, brerUrl)
 
   if (modes.includes('api')) {
     fastify.log.debug('api plugin enabled')
@@ -105,4 +124,13 @@ export default function createServer() {
   }
 
   return fastify
+}
+
+function url(...values: Array<string | undefined>): URL {
+  for (const value of values) {
+    if (value) {
+      return new URL(value)
+    }
+  }
+  throw new Error('Cannot find a valid value')
 }

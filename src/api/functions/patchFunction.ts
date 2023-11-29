@@ -1,14 +1,15 @@
 import type { RouteOptions } from '@brer/fastify'
+import type { FnImage } from '@brer/function'
 import S from 'fluent-json-schema-es'
 
 import { getFunctionByName } from '../../lib/function.js'
-import { type ContainerImage, isSameImage } from '../../lib/image.js'
+import { isSameImage } from '../../lib/image.js'
 import { REGISTRY_ISSUER } from '../../lib/token.js'
 import { invoke } from '../request.js'
 
 export interface RouteGeneric {
   Body: {
-    image: ContainerImage
+    image: FnImage
   }
   Params: {
     functionName: string
@@ -33,6 +34,8 @@ export default (): RouteOptions<RouteGeneric> => ({
         'image',
         S.object()
           .additionalProperties(false)
+          .prop('realHost', S.string())
+          .required()
           .prop('host', S.string())
           .required()
           .prop('name', S.string())
@@ -62,14 +65,17 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.code(403).error(resAuth.unwrapErr())
     }
 
-    if (isSameImage(oldFn.image, body.image)) {
+    if (
+      oldFn.image.realHost === body.image.realHost &&
+      isSameImage(oldFn.image, body.image)
+    ) {
       return { function: oldFn }
     }
     if (
       oldFn.image.host !== body.image.host ||
       oldFn.image.name !== body.image.name
     ) {
-      return reply.code(409).error({ message: 'Registry mismatch.' })
+      return reply.code(409).error({ message: 'Image mismatch.' })
     }
 
     const newFn = await store.functions
@@ -78,6 +84,7 @@ export default (): RouteOptions<RouteGeneric> => ({
         ...fn,
         image: {
           ...fn.image,
+          realHost: body.image.realHost,
           tag: body.image.tag,
         },
       }))

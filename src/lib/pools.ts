@@ -27,15 +27,15 @@ async function poolsPlugin(fastify: FastifyInstance) {
       return pool
     },
     set(key, url, options) {
-      if (pools.has(key)) {
-        return pools.get(key)!
+      let pool = pools.get(key)
+      if (!pool) {
+        pool = new Pool(url.origin, {
+          connections: 32,
+          pipelining: 1,
+          ...options,
+        })
+        pools.set(key, pool)
       }
-      const pool = new Pool(url.origin, {
-        connections: 32,
-        pipelining: 1,
-        ...options,
-      })
-      pools.set(key, pool)
       return pool
     },
   })

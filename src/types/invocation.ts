@@ -1,6 +1,5 @@
-import type { ContainerImage } from '../lib/image.js'
 import type { BrerDocument } from './couchdb.js'
-import type { FnEnv } from './function.js'
+import type { FnEnv, FnImage } from './function.js'
 
 export interface Invocation extends BrerDocument {
   /**
@@ -23,7 +22,7 @@ export interface Invocation extends BrerDocument {
    * Source Function's name.
    */
   functionName: string
-  image: ContainerImage
+  image: InvocationImage
   /**
    * Test runs are flagged here.
    */
@@ -45,6 +44,8 @@ export interface Invocation extends BrerDocument {
    */
   runtimeTest?: boolean
 }
+
+export type InvocationImage = FnImage
 
 /**
  * Possible Invocation statuses.

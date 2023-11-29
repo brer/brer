@@ -1,15 +1,15 @@
 import type { RouteOptions } from '@brer/fastify'
+import type { InvocationImage } from '@brer/invocation'
 import S from 'fluent-json-schema-es'
 import { type CouchDocumentAttachment } from 'mutent-couchdb'
 import { v4 as uuid } from 'uuid'
 
-import { type ContainerImage } from '../../lib/image.js'
 import { API_ISSUER, REGISTRY_ISSUER } from '../../lib/token.js'
 
 export interface RouteGeneric {
   Body: {
     env: any[]
-    image: ContainerImage
+    image: InvocationImage
     functionName: string
     project: string
     /**
@@ -40,6 +40,8 @@ export default (): RouteOptions<RouteGeneric> => ({
       .prop(
         'image',
         S.object()
+          .additionalProperties(false)
+          .prop('realHost', S.string())
           .prop('host', S.string())
           .required()
           .prop('name', S.string())

@@ -1,8 +1,7 @@
 import type { FastifyInstance } from '@brer/fastify'
+import type { FnImage } from '@brer/function'
 
 import { type AsyncRequestResult } from '../lib/error.js'
-
-import { type ContainerImage } from '../lib/image.js'
 import * as Result from '../lib/result.js'
 
 /**
@@ -59,7 +58,7 @@ export async function patchImageTag(
   { log, pools }: FastifyInstance,
   authorization: string,
   functionName: string,
-  image: ContainerImage,
+  image: Required<FnImage>,
 ): Promise<void> {
   const response = await pools.get('api').request({
     method: 'PATCH',
