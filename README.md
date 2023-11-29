@@ -33,13 +33,14 @@ Create a `.env` file with the following envs:
 | COUCHDB_USERNAME  |
 | COUCHDB_PASSWORD  |
 | **JWT_SECRET**    |
-| **PUBLIC_URL**    |
+| PUBLIC_URL        | Defaults to local server.
 
 #### API
 
 | Name              | Description
 | ----------------- | -----------------
-| **INVOKER_URL**   |
+| K8S_NAMESPACE     |
+| INVOKER_URL       |
 | COOKIE_NAME       | Defaults to `brer_session`.
 | COOKIE_DOMAIN     |
 | ADMIN_PASSWORD    | User's password for `admin`. Optional if `GATEWAY_URL` is defined.
@@ -49,21 +50,24 @@ Create a `.env` file with the following envs:
 
 | Name              | Description
 | ----------------- | -----------------
-| **INVOKER_URL**   |
 | K8S_FILE          | Kubeconfig filepath. Defaults to Current User's (OS) kubeconfig filepath.
 | K8S_CONTEXT       | Kubeconfig context to use.
 | K8S_CLUSTER       | Expected context's cluster.
 | K8S_USER          | Expected context's user.
 | K8S_NAMESPACE     | Expected kubeconfig namespace.
+| API_URL           |
+| INVOKER_URL       |
 
 #### Registry
 
 | Name              | Description
 | ----------------- | -----------------
-| **API_URL**       |
 | **REGISTRY_URL**  |
 | REGISTRY_USERNAME |
 | REGISTRY_PASSWORD |
+| K8S_NAMESPACE     |
+| API_URL           |
+| PUBLIC_URL        |
 
 ### Start
 
