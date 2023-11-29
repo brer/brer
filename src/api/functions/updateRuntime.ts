@@ -67,7 +67,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     if (invocation?.functionName !== params.functionName) {
       return reply.code(403).error()
     }
-    if (!isSameImage(oldFn.image, body.image)) {
+    if (!isSameImage(oldFn.image, body.image, true)) {
       return reply.code(409).error({ message: 'Image mismatch.' })
     }
 

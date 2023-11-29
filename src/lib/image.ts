@@ -44,12 +44,16 @@ export function parseImagePath(image: string): ContainerImage | undefined {
 /**
  * Treats "latest" tags as _never_ the same image.
  */
-export function isSameImage(a: ContainerImage, b: ContainerImage): boolean {
+export function isSameImage(
+  a: ContainerImage,
+  b: ContainerImage,
+  relax?: boolean,
+): boolean {
   return (
     a.host === b.host &&
     a.name === b.name &&
     a.tag === b.tag &&
-    a.tag !== 'latest'
+    (a.tag !== 'latest' || relax === true)
   )
 }
 
