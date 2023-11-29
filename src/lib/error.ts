@@ -6,8 +6,7 @@ import type {
 } from '@brer/fastify'
 import plugin from 'fastify-plugin'
 import S from 'fluent-json-schema-es'
-
-import type { Result } from './result.js'
+import { type Result } from 'ultres'
 
 declare module 'fastify' {
   interface FastifyReply {

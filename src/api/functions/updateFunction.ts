@@ -1,6 +1,7 @@
 import type { FastifyRequest, RouteOptions } from '@brer/fastify'
 import type { FnEnv } from '@brer/function'
 import S from 'fluent-json-schema-es'
+import Result from 'ultres'
 
 import type { RequestResult } from '../../lib/error.js'
 import {
@@ -16,7 +17,6 @@ import {
   IMAGE_HOST_REGEXP,
   IMAGE_NAME_REGEXP,
 } from '../../lib/image.js'
-import * as Result from '../../lib/result.js'
 import { invoke, pushFunctionSecrets } from '../request.js'
 
 export interface RouteGeneric {

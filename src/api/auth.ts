@@ -2,11 +2,11 @@ import type { FastifyContext, FastifyInstance } from '@brer/fastify'
 import type { ProjectRole } from '@brer/project'
 import { type CookieSerializeOptions } from '@fastify/cookie'
 import plugin from 'fastify-plugin'
+import Result from 'ultres'
 
 import { type RequestResult } from '../lib/error.js'
 import { parseAuthorization } from '../lib/header.js'
 import { getProjectByName } from '../lib/project.js'
-import * as Result from '../lib/result.js'
 import {
   API_ISSUER,
   type Token,

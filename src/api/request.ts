@@ -1,9 +1,9 @@
 import type { FastifyInstance } from '@brer/fastify'
 import type { Fn, FnEnv } from '@brer/function'
+import Result from 'ultres'
 
 import { AsyncRequestResult } from '../lib/error.js'
 import { getFunctionSecretName } from '../lib/function.js'
-import * as Result from '../lib/result.js'
 import { type Token } from '../lib/token.js'
 
 export interface InvokeOptions {

@@ -1,8 +1,8 @@
 import type { FastifyInstance } from '@brer/fastify'
 import type { FnImage } from '@brer/function'
+import Result from 'ultres'
 
 import { type AsyncRequestResult } from '../lib/error.js'
-import * as Result from '../lib/result.js'
 
 /**
  * Resolve with the username.
