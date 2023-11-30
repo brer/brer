@@ -6,7 +6,7 @@ import type {
 } from '@brer/fastify'
 import plugin from 'fastify-plugin'
 import S from 'fluent-json-schema-es'
-import { type Result } from 'ultres'
+import { type IResult } from 'ultres'
 
 declare module 'fastify' {
   interface FastifyReply {
@@ -32,9 +32,9 @@ export interface ErrorOptions {
   status?: number
 }
 
-export type RequestResult<T = unknown> = Result<T, ErrorOptions>
+export type RequestResult<T = unknown> = IResult<T, ErrorOptions>
 
-export type AsyncRequestResult<T = unknown> = Promise<Result<T, ErrorOptions>>
+export type AsyncRequestResult<T = unknown> = Promise<IResult<T, ErrorOptions>>
 
 async function errorPlugin(fastify: FastifyInstance) {
   fastify.decorateReply('error', null)
