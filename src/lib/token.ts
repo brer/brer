@@ -1,85 +1,163 @@
-import { createHmac, randomBytes } from 'node:crypto'
-import * as uuid from 'uuid'
+import { SignJWT, jwtVerify } from 'jose'
+import { v4 as uuid } from 'uuid'
 
-/**
- * Node.js (this) process random signature.
- */
-const randomness = randomBytes(4)
-
-/**
- * HMAC signature secret.
- */
-const secret = process.env.HMAC_SECRET || ''
-if (!secret) {
-  throw new Error('Env HMAC_SECRET is missing')
+if (!process.env.JWT_SECRET) {
+  throw new Error('Env value for JWT_SECRET is missing')
 }
 
-export interface InvocationToken {
-  /**
-   * Invocation identifier.
-   */
+const JWT_ALGORITHM = 'HS256'
+const JWT_SECRET = Buffer.from(process.env.JWT_SECRET)
+
+export const API_ISSUER = 'brer.io/api'
+export const INVOKER_ISSUER = 'brer.io/invoker'
+export const REGISTRY_ISSUER = 'brer.io/registry'
+
+export interface Token {
   id: string
-  /**
-   * Token creation date.
-   */
-  date: Date
-  /**
-   * Token signature.
-   */
-  signature: string
-  /**
-   * Raw base64 token string.
-   */
-  value: string
+  subject: string
+  raw: string
+  issuer: string
+  repository?: string
 }
 
-/**
- * Returns a 56 bytes long base64 encoded token string.
- */
-export function encodeToken(id: string): InvocationToken {
-  // Seconds since UNIX epoch
-  const date = Math.round(Date.now() / 1000)
+export async function verifyToken(
+  raw: string,
+  audience: string,
+  issuer?: string | string[],
+): Promise<Token> {
+  const { payload } = await jwtVerify(raw, JWT_SECRET, {
+    algorithms: [JWT_ALGORITHM],
+    issuer,
+    audience,
+  })
+  return {
+    id: payload.jti || uuid(),
+    issuer: payload.iss || '',
+    raw,
+    subject: payload.sub || '',
+    repository: typeof payload.rep === 'string' ? payload.rep : undefined,
+  }
+}
 
-  const chunks = [
-    // 4 bytes (seconds since unix epoch)
-    Buffer.alloc(4),
-    // 4 bytes process unique identifier
-    randomness,
-    // 16 bytes (binary uuid)
-    Buffer.from(uuid.parse(id)),
-  ]
+export interface SignedToken extends Token {
+  /**
+   * Seconds.
+   */
+  expiresIn: number
+  /**
+   * ISO date.
+   */
+  issuedAt: Date
+}
 
-  chunks[0].writeUInt32LE(date)
+function getExpirationTime(date: Date, seconds: number) {
+  return date.getTime() + seconds * 1000
+}
 
-  const signature = getSignature(Buffer.concat(chunks))
+export async function signApiToken(username: string): Promise<SignedToken> {
+  const id = uuid()
+  const issuedAt = new Date()
+  const expiresIn = 900 // 15 minutes (seconds)
+
+  const raw = await new SignJWT()
+    .setProtectedHeader({ alg: JWT_ALGORITHM })
+    .setIssuedAt()
+    .setExpirationTime(getExpirationTime(issuedAt, expiresIn))
+    .setJti(id)
+    .setIssuer(API_ISSUER)
+    .setAudience([API_ISSUER, INVOKER_ISSUER])
+    .setSubject(username)
+    .sign(JWT_SECRET)
 
   return {
-    date: new Date(date * 1000),
+    expiresIn,
     id,
-    signature: signature.toString('base64'),
-    value: Buffer.concat([...chunks, signature]).toString('base64'),
+    issuedAt,
+    issuer: API_ISSUER,
+    raw,
+    subject: username,
   }
 }
 
-export function decodeToken(token: string): InvocationToken | false {
-  const buffer = Buffer.from(token, 'base64')
-  if (buffer.byteLength === 56) {
-    const signature = getSignature(buffer.subarray(0, 24))
-    if (signature.compare(buffer.subarray(24)) === 0) {
-      return {
-        date: new Date(buffer.readUint32LE() * 1000),
-        id: uuid.stringify(buffer, 8),
-        signature: signature.toString('base64'),
-        value: token,
-      }
-    }
+export async function signInvocationToken(
+  invocationId: string,
+  expiresIn: number,
+): Promise<SignedToken> {
+  const id = uuid()
+  const issuedAt = new Date()
+
+  const raw = await new SignJWT()
+    .setProtectedHeader({ alg: JWT_ALGORITHM })
+    .setIssuedAt()
+    .setExpirationTime(getExpirationTime(issuedAt, expiresIn))
+    .setJti(id)
+    .setIssuer(INVOKER_ISSUER)
+    .setAudience([API_ISSUER, INVOKER_ISSUER])
+    .setSubject(invocationId)
+    .sign(JWT_SECRET)
+
+  return {
+    expiresIn,
+    id,
+    issuedAt,
+    issuer: INVOKER_ISSUER,
+    raw,
+    subject: invocationId,
   }
-  return false
 }
 
-/**
- * Returns a 32 bytes long buffer.
- */
-export function getSignature(data: Buffer) {
-  return createHmac('sha256', secret).update(data).digest()
+export async function signRegistryRefreshToken(
+  username: string,
+): Promise<SignedToken> {
+  const id = uuid()
+  const issuedAt = new Date()
+  const expiresIn = 15724800 // 6 months (seconds)
+
+  const raw = await new SignJWT()
+    .setProtectedHeader({ alg: JWT_ALGORITHM })
+    .setIssuedAt()
+    .setExpirationTime(getExpirationTime(issuedAt, expiresIn))
+    .setJti(id)
+    .setIssuer(REGISTRY_ISSUER)
+    .setAudience(REGISTRY_ISSUER)
+    .setSubject(username)
+    .sign(JWT_SECRET)
+
+  return {
+    expiresIn,
+    id,
+    issuedAt,
+    issuer: REGISTRY_ISSUER,
+    raw,
+    subject: username,
+  }
+}
+
+export async function signRegistryAccessToken(
+  username: string,
+  repository: string | undefined,
+): Promise<SignedToken> {
+  const id = uuid()
+  const issuedAt = new Date()
+  const expiresIn = 300 // 5 minutes (seconds)
+
+  const raw = await new SignJWT({ rep: repository })
+    .setProtectedHeader({ alg: JWT_ALGORITHM })
+    .setIssuedAt()
+    .setExpirationTime(getExpirationTime(issuedAt, expiresIn))
+    .setJti(id)
+    .setIssuer(REGISTRY_ISSUER)
+    .setAudience([API_ISSUER, INVOKER_ISSUER, REGISTRY_ISSUER])
+    .setSubject(username)
+    .sign(JWT_SECRET)
+
+  return {
+    expiresIn,
+    id,
+    issuedAt,
+    issuer: REGISTRY_ISSUER,
+    raw,
+    repository,
+    subject: username,
+  }
 }

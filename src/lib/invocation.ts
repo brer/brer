@@ -1,14 +1,9 @@
-import type { CouchDocumentAttachment } from '@brer/couchdb'
-import type { Fn, FnEnv } from '@brer/function'
 import type {
   Invocation,
   InvocationLog,
   InvocationStatus,
 } from '@brer/invocation'
-import { createHash } from 'node:crypto'
-import * as uuid from 'uuid'
 
-import { getFunctionSecretName } from './function.js'
 import { isOlderThan } from './util.js'
 
 function pushInvocationStatus(
@@ -28,80 +23,12 @@ function pushInvocationStatus(
   }
 }
 
-export interface CreateInvocationOptions {
-  contentType?: string
-  env?: Record<string, string>
-  fn: Fn
-  payload?: Buffer
-}
-
-export function createInvocation(options: CreateInvocationOptions): Invocation {
-  const now = new Date()
-  const status = 'pending'
-
-  const attachments: Record<string, CouchDocumentAttachment> = {}
-  if (options.payload?.byteLength) {
-    attachments.payload = {
-      content_type: options.contentType || 'application/octet-stream',
-      data: options.payload.toString('base64'),
-    }
-  }
-
-  return {
-    _id: uuid.v4(),
-    _attachments: attachments,
-    status,
-    phases: [
-      {
-        date: now.toISOString(),
-        status,
-      },
-    ],
-    env: getInvocationEnv(options),
-    image: options.fn.image,
-    functionName: options.fn.name,
-    project: options.fn.project,
-    createdAt: now.toISOString(),
-  }
-}
-
-function getInvocationEnv(options: CreateInvocationOptions): FnEnv[] {
-  const keys = Object.keys(options.env || {})
-  const secret = getFunctionSecretName(options.fn.name)
-
-  const envs: FnEnv[] = keys
-    .map(key => ({
-      name: key,
-      value: options.env![key],
-    }))
-    .filter(item => item.value.length > 0) // Empty strings will remove some envs
-
-  for (const env of options.fn.env) {
-    if (!keys.includes(env.name)) {
-      if (env.secretKey) {
-        envs.push({
-          name: env.name,
-          secretName: env.secretName || secret,
-          secretKey: env.secretKey,
-        })
-      } else {
-        envs.push({
-          name: env.name,
-          value: env.value,
-        })
-      }
-    }
-  }
-
-  return envs
-}
-
 /**
  * Move Invocation from "pending" to "initializing" status.
  */
 export function handleInvocation(invocation: Invocation): Invocation {
   if (invocation.status !== 'pending') {
-    throw new Error()
+    throw new Error('Invocation must be pending to init')
   }
   return pushInvocationStatus(invocation, 'initializing')
 }
@@ -111,9 +38,31 @@ export function handleInvocation(invocation: Invocation): Invocation {
  */
 export function runInvocation(invocation: Invocation): Invocation {
   if (invocation.status !== 'initializing') {
-    throw new Error()
+    throw new Error('Invocation must be initializing to run')
   }
   return pushInvocationStatus(invocation, 'running')
+}
+
+export function progressInvocation(
+  invocation: Invocation,
+  result: unknown = null,
+): Invocation {
+  if (invocation.status !== 'running') {
+    throw new Error('Invocation must be running to progress')
+  }
+
+  const phases = invocation.phases.filter(p => p.status !== 'progress')
+  return {
+    ...invocation,
+    result,
+    phases: [
+      ...phases,
+      {
+        date: new Date().toISOString(),
+        status: 'progress',
+      },
+    ],
+  }
 }
 
 /**
@@ -121,10 +70,10 @@ export function runInvocation(invocation: Invocation): Invocation {
  */
 export function completeInvocation(
   invocation: Invocation,
-  result: any = null,
+  result: unknown = null,
 ): Invocation {
   if (invocation.status !== 'running') {
-    throw new Error()
+    throw new Error('Invocation must be running to complete')
   }
   return pushInvocationStatus({ ...invocation, result }, 'completed')
 }
@@ -134,7 +83,7 @@ export function completeInvocation(
  */
 export function failInvocation(
   invocation: Invocation,
-  reason: any = 'unknown error',
+  reason: unknown = 'unknown error',
 ): Invocation {
   switch (invocation.status) {
     case 'failed':
@@ -142,7 +91,14 @@ export function failInvocation(
     case 'initializing':
     case 'pending':
     case 'running':
-      return pushInvocationStatus({ ...invocation, reason }, 'failed')
+      return pushInvocationStatus(
+        {
+          ...invocation,
+          reason,
+          result: undefined, // clean last progress update
+        },
+        'failed',
+      )
     default:
       throw new Error(
         `Cannot fail Invocation ${invocation._id} (status is ${invocation.status})`,
@@ -174,59 +130,56 @@ export function hasTimedOut(invocation: Invocation): boolean {
   return false
 }
 
-export function pushLines(doc: Invocation, buffer: Buffer): Invocation {
-  const digest = getDigest(buffer)
+export function putLogPage(
+  doc: Invocation,
+  buffer: Buffer,
+  index: number,
+): Invocation {
+  const now = new Date()
 
-  if (doc._attachments) {
-    for (const attachment of Object.values(doc._attachments)) {
-      if (attachment.digest === digest) {
-        // This log chunk was already uploaded before (no changes)
-        return doc
+  // actual attachment name to use (default to this value, or retrived from previous value)
+  let attachment = `page_${index}.txt`
+
+  const logs: InvocationLog[] = []
+  if (doc.logs) {
+    for (const obj of doc.logs) {
+      if (obj.index === index) {
+        attachment = obj.attachment
+      } else {
+        logs.push(obj)
       }
     }
   }
-
-  const index = (doc.logs?.length || 0).toString().padStart(2, '0')
-  const now = new Date()
-
-  const log: InvocationLog = {
-    attachment: `page_${index}.txt`,
+  logs.push({
+    attachment,
     date: now.toISOString(),
-  }
+    index,
+  })
+  logs.sort((a, b) => a.index - b.index)
 
   return {
     ...doc,
     _attachments: {
       ...doc._attachments,
-      [log.attachment]: {
+      [attachment]: {
         content_type: 'text/plain; charset=utf-8',
         data: buffer.toString('base64'),
       },
     },
-    logs: [...(doc.logs || []), log],
+    logs,
     updatedAt: now.toISOString(),
   }
 }
 
-function getDigest(buffer: Buffer): string {
-  return `md5-${createHash('md5').update(buffer).digest('base64')}`
-}
-
-export function isTestRun(invocation: Invocation): boolean {
-  return (
-    invocation.env.find(item => item.name === 'BRER_MODE')?.value === 'test'
-  )
-}
-
-export function setTokenSignature(
+export function setTokenId(
   invocation: Invocation,
-  tokenSignature: string,
+  tokenId: string,
 ): Invocation {
   if (invocation.status !== 'initializing') {
     throw new Error(`Expected Invocation ${invocation._id} to be initializing`)
   }
   return {
     ...invocation,
-    tokenSignature,
+    tokenId,
   }
 }

@@ -2,11 +2,13 @@ export interface AuthorizationBasic {
   type: 'basic'
   username: string
   password: string
+  raw: string
 }
 
 export interface AuthorizationBearer {
   type: 'bearer'
   token: string
+  raw: string
 }
 
 export type Authorization = AuthorizationBasic | AuthorizationBearer
@@ -32,14 +34,35 @@ export function parseAuthorizationHeader(
           type: 'basic',
           username: data[1],
           password: data[2],
+          raw: header,
         }
       }
     } else if (/^bearer /i.test(header)) {
       return {
         type: 'bearer',
         token: header.substring(7),
+        raw: header,
       }
     }
   }
   return null
+}
+
+export function parseAuthorization(headers: unknown) {
+  return parseAuthorizationHeader(Object(headers).authorization)
+}
+
+export function basicAuthorization(
+  username?: string,
+  password?: string,
+): string {
+  let data = ''
+  if (username) {
+    data += username
+  }
+  data += ':'
+  if (password) {
+    data += password
+  }
+  return 'Basic ' + Buffer.from(data).toString('base64')
 }

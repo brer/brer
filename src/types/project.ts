@@ -1,6 +1,6 @@
-import type { CouchDocument } from '../lib/adapter.js'
+import type { BrerDocument } from './couchdb.js'
 
-export interface Project extends CouchDocument {
+export interface Project extends BrerDocument {
   /**
    * Project's name.
    */

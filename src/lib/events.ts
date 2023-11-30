@@ -9,8 +9,14 @@ declare module 'fastify' {
 }
 
 async function eventsPlugin(fastify: FastifyInstance) {
-  // TODO: "error" event?
-  fastify.decorate('events', new EventEmitter())
+  const events = new EventEmitter()
+
+  events.on('error', err => {
+    fastify.log.fatal({ err }, 'emit an error')
+    fastify.close()
+  })
+
+  fastify.decorate('events', events)
 }
 
 export default plugin(eventsPlugin, {

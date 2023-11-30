@@ -1,12 +1,11 @@
+import { type BrerDocument } from '@brer/couchdb'
 import { type Entity } from 'mutent'
-
-import { type CouchDocument } from './adapter.js'
 
 /**
  * Get last item of an array
  */
-export function tail<T>(items: T[]): T | undefined {
-  if (items.length > 0) {
+export function tail<T>(items: T[] | undefined): T | undefined {
+  if (items?.length) {
     return items[items.length - 1]
   }
 }
@@ -37,7 +36,7 @@ export function isPlainObject(value: unknown): value is Record<any, any> {
  * This function will delete from db all duplicates and remove the draft
  * flag from the correct entity.
  */
-export async function* fixDuplicates<T extends CouchDocument>(
+export async function* fixDuplicates<T extends BrerDocument>(
   iterable: AsyncIterable<Entity<T>>,
   entityId: string | undefined,
 ) {
@@ -62,4 +61,8 @@ export async function* fixDuplicates<T extends CouchDocument>(
 
 export function pickFirst(value: unknown, index: number) {
   return index === 0
+}
+
+export function noop() {
+  // nothing to do
 }

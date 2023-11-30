@@ -41,18 +41,22 @@ export function parseImagePath(image: string): ContainerImage | undefined {
   }
 }
 
-export function isSameImage(a: ContainerImage, b: ContainerImage): boolean {
-  return a.host === b.host && a.name === b.name && a.tag === b.tag
+/**
+ * Treats "latest" tags as _never_ the same image.
+ */
+export function isSameImage(
+  a: ContainerImage,
+  b: ContainerImage,
+  relax?: boolean,
+): boolean {
+  return (
+    a.host === b.host &&
+    a.name === b.name &&
+    a.tag === b.tag &&
+    (a.tag !== 'latest' || relax === true)
+  )
 }
 
 export function serializeImage(image: ContainerImage): string {
-  let host = image.host
-  if (process.env.PUBLIC_URL && process.env.REGISTRY_URL) {
-    const publicUrl = new URL(process.env.PUBLIC_URL)
-    const registryUrl = new URL(process.env.REGISTRY_URL)
-    if (host === publicUrl.host) {
-      host = registryUrl.host
-    }
-  }
-  return `${host}/${image.name}:${image.tag}`
+  return `${image.host}/${image.name}:${image.tag}`
 }

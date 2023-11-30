@@ -1,228 +1,312 @@
-import type {
-  FastifyContext,
-  FastifyInstance,
-  FastifyRequest,
-  FastifySchema,
-} from '@brer/fastify'
-import type { CookieSerializeOptions } from '@fastify/cookie'
-import S from 'fluent-json-schema-es'
+import type { FastifyContext, FastifyInstance } from '@brer/fastify'
+import type { ProjectRole } from '@brer/project'
+import { type CookieSerializeOptions } from '@fastify/cookie'
+import plugin from 'fastify-plugin'
+import Result from 'ultres'
 
-import { type Session } from '../lib/auth.js'
 import { type RequestResult } from '../lib/error.js'
-import { parseAuthorizationHeader } from '../lib/header.js'
-import * as Result from '../lib/result.js'
+import { parseAuthorization } from '../lib/header.js'
+import { getProjectByName } from '../lib/project.js'
+import {
+  API_ISSUER,
+  type Token,
+  signApiToken,
+  verifyToken,
+} from '../lib/token.js'
 
 declare module 'fastify' {
-  interface FastifyRequest {
-    session: Session & {
+  interface FastifyInstance {
+    auth: {
       /**
-       * Session type.
+       * Perform standard credentials authentication.
        */
-      type: 'basic' | 'cookie'
+      authenticate(username: string, password: string): Promise<RequestResult>
+      /**
+       * Check User's authorization for a Project.
+       */
+      authorize(
+        session: ApiSession,
+        role: ProjectRole,
+        project: string,
+      ): Promise<RequestResult<string>>
+      /**
+       * Get User's Projects.
+       */
+      getProjects(username: string): Promise<RequestResult<string[]>>
     }
+  }
+  interface FastifyRequest {
+    session: ApiSession
   }
 }
 
-export default async function authPlugin(fastify: FastifyInstance) {
-  const cookieName = process.env.COOKIE_NAME || 'brer_session'
+export interface ApiSession {
+  type: 'basic' | 'bearer' | 'cookie'
+  token: Token
+}
 
-  const cookieOptions: CookieSerializeOptions = {
-    domain: process.env.COOKIE_DOMAIN,
-    httpOnly: true,
-    maxAge: 600, // 10 minutes (seconds)
-    path: '/',
-    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-    secure: process.env.NODE_ENV === 'production',
-    signed: true,
+interface TokenSession {
+  type: 'basic' | 'bearer' | 'cookie'
+  token: string
+}
+
+export interface PluginOptions {
+  adminPassword?: string
+  gatewayUrl?: URL
+  cookieName: string
+  cookieOptions?: CookieSerializeOptions
+}
+
+type AuthenticateMethod = FastifyInstance['auth']['authenticate']
+
+async function authPlugin(
+  fastify: FastifyInstance,
+  { adminPassword, cookieName, cookieOptions, gatewayUrl }: PluginOptions,
+) {
+  const authenticate = gatewayUrl
+    ? useGateway(fastify, gatewayUrl, adminPassword)
+    : adminPassword
+      ? adminOnly(fastify, adminPassword)
+      : null
+
+  if (!authenticate) {
+    throw new Error('Both admin password and gateway URL are undefined')
   }
 
-  const getRequestSession = async (
-    request: FastifyRequest<any>,
-  ): Promise<RequestResult<FastifyRequest['session']>> => {
-    const { cookies, headers } = request
-    const rawCookie = cookies[cookieName]
-    const auth = parseAuthorizationHeader(headers.authorization)
-
-    let session: FastifyRequest['session'] | undefined
-    if (auth?.type === 'basic') {
-      const result = await fastify.auth.authenticate(
-        auth.username,
-        auth.password,
-      )
-      if (result.isErr) {
-        return result.expectErr()
-      } else {
-        session = {
-          ...result.unwrap(),
-          type: 'basic',
-        }
-      }
-    } else if (rawCookie) {
-      const unsigned = fastify.unsignCookie(rawCookie)
-      if (unsigned.valid && unsigned.value) {
-        const { username } = JSON.parse(
-          Buffer.from(unsigned.value, 'base64').toString(),
-        )
-
-        const result = await fastify.auth.fetch(username)
-        if (result.isErr) {
-          return result.expectErr()
-        } else {
-          session = {
-            ...result.unwrap(),
-            type: 'cookie',
-          }
-        }
-      }
+  const authorize = async (
+    session: ApiSession,
+    requestedRole: ProjectRole,
+    projectName: string,
+  ): Promise<RequestResult<string>> => {
+    if (session.token.subject === 'admin') {
+      return Result.ok(projectName)
     }
 
-    if (session) {
-      return Result.ok(session)
+    const project = await getProjectByName(fastify.store, projectName)
+    const userRole = project?.roles[session.token.subject] || 'none'
+
+    if (isAuthorized(requestedRole, userRole)) {
+      return Result.ok(projectName)
     } else {
       return Result.err({
-        message: 'Invalid credentials.',
-        status: 401,
+        message: 'Insufficient permissions.',
+        info: {
+          role: userRole,
+          project: projectName,
+        },
+        status: 403,
       })
     }
   }
 
-  fastify.decorateRequest('session', null)
+  const getProjects = async (
+    username: string,
+  ): Promise<RequestResult<string[]>> => {
+    const response = await fastify.store.projects.adapter.scope.view<string[]>(
+      'default',
+      'by_user',
+      {
+        group: true,
+        key: username,
+        reduce: true,
+        sorted: false,
+      },
+    )
 
-  fastify.addHook<any, FastifyContext, FastifySchema>(
-    'onRequest',
-    async (request, reply) => {
-      const adminOnly = !!request.routeOptions.config.admin
-      const optionalAuth =
-        !adminOnly && (request.routeOptions.config.public || false)
-
-      const result = await getRequestSession(request)
-
-      if (result.isErr && optionalAuth) {
-        request.log.trace('optional authentication failed')
-      } else if (result.isErr) {
-        return reply.sendError(result.unwrapErr())
-      } else {
-        const session = result.unwrap()
-        if (adminOnly && session.username !== 'admin') {
-          return reply.sendError({
-            message: 'Insufficient permissions.',
-            status: 403,
-          })
-        } else {
-          request.session = session
-        }
-      }
-    },
-  )
-
-  interface RouteGeneric {
-    Body: {
-      username: string
-      password: string
+    let projects = response.rows?.[0]?.value || []
+    if (username === 'admin' && projects.length <= 0) {
+      projects = ['default']
     }
+
+    return projects.length
+      ? Result.ok(projects)
+      : Result.err({ message: 'Insufficient permissions.', status: 403 })
   }
 
-  fastify.route<RouteGeneric, FastifyContext>({
-    method: 'POST',
-    url: '/api/session',
-    config: {
-      public: true,
-    },
-    schema: {
-      body: S.object()
-        .additionalProperties(false)
-        .prop('username', S.string())
-        .required()
-        .prop('password', S.string())
-        .required(),
-      response: {
-        200: S.object()
-          .additionalProperties(false)
-          .prop(
-            'user',
-            S.object()
-              .additionalProperties(false)
-              .prop('username', S.string())
-              .required()
-              .prop('projects', S.array().items(S.string()))
-              .required(),
-          )
-          .required(),
-      },
-    },
-    async handler(request, reply) {
-      const { body } = request
+  /**
+   * Set `request.session` value.
+   */
+  fastify.addHook<any, FastifyContext>('onRequest', async (request, reply) => {
+    const authorization = parseAuthorization(request.headers)
 
-      const result = await this.auth.authenticate(body.username, body.password)
-      if (result.isErr) {
-        return reply.error(result.unwrapErr())
+    if (authorization?.type === 'basic') {
+      const authenticated = await fastify.auth.authenticate(
+        authorization.username,
+        authorization.password,
+      )
+      if (authenticated.isErr) {
+        return reply.code(401).sendError(authenticated.unwrapErr())
       }
 
-      const session = result.unwrap()
-      const content = Buffer.from(
-        JSON.stringify({
-          date: Date.now(),
-          username: session.username,
-        }),
-      ).toString('base64')
-
-      reply.setCookie(cookieName, content, cookieOptions)
-      return {
-        user: {
-          username: session.username,
-          projects: session.projects,
-        },
+      // Replace raw credentials with a token
+      // Other services will not accept raw credentials
+      request.session = {
+        type: 'basic',
+        token: await signApiToken(authorization.username),
       }
-    },
-  })
+      return
+    }
 
-  fastify.route<any, FastifyContext>({
-    method: 'GET',
-    url: '/api/session',
-    config: {
-      public: true,
-    },
-    schema: {
-      response: {
-        200: S.object()
-          .additionalProperties(false)
-          .prop('authenticated', S.boolean())
-          .required()
-          .prop(
-            'session',
-            S.object()
-              .additionalProperties(false)
-              .prop('type', S.string().enum(['basic', 'cookie']))
-              .required(),
-          )
-          .prop(
-            'user',
-            S.object()
-              .additionalProperties(false)
-              .prop('username', S.string())
-              .required()
-              .prop('projects', S.array().items(S.string()))
-              .required(),
-          ),
-      },
-    },
-    async handler(request) {
-      const user = request.session
-        ? {
-            username: request.session.username,
-            projects: request.session.projects,
+    const items: TokenSession[] = []
+    if (authorization?.type === 'bearer') {
+      items.push({
+        type: 'bearer',
+        token: authorization.token,
+      })
+    }
+    if (request.cookies[cookieName]) {
+      items.push({
+        type: 'cookie',
+        token: request.cookies[cookieName]!,
+      })
+    }
+
+    for (const { token, type } of items) {
+      if (!request.session) {
+        try {
+          request.session = {
+            type,
+            token: await verifyToken(
+              token,
+              API_ISSUER,
+              request.routeOptions.config.admin
+                ? API_ISSUER
+                : request.routeOptions.config.tokenIssuer || API_ISSUER,
+            ),
           }
-        : undefined
-
-      const session = request.session
-        ? { type: request.session.type }
-        : undefined
-
-      return {
-        authenticated: !!user,
-        session,
-        user,
+        } catch (err) {
+          request.log.debug({ type, err }, 'token verification failed')
+          if (type === 'cookie') {
+            reply.clearCookie(cookieName, cookieOptions)
+          }
+        }
       }
-    },
+    }
   })
+
+  /**
+   * Apply authentication rules.
+   */
+  fastify.addHook<any, FastifyContext>('onRequest', async (request, reply) => {
+    const adminOnly = !!request.routeOptions.config.admin
+    const optionalAuth = !adminOnly && !!request.routeOptions.config.public
+
+    if (!optionalAuth && !request.session) {
+      return reply.code(401).sendError()
+    } else if (adminOnly && request.session.token.subject !== 'admin') {
+      return reply.code(403).sendError({ message: 'Insufficient permissions.' })
+    }
+  })
+
+  fastify.decorate('auth', {
+    authenticate,
+    authorize,
+    getProjects,
+  })
+  fastify.decorateRequest('session', null)
 }
+
+function isAuthorized(
+  requestedRole: ProjectRole,
+  userRole: ProjectRole | 'none' | undefined,
+): boolean {
+  switch (requestedRole) {
+    case 'admin':
+      return userRole === 'admin'
+    case 'invoker':
+      return userRole === 'admin' || userRole == 'invoker'
+    case 'publisher':
+      return userRole === 'admin' || userRole === 'publisher'
+    case 'viewer':
+      return (
+        userRole === 'admin' || userRole === 'invoker' || userRole === 'viewer'
+      )
+  }
+}
+
+function adminOnly(
+  { log }: FastifyInstance,
+  adminPassword: string,
+): AuthenticateMethod {
+  log.info('admin-only mode active')
+  return async (username, password) => {
+    if (username !== 'admin') {
+      log.warn('only admin user can be authenticated without a gateway')
+    }
+    if (username === 'admin' && password === adminPassword) {
+      return Result.ok(username)
+    } else {
+      return Result.err({
+        message: 'Invalid credentials',
+        status: 401,
+      })
+    }
+  }
+}
+
+function useGateway(
+  fastify: FastifyInstance,
+  gatewayUrl: URL,
+  adminPassword: string | undefined,
+): AuthenticateMethod {
+  fastify.log.info(
+    { gateway: gatewayUrl.origin },
+    'using authentication gateway',
+  )
+  const gateway = fastify.pools.set('gateway', gatewayUrl)
+
+  return async (username, password) => {
+    if (adminPassword && username === 'admin' && password === adminPassword) {
+      return Result.ok(username)
+    }
+
+    const response = await gateway.request({
+      method: 'POST',
+      path: gatewayUrl.pathname,
+      headers: {
+        accept: '*/*',
+        'content-type': 'application/json; charset=utf-8',
+      },
+      body: JSON.stringify({
+        username,
+        password,
+      }),
+    })
+
+    const text = await response.body.text()
+    fastify.log.trace(
+      { statusCode: response.statusCode, body: text },
+      'gateway response',
+    )
+
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return Result.ok(username)
+    } else if (response.statusCode === 401 || response.statusCode === 403) {
+      return Result.err({
+        message: 'Invalid credentials',
+        status: 401,
+      })
+    } else {
+      fastify.log.error(
+        {
+          statusCode: response.statusCode,
+          body: text,
+        },
+        'gateway error',
+      )
+      return Result.err({
+        message: 'Unexpected authentication gateway response. See logs.',
+        info: { statusCode: response.statusCode },
+        status: 409,
+      })
+    }
+  }
+}
+
+export default plugin(authPlugin, {
+  name: 'auth',
+  decorators: {
+    fastify: ['pools'],
+    request: ['cookies'],
+  },
+})

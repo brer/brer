@@ -17,6 +17,10 @@ export interface FastifyContext {
    * Disable (bypass) the auth middleware for the current route.
    */
   public?: boolean
+  /**
+   * Accepted JWT issuer by this route.
+   */
+  tokenIssuer?: string | string[]
 }
 
 export interface FastifySchema extends fastify.FastifySchema {

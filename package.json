@@ -5,18 +5,19 @@
   "description": "A simple Kubernetes task runner",
   "type": "module",
   "scripts": {
-    "prebuild": "rimraf *.tsbuildinfo build",
-    "build": "tsc -p ./tsconfig.build.json",
-    "start": "npm run prebuild && npm run watch:build && npm run watch:start",
-    "test": "NODE_OPTIONS='--loader=tsx' ava",
-    "watch": "npm run prebuild && nodemon -w src -e ts --exec 'npm run watch:build && npm run watch:start'",
+    "init": "chmod +x ./bin/init.ts && ./bin/init.ts",
+    "clean": "rimraf *.tsbuildinfo build",
+    "build": "npm run clean && tsc -p ./tsconfig.build.json",
+    "start": "npm run clean && npm run watch:build && npm run watch:start",
+    "test": "chmod +x ./bin/test.sh && ./bin/test.sh",
+    "watch": "npm run clean && nodemon -w src -e ts --exec 'npm run watch:build && npm run watch:start'",
     "watch:build": "tsc --incremental -p ./tsconfig.build.json",
     "watch:start": "node --inspect -r source-map-support/register -r dotenv/config build/start.js dotenv_config_path=$npm_config_env | pino-pretty -t"
   },
   "author": "Giacomo Gregoletto",
   "license": "MIT",
   "dependencies": {
-    "@fastify/cookie": "^9.1.0",
+    "@fastify/cookie": "^9.2.0",
     "@fastify/static": "^6.12.0",
     "@kubernetes/client-node": "0.18.1",
     "agentkeepalive": "^4.5.0",
@@ -28,32 +29,48 @@
     "fastify-plugin": "^4.5.1",
     "fastq": "^1.15.0",
     "fluent-json-schema-es": "^4.1.0",
+    "jose": "^5.1.1",
     "mutent": "^5.1.0",
+    "mutent-couchdb": "^0.1.0",
     "mutent-migration": "^0.3.1",
-    "nano": "^10.1.2",
+    "nano": "^10.1.3",
+    "ultres": "^0.4.0",
     "undici": "^5.27.2",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
+    "@ava/typescript": "^4.1.0",
     "@fastify/swagger": "^8.12.0",
-    "@types/node": "^20.9.0",
+    "@types/minimist": "^1.2.5",
+    "@types/node": "^20.9.1",
     "@types/uuid": "^9.0.7",
     "ava": "^5.3.1",
     "dotenv": "^16.3.1",
+    "minimist": "^1.2.8",
     "nodemon": "^3.0.1",
     "pino-pretty": "^10.2.3",
     "prettier": "^3.1.0",
     "rimraf": "^5.0.5",
     "source-map-support": "^0.5.21",
-    "tsx": "^4.0.0",
-    "typescript": "^5.2.2"
+    "tsx": "^4.4.0",
+    "typescript": "^5.3.2"
   },
   "ava": {
     "environmentVariables": {
-      "HMAC_SECRET": "c3e5ab21-86b2-423c-890b-7b98cc674a1a"
+      "COUCHDB_URL": "http://127.0.0.1:5555",
+      "COUCHDB_USERNAME": "admin",
+      "COUCHDB_PASSWORD": "admin"
     },
-    "extensions": {
-      "ts": "module"
+    "nodeArguments": [
+      "--import",
+      "dotenv/config"
+    ],
+    "typescript": {
+      "compile": "tsc",
+      "rewritePaths": {
+        "src/": "build/src/",
+        "test/": "build/test/"
+      }
     }
   }
 }

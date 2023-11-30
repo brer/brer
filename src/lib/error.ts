@@ -6,8 +6,7 @@ import type {
 } from '@brer/fastify'
 import plugin from 'fastify-plugin'
 import S from 'fluent-json-schema-es'
-
-import type { Result } from './result.js'
+import { type IResult } from 'ultres'
 
 declare module 'fastify' {
   interface FastifyReply {
@@ -33,13 +32,16 @@ export interface ErrorOptions {
   status?: number
 }
 
-export type RequestResult<T = unknown> = Result<T, ErrorOptions>
+export type RequestResult<T = unknown> = IResult<T, ErrorOptions>
+
+export type AsyncRequestResult<T = unknown> = Promise<IResult<T, ErrorOptions>>
 
 async function errorPlugin(fastify: FastifyInstance) {
   fastify.decorateReply('error', null)
   fastify.decorateReply('sendError', null)
 
   fastify.setErrorHandler((err, request, reply) => {
+    // TODO: handle couchdb "conflict" error
     if (Object(err).validation) {
       request.log.trace({ errors: err.validation }, 'validation error')
       reply.sendError({

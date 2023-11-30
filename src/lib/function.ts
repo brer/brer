@@ -1,10 +1,9 @@
 import { FastifyInstance } from '@brer/fastify'
-import type { Fn, FnEnv, FnRuntime } from '@brer/function'
-import type { Invocation } from '@brer/invocation'
+import type { Fn, FnEnv } from '@brer/function'
 import { v4 as uuid } from 'uuid'
 
 import { isSameImage } from './image.js'
-import { fixDuplicates, isPlainObject, pickFirst } from './util.js'
+import { fixDuplicates, pickFirst } from './util.js'
 
 export function getFunctionSecretName(functionName: string) {
   return `fn-${functionName}`
@@ -36,16 +35,12 @@ export function updateFunction(
     image: options.image,
     project: options.project,
   }
-
-  // Changing an env can fix a "Pending" Pod
   if (
-    fn.runtime?.type !== 'Failure' &&
-    isSameImage(fn.image, update.image) &&
-    update.image.tag !== 'latest'
+    !isSameImage(fn.image, update.image) ||
+    update.runtime?.type === 'Unknown'
   ) {
-    return update
+    update.runtime = undefined
   }
-
   return {
     ...update,
     runtime: undefined,
@@ -80,44 +75,5 @@ function stripSecretValue(obj: FnEnv): FnEnv {
     return { ...obj, value: undefined }
   } else {
     return obj
-  }
-}
-
-export function setFunctionRuntime(fn: Fn, invocation: Invocation): Fn {
-  if (!isSameImage(fn.image, invocation.image)) {
-    throw new Error(
-      `Invocation ${invocation._id} doesn't represent ${fn.name} runtime`,
-    )
-  }
-  if (invocation.status === 'failed') {
-    return {
-      ...fn,
-      runtime: {
-        type: 'Failure',
-        reason: invocation.reason,
-      },
-    }
-  }
-  if (invocation.status !== 'completed') {
-    throw new Error('Invalid Invocation status')
-  }
-  return {
-    ...fn,
-    runtime: getFunctionRuntime(invocation.result),
-  }
-}
-
-function getFunctionRuntime(result: unknown): FnRuntime {
-  if (
-    isPlainObject(result) &&
-    isPlainObject(result.runtime) &&
-    typeof result.runtime.type === 'string'
-  ) {
-    return result.runtime as FnRuntime
-  } else {
-    return {
-      type: 'Unknown',
-      result,
-    }
   }
 }

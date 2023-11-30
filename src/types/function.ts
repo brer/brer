@@ -1,7 +1,7 @@
-import type { CouchDocument } from '../lib/adapter.js'
 import type { ContainerImage } from '../lib/image.js'
+import type { BrerDocument } from './couchdb.js'
 
-export interface Fn extends CouchDocument {
+export interface Fn extends BrerDocument {
   /**
    * The name of this function (param case).
    */
@@ -9,7 +9,7 @@ export interface Fn extends CouchDocument {
   /**
    * Container image location.
    */
-  image: ContainerImage
+  image: FnImage
   /**
    * Environment variables (value or secret).
    */
@@ -28,11 +28,17 @@ export interface Fn extends CouchDocument {
   historyLimit?: number
 }
 
+export interface FnImage extends ContainerImage {
+  /**
+   * Used by the Registry.
+   */
+  realHost?: string
+}
+
 export interface FnRuntime {
   /**
    * Runtime type identifier.
    *
-   * @example "Failure"
    * @example "Go"
    * @example "Node.js"
    * @example "Rust"

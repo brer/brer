@@ -1,8 +1,7 @@
-import type { CouchDocument } from '../lib/adapter.js'
-import type { ContainerImage } from '../lib/image.js'
-import type { FnEnv } from './function.js'
+import type { BrerDocument } from './couchdb.js'
+import type { FnEnv, FnImage } from './function.js'
 
-export interface Invocation extends CouchDocument {
+export interface Invocation extends BrerDocument {
   /**
    * Current status.
    * See `InvocationStatus` type for more info.
@@ -23,15 +22,15 @@ export interface Invocation extends CouchDocument {
    * Source Function's name.
    */
   functionName: string
-  image: ContainerImage
+  image: InvocationImage
   /**
    * Test runs are flagged here.
    */
   env: FnEnv[]
   /**
-   * Current token signature.
+   * JWT identifier.
    */
-  tokenSignature?: string
+  tokenId?: string
   /**
    * Internal property. List of received log pages.
    */
@@ -40,7 +39,13 @@ export interface Invocation extends CouchDocument {
    * Invocation's owner.
    */
   project: string
+  /**
+   *
+   */
+  runtimeTest?: boolean
 }
+
+export type InvocationImage = FnImage
 
 /**
  * Possible Invocation statuses.
@@ -62,7 +67,7 @@ export interface InvocationPhase {
   /**
    * Phase status.
    */
-  status: InvocationStatus
+  status: InvocationStatus | 'progress'
   /**
    * ISO 8601 date string.
    */
@@ -75,7 +80,11 @@ export interface InvocationLog {
    */
   attachment: string
   /**
-   * Date of arrival. ISO 8601 date string.
+   * Date of log acquisition. ISO 8601 date string.
    */
   date: string
+  /**
+   * Page log ordering index.
+   */
+  index: number
 }

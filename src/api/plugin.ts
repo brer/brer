@@ -1,79 +1,100 @@
 import type { FastifyInstance } from '@brer/fastify'
-import type { Invocation } from '@brer/invocation'
-import cookies from '@fastify/cookie'
-import { fetch } from 'undici'
+import cookies, { type CookieSerializeOptions } from '@fastify/cookie'
+import plugin from 'fastify-plugin'
 
-import { encodeToken } from '../lib/token.js'
-import authRoutes from './auth.js'
-import functionsRoutes from './functions/plugin.js'
-import functionsSchema from './functions/schema.js'
-import invocationsRoutes from './invocations/plugin.js'
-import invocationsSchema from './invocations/schema.js'
-import projectsRoutes from './projects/plugin.js'
-import projectsSchema from './projects/schema.js'
+import deleteFunctionV1 from './functions/deleteFunction.js'
+import patchFunctionV1 from './functions/patchFunction.js'
+import readFunctionV1 from './functions/readFunction.js'
+import searchFunctionsV1 from './functions/searchFunctions.js'
+import triggerFunctionV1 from './functions/triggerFunction.js'
+import updateFunctionV1 from './functions/updateFunction.js'
+import updateRuntimeV1 from './functions/updateRuntime.js'
+
+import deleteInvocationV1 from './invocations/deleteInvocation.js'
+import readInvocationV1 from './invocations/readInvocation.js'
+import readLogsV1 from './invocations/readLogs.js'
+import readPayloadV1 from './invocations/readPayload.js'
+import searchInvocationsV1 from './invocations/searchInvocations.js'
+import stopInvocationV1 from './invocations/stopInvocation.js'
+
+import readProjectV1 from './projects/readProject.js'
+import updateProjectV1 from './projects/updateProject.js'
+
+import readFunctionsV1 from './registry/readFunctions.js'
+
+import createSessionV1 from './session/createSession.js'
+import readSessionV1 from './session/readSession.js'
+
+import auth from './auth.js'
 
 export interface PluginOptions {
-  cookieSecret?: string
-  notifyController?: boolean
+  adminPassword?: string
+  cookieName?: string
+  gatewayUrl?: URL
+  invokerUrl: URL
+  publicUrl: URL
 }
 
-export default async function apiPlugin(
+async function apiPlugin(
   fastify: FastifyInstance,
-  options: PluginOptions,
+  {
+    cookieName = 'brer_session',
+    invokerUrl,
+    adminPassword,
+    gatewayUrl,
+    publicUrl,
+  }: PluginOptions,
 ) {
-  if (!options.cookieSecret) {
-    throw new Error('Required env var COOKIE_SECRET is missing')
+  fastify.pools.set('invoker', invokerUrl)
+
+  const cookieOptions: CookieSerializeOptions = {
+    domain: process.env.COOKIE_DOMAIN,
+    httpOnly: true,
+    maxAge: 600, // 10 minutes (seconds)
+    path: '/',
+    sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    secure: process.env.NODE_ENV === 'production',
+    signed: false,
   }
 
-  fastify.register(cookies, {
-    hook: 'onRequest',
-    secret: options.cookieSecret,
+  fastify.register(cookies, { hook: 'onRequest' })
+  fastify.register(auth, {
+    adminPassword,
+    gatewayUrl,
+    cookieName,
+    cookieOptions,
   })
 
-  // Register global schema ($ref)
-  functionsSchema(fastify)
-  invocationsSchema(fastify)
-  projectsSchema(fastify)
+  fastify
+    .route(deleteFunctionV1())
+    .route(patchFunctionV1())
+    .route(readFunctionV1())
+    .route(searchFunctionsV1())
+    .register(triggerFunctionV1)
+    .route(updateFunctionV1())
+    .route(updateRuntimeV1())
 
-  await authRoutes(fastify)
-  await functionsRoutes(fastify)
-  await invocationsRoutes(fastify)
-  await projectsRoutes(fastify)
+  fastify
+    .route(deleteInvocationV1())
+    .route(readInvocationV1())
+    .route(readLogsV1())
+    .route(readPayloadV1())
+    .route(searchInvocationsV1())
+    .route(stopInvocationV1())
 
-  if (options.notifyController) {
-    const { kubernetes, log } = fastify
+  fastify.route(readProjectV1()).route(updateProjectV1())
 
-    const invoke = async (invocation: Invocation) => {
-      const response = await fetch(
-        new URL(
-          'rpc/v1/invoke',
-          `http://brer-controller.${kubernetes.namespace}.svc.cluster.local/`,
-        ),
-        {
-          method: 'POST',
-          headers: {
-            authorization: `Bearer ${encodeToken(invocation._id).value}`,
-            'content-type': 'application/json',
-          },
-          body: '{}',
-        },
-      )
+  fastify.route(readFunctionsV1(publicUrl))
 
-      if (!response.ok) {
-        // the controller will recover later (if alive), just print a warning
-        log.warn({ status: response.status }, 'controller error during invoke')
-      }
-
-      // consume?
-      await response.json()
-    }
-
-    fastify.events.on(
-      'brer.invocations.invoke',
-      ({ invocation }: { invocation: Invocation }) =>
-        invoke(invocation).catch(err =>
-          log.warn({ err }, 'failed to contact the controller'),
-        ),
-    )
-  }
+  fastify
+    .route(createSessionV1(cookieName, cookieOptions))
+    .route(readSessionV1())
 }
+
+export default plugin(apiPlugin, {
+  name: 'api',
+  decorators: {
+    fastify: ['store'],
+  },
+  encapsulate: true,
+})
