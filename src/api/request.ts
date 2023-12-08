@@ -190,14 +190,14 @@ export async function stopInvocation(
 ): AsyncRequestResult {
   const response = await pools.get('invoker').request({
     method: 'PUT',
-    path: `/invoker/v1/invocations/${invocationId}/status/failed`,
+    path: `/invoker/v1/invocations/${invocationId}`,
     headers: {
       accept: 'application/json',
       authorization: `Bearer ${token.raw}`,
       'content-type': 'application/json; charset=utf-8',
     },
     body: JSON.stringify({
-      kill: true,
+      status: 'failed',
       reason: 'stopped manually',
     }),
   })

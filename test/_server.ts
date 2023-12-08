@@ -46,7 +46,13 @@ export default function createTestServer() {
 
   fastify.register(error)
   fastify.register(events)
-  fastify.register(noAdditionalProperties.default)
+  fastify.register(noAdditionalProperties, {
+    body: true,
+    headers: false,
+    params: true,
+    query: true,
+    response: true,
+  })
 
   fastify.decorate('kubernetes', {
     getter() {

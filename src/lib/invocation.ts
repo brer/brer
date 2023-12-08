@@ -107,16 +107,6 @@ export function failInvocation(
 }
 
 /**
- * Get initialization date.
- */
-export function getInitializingDate(invocation: Invocation): Date | null {
-  const timestamp = invocation.phases.find(
-    phase => phase.status === 'initializing',
-  )?.date
-  return timestamp ? new Date(timestamp) : null
-}
-
-/**
  * invocation has reached "init timeout"
  */
 export function hasTimedOut(invocation: Invocation): boolean {

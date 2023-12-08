@@ -1,5 +1,6 @@
 import test from 'ava'
 
+import { signApiToken } from '../src/lib/token.js'
 import createTestServer from './_server.js'
 
 test('happy path', async t => {
@@ -8,7 +9,10 @@ test('happy path', async t => {
   const { authorization, fastify } = createTestServer()
   t.teardown(() => fastify.close())
 
-  await fastify.ready()
+  const [{ raw: adminToken }] = await Promise.all([
+    signApiToken('admin'),
+    fastify.ready(),
+  ])
 
   const functionName = `test-${Date.now()}`
 
@@ -93,11 +97,13 @@ test('happy path', async t => {
 
   const resRun = await fastify.inject({
     method: 'PUT',
-    url: `/invoker/v1/invocations/${invocationId}/status/running`,
+    url: `/invoker/v1/invocations/${invocationId}`,
     headers: {
       authorization: `Bearer ${podToken}`,
     },
-    payload: {},
+    payload: {
+      status: 'running',
+    },
   })
   t.like(resRun, {
     statusCode: 200,
@@ -113,14 +119,16 @@ test('happy path', async t => {
   // API tokens cannot use Invoker routes to directly update Invocations
   const resNope = await fastify.inject({
     method: 'PUT',
-    url: `/invoker/v1/invocations/${invocationId}/status/completed`,
+    url: `/invoker/v1/invocations/${invocationId}`,
     headers: {
-      authorization,
+      authorization: 'Bearer ' + adminToken,
     },
-    payload: {},
+    payload: {
+      status: 'completed',
+    },
   })
   t.like(resNope, {
-    statusCode: 401,
+    statusCode: 403,
   })
 
   const resLog = await fastify.inject({
@@ -139,11 +147,12 @@ test('happy path', async t => {
 
   const resComplete = await fastify.inject({
     method: 'PUT',
-    url: `/invoker/v1/invocations/${invocationId}/status/completed`,
+    url: `/invoker/v1/invocations/${invocationId}`,
     headers: {
       authorization: `Bearer ${podToken}`,
     },
     payload: {
+      status: 'completed',
       result: {
         hello: 'world',
       },

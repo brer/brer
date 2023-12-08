@@ -37,7 +37,13 @@ export default function createServer() {
   fastify.register(error)
   fastify.register(events)
   fastify.register(tasks)
-  fastify.register(noAdditionalProperties.default)
+  fastify.register(noAdditionalProperties, {
+    body: true,
+    headers: false,
+    params: true,
+    query: true,
+    response: true,
+  })
 
   // TODO: use nginx for this
   if (process.env.STATIC_DIR) {
