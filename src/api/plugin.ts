@@ -94,7 +94,7 @@ async function apiPlugin(
 export default plugin(apiPlugin, {
   name: 'api',
   decorators: {
-    fastify: ['store'],
+    fastify: ['token', 'store'],
   },
   encapsulate: true,
 })

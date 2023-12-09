@@ -7,6 +7,7 @@ import { API_ISSUER } from '../lib/token.js'
 import createInvocationV1 from './invocations/createInvocation.js'
 import deleteInvocationV1 from './invocations/deleteInvocation.js'
 import pushLogV1 from './invocations/pushLog.js'
+import readInvocationV1 from './invocations/readInvocation.js'
 import readPayloadV1 from './invocations/readPayload.js'
 import updateInvocationV1 from './invocations/updateInvocation.js'
 import auth from './auth.js'
@@ -75,6 +76,7 @@ export default async function routerPlugin(fastify: FastifyInstance) {
   fastify
     .route(createInvocationV1())
     .route(deleteInvocationV1())
+    .route(readInvocationV1())
     .route(pushLogV1())
     .route(readPayloadV1())
     .route(updateInvocationV1())

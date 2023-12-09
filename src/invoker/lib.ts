@@ -7,7 +7,7 @@ import {
   handleInvocation,
   setTokenId,
 } from '../lib/invocation.js'
-import { type Token, signInvocationToken } from '../lib/token.js'
+import { type Token } from '../lib/token.js'
 import { getPodTemplate } from './kubernetes.js'
 
 /**
@@ -23,7 +23,10 @@ export async function handleInvokeEvent(
   // TODO: move into function option
   const expiresIn = 86400 // 24 hours (seconds)
 
-  const token = await signInvocationToken(invocation._id, expiresIn)
+  const token = await fastify.token.signInvocationToken(
+    invocation._id,
+    expiresIn,
+  )
 
   log.debug({ invocationId: invocation._id }, 'handle invocation')
   invocation = await store.invocations
@@ -58,7 +61,7 @@ export async function failWithReason(
 }
 
 export async function handleTestInvocation(
-  { log, pools }: FastifyInstance,
+  { log, token: { signInvocationToken }, pools }: FastifyInstance,
   invocation: Invocation,
   token?: Token,
 ) {

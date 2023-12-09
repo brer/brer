@@ -8,6 +8,7 @@ import events from '../src/lib/events.js'
 import { basicAuthorization } from '../src/lib/header.js'
 import { addSchema } from '../src/lib/schema.js'
 import store from '../src/lib/store.js'
+import token from '../src/lib/token.js'
 import { noop } from '../src/lib/util.js'
 
 import api from '../src/api/plugin.js'
@@ -44,6 +45,7 @@ export default function createTestServer() {
   // Authorization header
   const authorization = basicAuthorization('admin', adminPassword)
 
+  fastify.register(token, { secret: uuid() })
   fastify.register(error)
   fastify.register(events)
   fastify.register(noAdditionalProperties, {

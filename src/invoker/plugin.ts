@@ -26,7 +26,7 @@ async function invokerPlugin(fastify: FastifyInstance, options: PluginOptions) {
 export default plugin(invokerPlugin, {
   name: 'invoker',
   decorators: {
-    fastify: ['pools', 'store'],
+    fastify: ['pools', 'store', 'token'],
   },
   encapsulate: true,
 })

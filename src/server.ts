@@ -9,6 +9,7 @@ import probes from './lib/probes.js'
 import { addSchema } from './lib/schema.js'
 import store from './lib/store.js'
 import tasks from './lib/tasks.js'
+import token from './lib/token.js'
 
 import api from './api/plugin.js'
 import invoker from './invoker/plugin.js'
@@ -33,6 +34,16 @@ export default function createServer() {
   })
 
   addSchema(fastify)
+
+  fastify.register(token, {
+    secret: process.env.JWT_SECRET,
+    privateKey: process.env.JWT_PRIVATE_KEY,
+    publicKeys: pickDefined(
+      process.env.API_PUBLIC_KEY,
+      process.env.INVOKER_PUBLIC_KEY,
+      process.env.REGISTRY_PUBLIC_KEY,
+    ),
+  })
 
   fastify.register(error)
   fastify.register(events)
@@ -139,4 +150,14 @@ function url(...values: Array<string | undefined>): URL {
     }
   }
   throw new Error('Cannot find a valid value')
+}
+
+function pickDefined(...values: Array<string | undefined>): string[] {
+  const results: string[] = []
+  for (const value of values) {
+    if (value) {
+      results.push(value)
+    }
+  }
+  return results
 }

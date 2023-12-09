@@ -2,10 +2,6 @@ import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
 import { basicAuthorization } from '../lib/header.js'
-import {
-  signRegistryAccessToken,
-  signRegistryRefreshToken,
-} from '../lib/token.js'
 import { authenticate } from './request.js'
 
 export interface RouteGeneric {
@@ -85,7 +81,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     }
 
     const username = result.unwrap()
-    const accessToken = await signRegistryAccessToken(
+    const accessToken = await this.token.signRegistryAccessToken(
       username,
       getRepository(body.scope),
     )
@@ -95,7 +91,7 @@ export default (): RouteOptions<RouteGeneric> => ({
       if (body.grant_type === 'refresh_token') {
         refreshToken = body.refresh_token
       } else {
-        const obj = await signRegistryRefreshToken(username)
+        const obj = await this.token.signRegistryRefreshToken(username)
         refreshToken = obj.raw
       }
     }

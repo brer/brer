@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from '@brer/fastify'
 import plugin from 'fastify-plugin'
 
 import { parseAuthorization } from '../lib/header.js'
-import { INVOKER_ISSUER, type Token, verifyToken } from '../lib/token.js'
+import { INVOKER_ISSUER, type Token } from '../lib/token.js'
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -27,7 +27,7 @@ async function authPlugin(fastify: FastifyInstance) {
     }
 
     try {
-      request.token = await verifyToken(
+      request.token = await fastify.token.verifyToken(
         authorization.token,
         INVOKER_ISSUER,
         request.routeOptions.config.tokenIssuer || INVOKER_ISSUER,

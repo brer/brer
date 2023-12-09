@@ -2,8 +2,6 @@ import type { RouteOptions } from '@brer/fastify'
 import { type CookieSerializeOptions } from '@fastify/cookie'
 import S from 'fluent-json-schema-es'
 
-import { signApiToken } from '../../lib/token.js'
-
 export interface RouteGeneric {
   Body: {
     username: string
@@ -62,7 +60,7 @@ export default (
     }
 
     const [token, projects] = await Promise.all([
-      signApiToken(body.username),
+      this.token.signApiToken(body.username),
       auth.getProjects(body.username),
     ])
 

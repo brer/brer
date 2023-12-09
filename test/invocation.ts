@@ -1,6 +1,5 @@
 import test from 'ava'
 
-import { signApiToken } from '../src/lib/token.js'
 import createTestServer from './_server.js'
 
 test('happy path', async t => {
@@ -9,10 +8,9 @@ test('happy path', async t => {
   const { authorization, fastify } = createTestServer()
   t.teardown(() => fastify.close())
 
-  const [{ raw: adminToken }] = await Promise.all([
-    signApiToken('admin'),
-    fastify.ready(),
-  ])
+  await fastify.ready()
+
+  const { raw: adminToken } = await fastify.token.signApiToken('admin')
 
   const functionName = `test-${Date.now()}`
 

@@ -3,13 +3,7 @@ import S from 'fluent-json-schema-es'
 
 import { parseAuthorization } from '../lib/header.js'
 import { asBoolean } from '../lib/qs.js'
-import {
-  REGISTRY_ISSUER,
-  type SignedToken,
-  signRegistryAccessToken,
-  signRegistryRefreshToken,
-  verifyToken,
-} from '../lib/token.js'
+import { REGISTRY_ISSUER, type SignedToken } from '../lib/token.js'
 import { authenticate } from './request.js'
 
 export interface RouteGeneric {
@@ -82,7 +76,11 @@ export default (): RouteOptions<RouteGeneric> => ({
 
     if (authorization.type === 'bearer') {
       try {
-        await verifyToken(authorization.token, REGISTRY_ISSUER, REGISTRY_ISSUER)
+        await this.token.verifyToken(
+          authorization.token,
+          REGISTRY_ISSUER,
+          REGISTRY_ISSUER,
+        )
       } catch (err) {
         log.debug({ err }, 'invalid registry auth token')
         return reply.code(401).error()
@@ -97,12 +95,15 @@ export default (): RouteOptions<RouteGeneric> => ({
     const scope = query.scope || ''
     const username = result.unwrap()
 
-    const accessToken = await signRegistryAccessToken(username, scope)
+    const accessToken = await this.token.signRegistryAccessToken(
+      username,
+      scope,
+    )
 
     let refreshToken: SignedToken | undefined
     if (query.offline_token) {
       if (authorization.type === 'basic') {
-        refreshToken = await signRegistryRefreshToken(username)
+        refreshToken = await this.token.signRegistryRefreshToken(username)
       } else {
         return reply
           .code(409)
