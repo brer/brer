@@ -4,14 +4,12 @@ import S from 'fluent-json-schema-es'
 import { getFunctionSecretName } from '../lib/function.js'
 import { API_ISSUER } from '../lib/token.js'
 
-import completeInvocationV1 from './invocations/completeInvocation.js'
 import createInvocationV1 from './invocations/createInvocation.js'
 import deleteInvocationV1 from './invocations/deleteInvocation.js'
-import failInvocationV1 from './invocations/failInvocation.js'
-import progressInvocationV1 from './invocations/progressInvocation.js'
 import pushLogV1 from './invocations/pushLog.js'
+import readInvocationV1 from './invocations/readInvocation.js'
 import readPayloadV1 from './invocations/readPayload.js'
-import runInvocationV1 from './invocations/runInvocation.js'
+import updateInvocationV1 from './invocations/updateInvocation.js'
 import auth from './auth.js'
 
 export default async function routerPlugin(fastify: FastifyInstance) {
@@ -76,12 +74,10 @@ export default async function routerPlugin(fastify: FastifyInstance) {
   })
 
   fastify
-    .route(completeInvocationV1())
     .route(createInvocationV1())
     .route(deleteInvocationV1())
-    .route(failInvocationV1())
-    .route(progressInvocationV1())
+    .route(readInvocationV1())
     .route(pushLogV1())
     .route(readPayloadV1())
-    .route(runInvocationV1())
+    .route(updateInvocationV1())
 }

@@ -7,12 +7,7 @@ import Result from 'ultres'
 import { type RequestResult } from '../lib/error.js'
 import { parseAuthorization } from '../lib/header.js'
 import { getProjectByName } from '../lib/project.js'
-import {
-  API_ISSUER,
-  type Token,
-  signApiToken,
-  verifyToken,
-} from '../lib/token.js'
+import { API_ISSUER, type Token } from '../lib/token.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -64,7 +59,7 @@ async function authPlugin(
   { adminPassword, cookieName, cookieOptions, gatewayUrl }: PluginOptions,
 ) {
   const authenticate = gatewayUrl
-    ? useGateway(fastify, gatewayUrl, adminPassword)
+    ? useGateway(fastify, gatewayUrl)
     : adminPassword
       ? adminOnly(fastify, adminPassword)
       : null
@@ -142,7 +137,7 @@ async function authPlugin(
       // Other services will not accept raw credentials
       request.session = {
         type: 'basic',
-        token: await signApiToken(authorization.username),
+        token: await fastify.token.signApiToken(authorization.username),
       }
       return
     }
@@ -166,7 +161,7 @@ async function authPlugin(
         try {
           request.session = {
             type,
-            token: await verifyToken(
+            token: await fastify.token.verifyToken(
               token,
               API_ISSUER,
               request.routeOptions.config.admin
@@ -247,7 +242,6 @@ function adminOnly(
 function useGateway(
   fastify: FastifyInstance,
   gatewayUrl: URL,
-  adminPassword: string | undefined,
 ): AuthenticateMethod {
   fastify.log.info(
     { gateway: gatewayUrl.origin },
@@ -256,10 +250,6 @@ function useGateway(
   const gateway = fastify.pools.set('gateway', gatewayUrl)
 
   return async (username, password) => {
-    if (adminPassword && username === 'admin' && password === adminPassword) {
-      return Result.ok(username)
-    }
-
     const response = await gateway.request({
       method: 'POST',
       path: gatewayUrl.pathname,

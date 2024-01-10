@@ -50,7 +50,7 @@ async function apiPlugin(
   const cookieOptions: CookieSerializeOptions = {
     domain: process.env.COOKIE_DOMAIN,
     httpOnly: true,
-    maxAge: 600, // 10 minutes (seconds)
+    maxAge: 1800, // 30 minutes (seconds)
     path: '/',
     sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
     secure: process.env.NODE_ENV === 'production',
@@ -94,7 +94,7 @@ async function apiPlugin(
 export default plugin(apiPlugin, {
   name: 'api',
   decorators: {
-    fastify: ['store'],
+    fastify: ['token', 'store'],
   },
   encapsulate: true,
 })

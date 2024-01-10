@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from '@brer/fastify'
 import plugin from 'fastify-plugin'
 
 import { parseAuthorization } from '../lib/header.js'
-import { INVOKER_ISSUER, type Token, verifyToken } from '../lib/token.js'
+import { INVOKER_ISSUER, type Token } from '../lib/token.js'
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -20,22 +20,21 @@ async function authPlugin(fastify: FastifyInstance) {
     const { headers, log } = request
 
     const authorization = parseAuthorization(headers)
-
-    const raw = authorization?.type === 'bearer' ? authorization.token : null
-    if (raw) {
-      try {
-        request.token = await verifyToken(
-          raw,
-          INVOKER_ISSUER,
-          request.routeOptions.config.tokenIssuer || INVOKER_ISSUER,
-        )
-      } catch (err) {
-        log.debug({ err }, 'jwt verification failed')
-      }
+    if (authorization?.type !== 'bearer') {
+      return reply
+        .code(401)
+        .sendError({ message: 'Unsupported authorization scheme.' })
     }
 
-    if (!request.token) {
-      return reply.code(401).sendError()
+    try {
+      request.token = await fastify.token.verifyToken(
+        authorization.token,
+        INVOKER_ISSUER,
+        request.routeOptions.config.tokenIssuer || INVOKER_ISSUER,
+      )
+    } catch (err) {
+      log.debug({ err }, 'jwt verification failed')
+      return reply.code(401).sendError({ message: 'Unrecognized token.' })
     }
   })
 

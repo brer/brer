@@ -14,7 +14,7 @@ export function tail<T>(items: T[] | undefined): T | undefined {
  * date is older than seconds
  */
 export function isOlderThan(
-  date: Date | string | number,
+  date: Date | string | number = Number.POSITIVE_INFINITY,
   seconds: number,
 ): boolean {
   if (typeof date === 'string') {

@@ -9,6 +9,7 @@ import probes from './lib/probes.js'
 import { addSchema } from './lib/schema.js'
 import store from './lib/store.js'
 import tasks from './lib/tasks.js'
+import token from './lib/token.js'
 
 import api from './api/plugin.js'
 import invoker from './invoker/plugin.js'
@@ -29,15 +30,45 @@ export default function createServer() {
     ignoreTrailingSlash: false,
     logger: {
       level: process.env.LOG_LEVEL || 'info',
+      transport:
+        process.env.LOG_PRETTY === 'enable'
+          ? {
+              target: 'pino-pretty',
+              options: {
+                translateTime: true,
+              },
+            }
+          : {
+              target: 'pino/file',
+              options: {
+                destination: process.env.LOG_FILE || process.stdout.fd,
+              },
+            },
     },
   })
 
   addSchema(fastify)
 
+  fastify.register(token, {
+    secret: process.env.JWT_SECRET,
+    privateKey: process.env.JWT_PRIVATE_KEY,
+    publicKeys: pickDefined(
+      process.env.API_PUBLIC_KEY,
+      process.env.INVOKER_PUBLIC_KEY,
+      process.env.REGISTRY_PUBLIC_KEY,
+    ),
+  })
+
   fastify.register(error)
   fastify.register(events)
   fastify.register(tasks)
-  fastify.register(noAdditionalProperties.default)
+  fastify.register(noAdditionalProperties, {
+    body: true,
+    headers: false,
+    params: true,
+    query: true,
+    response: true,
+  })
 
   // TODO: use nginx for this
   if (process.env.STATIC_DIR) {
@@ -133,4 +164,14 @@ function url(...values: Array<string | undefined>): URL {
     }
   }
   throw new Error('Cannot find a valid value')
+}
+
+function pickDefined(...values: Array<string | undefined>): string[] {
+  const results: string[] = []
+  for (const value of values) {
+    if (value) {
+      results.push(value)
+    }
+  }
+  return results
 }
