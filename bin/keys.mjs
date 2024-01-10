@@ -18,16 +18,22 @@ const { privateKey, publicKey } = generateKeyPairSync('rsa', {
   },
 })
 
-await writeFile(resolve(args['private-key'], 'brer.pub'), privateKey, {
-  flag: 'wx',
-})
+await writeKey(privateKey, args['private-key'], 'brer.ppk')
 
-await writeFile(resolve(args['public-key'], 'brer.ppk'), publicKey, {
-  flag: 'wx',
-})
+await writeKey(publicKey, args['public-key'], 'brer.pub')
 
-function resolve(value, fallback) {
-  return typeof value === 'string' && value.trim().length > 0
-    ? value.trim()
-    : fallback
+async function writeKey(key, filename, fallback) {
+  if (typeof filename !== 'string') {
+    filename = fallback
+  }
+  try {
+    await writeFile(filename, key, { flag: 'wx' })
+  } catch (err) {
+    if (err.code === 'EEXIST') {
+      console.error(`File ${filename} already exist`)
+      process.exit(1)
+    } else {
+      return Promise.reject(err)
+    }
+  }
 }

@@ -30,6 +30,20 @@ export default function createServer() {
     ignoreTrailingSlash: false,
     logger: {
       level: process.env.LOG_LEVEL || 'info',
+      transport:
+        process.env.LOG_PRETTY === 'enable'
+          ? {
+              target: 'pino-pretty',
+              options: {
+                translateTime: true,
+              },
+            }
+          : {
+              target: 'pino/file',
+              options: {
+                destination: process.env.LOG_FILE || process.stdout.fd,
+              },
+            },
     },
   })
 

@@ -8,13 +8,15 @@ import {
   type KeyLike,
   SignJWT,
 } from 'jose'
+import { readFile } from 'node:fs/promises'
 import { v4 as uuid } from 'uuid'
-
-const JWT_ALGORITHM = 'HS256'
 
 export const API_ISSUER = 'brer.io/api'
 export const INVOKER_ISSUER = 'brer.io/invoker'
 export const REGISTRY_ISSUER = 'brer.io/registry'
+
+const ALG_ASYMMETHRIC = 'RS256'
+const ALG_SYMMETHRIC = 'HS256'
 
 export interface Token {
   id: string
@@ -31,7 +33,7 @@ async function verifyToken(
   issuer?: string | string[],
 ): Promise<Token> {
   const { payload } = await jwtVerify(jwt, key, {
-    algorithms: [JWT_ALGORITHM],
+    algorithms: [ALG_SYMMETHRIC, ALG_ASYMMETHRIC],
     issuer,
     audience,
   })
@@ -42,6 +44,10 @@ async function verifyToken(
     subject: payload.sub || '',
     repository: typeof payload.rep === 'string' ? payload.rep : undefined,
   }
+}
+
+function getAlgorithm(key: KeyLike | Uint8Array) {
+  return Symbol.iterator in key ? ALG_SYMMETHRIC : ALG_ASYMMETHRIC
 }
 
 export interface SignedToken extends Token {
@@ -55,8 +61,11 @@ export interface SignedToken extends Token {
   issuedAt: Date
 }
 
+/**
+ * Returns seconds since UNIX epoch.
+ */
 function getExpirationTime(date: Date, seconds: number) {
-  return date.getTime() + seconds * 1000
+  return Math.floor(date.getTime() / 1000) + seconds
 }
 
 async function signApiToken(
@@ -68,7 +77,7 @@ async function signApiToken(
   const expiresIn = 900 // 15 minutes (seconds)
 
   const raw = await new SignJWT()
-    .setProtectedHeader({ alg: JWT_ALGORITHM })
+    .setProtectedHeader({ alg: getAlgorithm(key) })
     .setIssuedAt()
     .setExpirationTime(getExpirationTime(issuedAt, expiresIn))
     .setJti(id)
@@ -96,7 +105,7 @@ async function signInvocationToken(
   const issuedAt = new Date()
 
   const raw = await new SignJWT()
-    .setProtectedHeader({ alg: JWT_ALGORITHM })
+    .setProtectedHeader({ alg: getAlgorithm(key) })
     .setIssuedAt()
     .setExpirationTime(getExpirationTime(issuedAt, expiresIn))
     .setJti(id)
@@ -124,7 +133,7 @@ async function signRegistryRefreshToken(
   const expiresIn = 15724800 // 6 months (seconds)
 
   const raw = await new SignJWT()
-    .setProtectedHeader({ alg: JWT_ALGORITHM })
+    .setProtectedHeader({ alg: getAlgorithm(key) })
     .setIssuedAt()
     .setExpirationTime(getExpirationTime(issuedAt, expiresIn))
     .setJti(id)
@@ -153,7 +162,7 @@ async function signRegistryAccessToken(
   const expiresIn = 300 // 5 minutes (seconds)
 
   const raw = await new SignJWT({ rep: repository })
-    .setProtectedHeader({ alg: JWT_ALGORITHM })
+    .setProtectedHeader({ alg: getAlgorithm(key) })
     .setIssuedAt()
     .setExpirationTime(getExpirationTime(issuedAt, expiresIn))
     .setJti(id)
@@ -201,11 +210,11 @@ export interface PluginOptions {
    */
   secret?: string
   /**
-   * PKCS8 PEM.
+   * PKCS8 PEM filepath.
    */
   privateKey?: string
   /**
-   * SPKI PEM.
+   * SPKI PEM filepath.
    */
   publicKeys?: string[]
 }
@@ -253,27 +262,35 @@ interface FastifyKeys {
 }
 
 async function createKeys(options: PluginOptions): Promise<FastifyKeys> {
-  if (options.secret && !options.privateKey) {
+  if (options.privateKey) {
+    if (!options.publicKeys?.length) {
+      throw new Error('Public key is missing')
+    }
+
+    const privateKey = await importPKCS8(
+      await readFile(options.privateKey, 'utf-8'),
+      ALG_ASYMMETHRIC,
+    )
+    const publicKeys: Array<KeyLike | Uint8Array> = await Promise.all(
+      options.publicKeys.map(file =>
+        readFile(file, 'utf-8').then(key => importSPKI(key, ALG_ASYMMETHRIC)),
+      ),
+    )
+    if (options.secret) {
+      publicKeys.push(Buffer.from(options.secret))
+    }
+
+    return { privateKey, publicKeys }
+  } else if (options.secret) {
     const key = Buffer.from(options.secret)
+
     return {
       privateKey: key,
       publicKeys: [key],
     }
+  } else {
+    throw new Error('Specify JWT secret or certificate')
   }
-
-  if (!options.privateKey) {
-    throw new Error('You need to defined a secret for JWT signing')
-  }
-  if (!options.publicKeys?.length) {
-    throw new Error('At least one public key must be defined')
-  }
-
-  const privateKey = await importPKCS8(options.privateKey, JWT_ALGORITHM)
-  const publicKeys = await Promise.all(
-    options.publicKeys.map(key => importSPKI(key, JWT_ALGORITHM)),
-  )
-
-  return { privateKey, publicKeys }
 }
 
 export default plugin(tokenPlugin, {
