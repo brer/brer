@@ -43,8 +43,8 @@ export function createFastifyStore(
     requestDefaults: {
       agent,
       auth: {
-        password: options.username || '',
-        username: options.password || '',
+        password: options.password || '',
+        username: options.username || '',
       },
       timeout: 30000, // CouchDB should be fast :)
     },
