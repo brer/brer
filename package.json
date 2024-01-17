@@ -18,7 +18,6 @@
   "license": "MIT",
   "dependencies": {
     "@fastify/cookie": "^9.2.0",
-    "@fastify/static": "^6.12.0",
     "@kubernetes/client-node": "^0.20.0",
     "agentkeepalive": "^4.5.0",
     "case-anything": "^2.1.13",

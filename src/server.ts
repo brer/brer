@@ -1,4 +1,3 @@
-import staticPlugin from '@fastify/static'
 import Fastify from 'fastify'
 import noAdditionalProperties from 'fastify-no-additional-properties'
 
@@ -69,13 +68,6 @@ export default function createServer() {
     query: true,
     response: true,
   })
-
-  // TODO: use nginx for this
-  if (process.env.STATIC_DIR) {
-    fastify.register(staticPlugin, {
-      root: process.env.STATIC_DIR,
-    })
-  }
 
   fastify.register(store, {
     url: process.env.COUCHDB_URL,
