@@ -8,7 +8,7 @@ interface PartialFn {
   project: string
 }
 
-export default (publicUrl: URL): RouteOptions => ({
+export default (registryUrl: URL): RouteOptions => ({
   method: 'GET',
   url: '/api/v1/registry/functions',
   config: {
@@ -36,7 +36,7 @@ export default (publicUrl: URL): RouteOptions => ({
       'registry',
       {
         group: true,
-        key: [publicUrl.host, session.token.repository],
+        key: [registryUrl.host, session.token.repository],
         reduce: true,
         sorted: false,
       },

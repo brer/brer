@@ -41,10 +41,7 @@ export function updateFunction(
   ) {
     update.runtime = undefined
   }
-  return {
-    ...update,
-    runtime: undefined,
-  }
+  return update
 }
 
 /**

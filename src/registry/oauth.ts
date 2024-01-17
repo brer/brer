@@ -106,7 +106,7 @@ export default (): RouteOptions<RouteGeneric> => ({
   },
 })
 
-function getRepository(scope: string = ''): string | undefined {
+export function getRepository(scope: string = ''): string | undefined {
   const groups = scope.match(/^repository:([^:]+)/)
   if (groups) {
     return groups[1]

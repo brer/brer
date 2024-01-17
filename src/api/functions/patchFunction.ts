@@ -34,8 +34,6 @@ export default (): RouteOptions<RouteGeneric> => ({
         'image',
         S.object()
           .additionalProperties(false)
-          .prop('realHost', S.string())
-          .required()
           .prop('host', S.string())
           .required()
           .prop('name', S.string())
@@ -66,16 +64,13 @@ export default (): RouteOptions<RouteGeneric> => ({
     }
 
     if (
-      oldFn.image.realHost === body.image.realHost &&
-      isSameImage(oldFn.image, body.image)
-    ) {
-      return { function: oldFn }
-    }
-    if (
       oldFn.image.host !== body.image.host ||
       oldFn.image.name !== body.image.name
     ) {
       return reply.code(409).error({ message: 'Image mismatch.' })
+    }
+    if (isSameImage(oldFn.image, body.image)) {
+      return { function: oldFn }
     }
 
     const newFn = await store.functions
@@ -84,7 +79,6 @@ export default (): RouteOptions<RouteGeneric> => ({
         ...fn,
         image: {
           ...fn.image,
-          realHost: body.image.realHost,
           tag: body.image.tag,
         },
       }))

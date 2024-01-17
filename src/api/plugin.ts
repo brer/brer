@@ -32,7 +32,7 @@ export interface PluginOptions {
   cookieName?: string
   gatewayUrl?: URL
   invokerUrl: URL
-  publicUrl: URL
+  registryUrl?: URL
 }
 
 async function apiPlugin(
@@ -42,7 +42,7 @@ async function apiPlugin(
     invokerUrl,
     adminPassword,
     gatewayUrl,
-    publicUrl,
+    registryUrl,
   }: PluginOptions,
 ) {
   fastify.pools.set('invoker', invokerUrl)
@@ -84,7 +84,9 @@ async function apiPlugin(
 
   fastify.route(readProjectV1()).route(updateProjectV1())
 
-  fastify.route(readFunctionsV1(publicUrl))
+  if (registryUrl) {
+    fastify.route(readFunctionsV1(registryUrl))
+  }
 
   fastify
     .route(createSessionV1(cookieName, cookieOptions))

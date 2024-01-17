@@ -5,12 +5,13 @@ import { parseAuthorization } from '../lib/header.js'
 import { asBoolean } from '../lib/qs.js'
 import { REGISTRY_ISSUER, type SignedToken } from '../lib/token.js'
 import { authenticate } from './request.js'
+import { getRepository } from './oauth.js'
 
 export interface RouteGeneric {
   Querystring: {
     service: string
     offline_token?: boolean
-    client_id: string
+    client_id?: string
     scope?: string
   }
 }
@@ -27,7 +28,6 @@ export default (): RouteOptions<RouteGeneric> => ({
       .required()
       .prop('offline_token', S.boolean().default(false))
       .prop('client_id', S.string())
-      .required()
       .prop('scope', S.string()),
     response: {
       200: S.object()
@@ -54,10 +54,6 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async preValidation(request) {
-    request.log.warn({
-      query: request.headers,
-    })
-
     request.query.offline_token = asBoolean(request.query.offline_token)
   },
   async handler(request, reply) {
@@ -92,12 +88,10 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.code(401).error(result.unwrapErr())
     }
 
-    const scope = query.scope || ''
     const username = result.unwrap()
-
     const accessToken = await this.token.signRegistryAccessToken(
       username,
-      scope,
+      getRepository(query.scope),
     )
 
     let refreshToken: SignedToken | undefined

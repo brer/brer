@@ -1,9 +1,9 @@
-import type { Invocation, InvocationImage } from '@brer/invocation'
+import type { Invocation } from '@brer/invocation'
 import type { V1EnvVar, V1Pod } from '@kubernetes/client-node'
 import { randomBytes } from 'node:crypto'
 
 import { getFunctionSecretName } from '../lib/function.js'
-import { type ContainerImage, serializeImage } from '../lib/image.js'
+import { serializeImage } from '../lib/image.js'
 
 export type WatchPhase = 'ADDED' | 'MODIFIED' | 'DELETED'
 
@@ -83,7 +83,7 @@ export function getPodTemplate(
       containers: [
         {
           name: 'job',
-          image: serializeImage(mapRegistryImage(invocation.image)),
+          image: serializeImage(invocation.image),
           imagePullPolicy:
             invocation.image.tag === 'latest' ? 'Always' : 'IfNotPresent',
           env,
@@ -102,10 +102,6 @@ export function getPodTemplate(
       ],
     },
   }
-}
-
-function mapRegistryImage(image: InvocationImage): ContainerImage {
-  return image.realHost ? { ...image, host: image.realHost } : image
 }
 
 export interface Filters {

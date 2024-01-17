@@ -91,15 +91,15 @@ export default function createServer() {
 
   const modes = process.env.SERVER_MODE?.split(',') || ['api']
 
-  const brerPort = parseInt(process.env.SERVER_PORT || '3000')
-  const brerUrl = `http://127.0.0.1:${brerPort}/`
+  const serverPort = parseInt(process.env.SERVER_PORT || '3000')
+  const publicUrl = process.env.PUBLIC_URL || `http://127.0.0.1:${serverPort}/`
 
   const apiUrl = url(
     process.env.API_URL,
     k8s && !modes.includes('api')
       ? `http://brer-api.${namespace}.svc.cluster.local/`
       : undefined,
-    brerUrl,
+    publicUrl,
   )
 
   const invokerUrl = url(
@@ -107,10 +107,8 @@ export default function createServer() {
     k8s && !modes.includes('invoker')
       ? `http://brer-invoker.${namespace}.svc.cluster.local/`
       : undefined,
-    brerUrl,
+    publicUrl,
   )
-
-  const publicUrl = url(process.env.PUBLIC_URL, brerUrl)
 
   if (modes.includes('api')) {
     fastify.log.debug('api plugin enabled')
@@ -121,7 +119,9 @@ export default function createServer() {
       gatewayUrl: process.env.GATEWAY_URL
         ? new URL(process.env.GATEWAY_URL)
         : undefined,
-      publicUrl,
+      registryUrl: process.env.REGISTRY_URL
+        ? new URL(process.env.REGISTRY_URL)
+        : undefined,
     })
   }
 
@@ -147,7 +147,7 @@ export default function createServer() {
     fastify.log.debug('registry plugin enabled')
     fastify.register(registry, {
       apiUrl,
-      publicUrl,
+      publicUrl: new URL(publicUrl),
       registryUrl: new URL(process.env.REGISTRY_URL),
       registryUsername: process.env.REGISTRY_USERNAME,
       registryPassword: process.env.REGISTRY_PASSWORD,
