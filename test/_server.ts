@@ -136,5 +136,5 @@ export default function createTestServer() {
     await fastify.store.nano.info()
   })
 
-  return { authorization, fastify }
+  return { adminPassword, authorization, fastify }
 }

@@ -2,11 +2,11 @@ import test from 'ava'
 
 import createTestServer from './_server.js'
 
-const { authorization, fastify } = createTestServer()
+const { adminPassword, authorization, fastify } = createTestServer()
 test.before(() => fastify.ready())
 test.after(() => fastify.close())
 
-test('server authentication', async t => {
+test('get session', async t => {
   const anonymous = await fastify.inject({
     method: 'GET',
     url: '/api/session',
@@ -35,6 +35,30 @@ test('server authentication', async t => {
     },
     user: {
       projects: ['default'],
+      username: 'admin',
+    },
+  })
+})
+
+test('create session', async t => {
+  const response = await fastify.inject({
+    method: 'POST',
+    url: '/api/session',
+    body: {
+      username: 'admin',
+      password: adminPassword,
+    },
+  })
+  t.like(response, {
+    statusCode: 201,
+  })
+  t.truthy(response.headers['set-cookie'])
+  t.like(response.json(), {
+    authenticated: true,
+    session: {
+      type: 'cookie',
+    },
+    user: {
       username: 'admin',
     },
   })
