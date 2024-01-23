@@ -2,7 +2,7 @@ import type { FastifyInstance } from '@brer/fastify'
 import type { Fn, FnEnv } from '@brer/function'
 import Result from 'ultres'
 
-import { AsyncRequestResult } from '../lib/error.js'
+import type { ErrorOptions, RequestResult } from '../lib/error.js'
 import { getFunctionSecretName } from '../lib/function.js'
 import { type Token } from '../lib/token.js'
 
@@ -30,7 +30,7 @@ export async function invoke(
   token: Token,
   fn: Fn,
   options: InvokeOptions = {},
-): AsyncRequestResult {
+): Promise<RequestResult> {
   const response = await pools.get('invoker').request({
     method: 'POST',
     path: '/invoker/v1/invocations',
@@ -53,9 +53,12 @@ export async function invoke(
   const body: any = await response.body.json()
   if (response.statusCode === 201) {
     await rotateInvocations(store, fn)
-    return Result.ok(body.invocation)
+    return Result.ok()
   } else {
-    return Result.err({ ...body.error, status: response.statusCode })
+    return Result.err<ErrorOptions>({
+      ...body.error,
+      status: response.statusCode,
+    })
   }
 }
 
@@ -111,7 +114,7 @@ export async function pushFunctionSecrets(
   token: Token,
   functionName: string,
   secrets: Record<string, string>,
-): AsyncRequestResult {
+): Promise<RequestResult> {
   if (!Object.keys(secrets).length) {
     return Result.ok(null)
   }
@@ -131,7 +134,10 @@ export async function pushFunctionSecrets(
     return Result.ok(null)
   } else {
     const data: any = await response.body.json()
-    return Result.err({ ...data.error, status: response.statusCode })
+    return Result.err<ErrorOptions>({
+      ...data.error,
+      status: response.statusCode,
+    })
   }
 }
 
@@ -139,7 +145,7 @@ export async function pullFunctionSecrets(
   { pools }: FastifyInstance,
   token: Token,
   functionName: string,
-): AsyncRequestResult {
+): Promise<RequestResult> {
   const response = await pools.get('invoker').request({
     method: 'DELETE',
     path: `/invoker/v1/secrets/${functionName}`,
@@ -155,7 +161,10 @@ export async function pullFunctionSecrets(
     return Result.ok(null)
   } else {
     const data: any = await response.body.json()
-    return Result.err({ ...data.error, status: response.statusCode })
+    return Result.err<ErrorOptions>({
+      ...data.error,
+      status: response.statusCode,
+    })
   }
 }
 
@@ -163,7 +172,7 @@ export async function deleteInvocation(
   { pools }: FastifyInstance,
   token: Token,
   invocationId: String,
-): AsyncRequestResult {
+): Promise<RequestResult> {
   const response = await pools.get('invoker').request({
     method: 'DELETE',
     path: `/invoker/v1/invocations/${invocationId}`,
@@ -179,7 +188,10 @@ export async function deleteInvocation(
     return Result.ok(null)
   } else {
     const body: any = await response.body.json()
-    return Result.err({ ...body.error, status: response.statusCode })
+    return Result.err<ErrorOptions>({
+      ...body.error,
+      status: response.statusCode,
+    })
   }
 }
 
@@ -187,7 +199,7 @@ export async function stopInvocation(
   { pools }: FastifyInstance,
   token: Token,
   invocationId: String,
-): AsyncRequestResult {
+): Promise<RequestResult> {
   const response = await pools.get('invoker').request({
     method: 'PUT',
     path: `/invoker/v1/invocations/${invocationId}`,
@@ -204,10 +216,13 @@ export async function stopInvocation(
 
   const data: any = await response.body.json()
   if (response.statusCode === 200) {
-    return Result.ok(data.invocation)
+    return Result.ok()
   } else if (response.statusCode === 404) {
     return Result.err({ status: 404 })
   } else {
-    return Result.err({ ...data.error, status: response.statusCode })
+    return Result.err<ErrorOptions>({
+      ...data.error,
+      status: response.statusCode,
+    })
   }
 }
