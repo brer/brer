@@ -41,7 +41,6 @@ export default (): RouteOptions<RouteGeneric> => ({
         'image',
         S.object()
           .additionalProperties(false)
-          .prop('realHost', S.string())
           .prop('host', S.string())
           .required()
           .prop('name', S.string())

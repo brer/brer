@@ -28,12 +28,7 @@ export interface Fn extends BrerDocument {
   historyLimit?: number
 }
 
-export interface FnImage extends ContainerImage {
-  /**
-   * Used by the Registry.
-   */
-  realHost?: string
-}
+export type FnImage = ContainerImage
 
 export interface FnRuntime {
   /**

@@ -31,6 +31,7 @@ const reduceArrays = `
   }
 `
 
+// don't check `drafted` flag here (see `getFunctionByName` function)
 const mapFunctionsByName = `
   function (doc) {
     emit([doc.name, doc.createdAt], null)
@@ -103,6 +104,7 @@ await design(store.invocations, {
   },
 })
 
+// don't check `drafted` flag here (see `getProjectByName` function)
 const mapProjectsByName = `
   function (doc) {
     emit([doc.name, doc.createdAt], null)

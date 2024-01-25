@@ -63,6 +63,9 @@ export default (
       this.token.signApiToken(body.username),
       auth.getProjects(body.username),
     ])
+    if (projects.isErr) {
+      return reply.code(403).error(projects.unwrapErr())
+    }
 
     reply.code(201)
     reply.setCookie(cookieName, token.raw, cookieOptions)
@@ -73,7 +76,7 @@ export default (
       },
       user: {
         username: body.username,
-        projects,
+        projects: projects.unwrap(),
       },
     }
   },

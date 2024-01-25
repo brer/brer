@@ -93,7 +93,9 @@ async function registryPlugin(
         request.params.imageName &&
         request.params.imageName !== request.token.repository
       ) {
-        return reply.code(403).sendError()
+        return reply.code(403).sendError({
+          message: 'This session cannot be used to request this repository.',
+        })
       }
     },
   )
@@ -150,8 +152,7 @@ async function registryPlugin(
                   'Bearer ' + request.token.raw,
                   functionName,
                   {
-                    realHost: registryUrl.host,
-                    host: publicUrl.host,
+                    host: registryUrl.host,
                     name: request.params.imageName,
                     tag: request.params.imageTag,
                   },

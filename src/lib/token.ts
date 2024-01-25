@@ -138,7 +138,7 @@ async function signRegistryRefreshToken(
     .setExpirationTime(getExpirationTime(issuedAt, expiresIn))
     .setJti(id)
     .setIssuer(REGISTRY_ISSUER)
-    .setAudience(REGISTRY_ISSUER)
+    .setAudience([API_ISSUER, INVOKER_ISSUER, REGISTRY_ISSUER])
     .setSubject(username)
     .sign(key)
 

@@ -2,7 +2,7 @@ import type { FastifyInstance } from '@brer/fastify'
 import type { FnImage } from '@brer/function'
 import Result from 'ultres'
 
-import { type AsyncRequestResult } from '../lib/error.js'
+import type { ErrorOptions, RequestResult } from '../lib/error.js'
 
 /**
  * Resolve with the username.
@@ -10,7 +10,7 @@ import { type AsyncRequestResult } from '../lib/error.js'
 export async function authenticate(
   { pools }: FastifyInstance,
   authorization: string,
-): AsyncRequestResult<string> {
+): Promise<RequestResult<string>> {
   const response = await pools.get('api').request({
     method: 'GET',
     path: '/api/session',
@@ -24,19 +24,22 @@ export async function authenticate(
   const data: any = await response.body.json()
   if (response.statusCode === 200) {
     if (data.authenticated === true) {
-      return Result.ok(data.user.username)
+      return Result.ok<string>(data.user.username)
     } else {
       return Result.err({ status: 401 })
     }
   } else {
-    return Result.err({ ...data.error, status: response.statusCode })
+    return Result.err<ErrorOptions>({
+      ...data.error,
+      status: response.statusCode,
+    })
   }
 }
 
 export async function getFunctionsList(
   { pools }: FastifyInstance,
   authorization: string,
-): AsyncRequestResult<string[]> {
+): Promise<RequestResult<string[]>> {
   const response = await pools.get('api').request({
     method: 'GET',
     path: '/api/v1/registry/functions',
@@ -48,9 +51,12 @@ export async function getFunctionsList(
 
   const data: any = await response.body.json()
   if (response.statusCode === 200) {
-    return Result.ok(data.functions)
+    return Result.ok<string[]>(data.functions)
   } else {
-    return Result.err({ ...data.error, status: response.statusCode })
+    return Result.err<ErrorOptions>({
+      ...data.error,
+      status: response.statusCode,
+    })
   }
 }
 

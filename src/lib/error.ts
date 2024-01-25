@@ -34,8 +34,6 @@ export interface ErrorOptions {
 
 export type RequestResult<T = unknown> = IResult<T, ErrorOptions>
 
-export type AsyncRequestResult<T = unknown> = Promise<IResult<T, ErrorOptions>>
-
 async function errorPlugin(fastify: FastifyInstance) {
   fastify.decorateReply('error', null)
   fastify.decorateReply('sendError', null)

@@ -33,7 +33,15 @@ export default function createTestServer() {
     caseSensitive: true,
     ignoreTrailingSlash: false,
     logger: {
-      level: 'error',
+      level: 'debug',
+      transport: {
+        target: 'pino/file',
+        options: {
+          append: false,
+          destination: './fastify.ndjson',
+          mkdir: true,
+        },
+      },
     },
   })
 
@@ -116,7 +124,6 @@ export default function createTestServer() {
   fastify.register(api, {
     adminPassword,
     invokerUrl: url,
-    publicUrl: url,
   })
   fastify.register(invokerController)
   fastify.register(invokerRouter)
@@ -129,5 +136,5 @@ export default function createTestServer() {
     await fastify.store.nano.info()
   })
 
-  return { authorization, fastify }
+  return { adminPassword, authorization, fastify }
 }
