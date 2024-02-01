@@ -112,6 +112,16 @@ export function createFastifyStore(
 
 async function storePlugin(fastify: FastifyInstance, options: PluginOptions) {
   fastify.decorate('store', createFastifyStore(options))
+
+  // Test CouchDB server
+  fastify.addHook('onReady', async () => {
+    try {
+      await fastify.store.nano.info()
+    } catch (err) {
+      fastify.log.error({ err }, 'raw couchdb error')
+      return Promise.reject(new Error('CouchDB connection failure'))
+    }
+  })
 }
 
 export default plugin(storePlugin, {
