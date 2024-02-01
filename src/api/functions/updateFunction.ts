@@ -171,7 +171,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     // The `getFunctionByName` function will update the `drafted` flag
     newFn = reference
 
-    let invocation: any
+    let invocation: { _id: string } | undefined
     if (!newFn.runtime) {
       const resInvoke = await invoke(this, session.token, newFn, {
         runtimeTest: true,

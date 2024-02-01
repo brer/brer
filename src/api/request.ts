@@ -25,12 +25,16 @@ export interface InvokeOptions {
   runtimeTest?: boolean
 }
 
+/**
+ * Creates a new Invocation and resolves with the created Invocation.
+ * WARNING: The resulting Invocation is taken from the http response.
+ */
 export async function invoke(
   { pools, store }: FastifyInstance,
   token: Token,
   fn: Fn,
   options: InvokeOptions = {},
-): Promise<RequestResult> {
+): Promise<RequestResult<{ _id: string }>> {
   const response = await pools.get('invoker').request({
     method: 'POST',
     path: '/invoker/v1/invocations',
@@ -52,8 +56,9 @@ export async function invoke(
 
   const body: any = await response.body.json()
   if (response.statusCode === 201) {
+    // TODO: async?
     await rotateInvocations(store, fn)
-    return Result.ok()
+    return Result.ok<{ _id: string }>(body.invocation)
   } else {
     return Result.err<ErrorOptions>({
       ...body.error,
