@@ -20,6 +20,9 @@ export default (): RouteOptions<RouteGeneric> => ({
       .prop('invocationId', S.string().format('uuid'))
       .required(),
     body: S.object(),
+    response: {
+      204: S.null(),
+    },
   },
   async handler(request, reply) {
     const { helmsman, store } = this
@@ -34,7 +37,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     }
 
     await Promise.all([
-      store.invocations.from(invocation).delete().consume(),
+      store.invocations.from(invocation).delete().consume({ purge: true }),
       helmsman.deleteInvocationPods(params.invocationId),
     ])
 

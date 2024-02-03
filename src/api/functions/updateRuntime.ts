@@ -65,7 +65,7 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.code(404).error({ message: 'Function not found.' })
     }
     if (invocation?.functionName !== params.functionName) {
-      return reply.code(403).error()
+      return reply.code(403).error({ message: 'Foreign Function write.' })
     }
     if (!isSameImage(oldFn.image, body.image, true)) {
       return reply.code(409).error({ message: 'Image mismatch.' })

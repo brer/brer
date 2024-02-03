@@ -30,7 +30,7 @@ export interface InvokeOptions {
  * WARNING: The resulting Invocation is taken from the http response.
  */
 export async function invoke(
-  { pools, store }: FastifyInstance,
+  { pools }: FastifyInstance,
   token: Token,
   fn: Fn,
   options: InvokeOptions = {},
@@ -56,8 +56,6 @@ export async function invoke(
 
   const body: any = await response.body.json()
   if (response.statusCode === 201) {
-    // TODO: async?
-    await rotateInvocations(store, fn)
     return Result.ok<{ _id: string }>(body.invocation)
   } else {
     return Result.err<ErrorOptions>({
@@ -96,22 +94,6 @@ function mergeEnv(fn: Fn, record: Record<string, string> = {}) {
   }
 
   return env
-}
-
-async function rotateInvocations(store: FastifyInstance['store'], fn: Fn) {
-  await store.invocations
-    .filter({
-      _design: 'default',
-      _view: 'by_project',
-      startkey: [fn.project, fn.name, {}],
-      endkey: [fn.project, fn.name, null],
-    })
-    .delete()
-    .consume({
-      descending: true,
-      purge: true,
-      skip: fn.historyLimit || 10,
-    })
 }
 
 export async function pushFunctionSecrets(
@@ -174,7 +156,7 @@ export async function pullFunctionSecrets(
 }
 
 export async function deleteInvocation(
-  { pools }: FastifyInstance,
+  { log, pools }: FastifyInstance,
   token: Token,
   invocationId: String,
 ): Promise<RequestResult> {
@@ -189,10 +171,13 @@ export async function deleteInvocation(
     body: '{}',
   })
 
+  const body: any =
+    response.statusCode === 204 ? null : await response.body.json()
+
   if (response.statusCode === 204 || response.statusCode === 404) {
-    return Result.ok(null)
+    log.debug({ invocationId }, 'invocation deleted')
+    return Result.ok()
   } else {
-    const body: any = await response.body.json()
     return Result.err<ErrorOptions>({
       ...body.error,
       status: response.statusCode,

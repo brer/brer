@@ -1,9 +1,11 @@
-import type { RouteOptions } from '@brer/fastify'
+import type { FastifyInstance, RouteOptions } from '@brer/fastify'
+import type { FnRuntime } from '@brer/function'
 import type { Invocation } from '@brer/invocation'
 import S from 'fluent-json-schema-es'
 import Result, { type IResult } from 'ultres'
 
 import { type ErrorOptions } from '../../lib/error.js'
+import { getFunctionByName } from '../../lib/function.js'
 import {
   completeInvocation,
   failInvocation,
@@ -12,7 +14,7 @@ import {
 } from '../../lib/invocation.js'
 import { API_ISSUER, INVOKER_ISSUER } from '../../lib/token.js'
 import { isOlderThan, tail } from '../../lib/util.js'
-import { handleTestInvocation } from '../lib.js'
+import { setFunctionRuntime } from '../lib.js'
 
 export interface RouteGeneric {
   Body: {
@@ -74,6 +76,19 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.code(409).error(result.unwrapErr())
     }
 
+    if (
+      oldInvocation.runtimeTest &&
+      (body.status === 'completed' || body.status === 'failed')
+    ) {
+      await setFunctionRuntime(
+        this,
+        token,
+        oldInvocation.functionName,
+        oldInvocation.image,
+        getRuntime(oldInvocation._id, body),
+      )
+    }
+
     const newInvocation = await store.invocations
       .from(oldInvocation)
       .assign(result.unwrap())
@@ -84,7 +99,7 @@ export default (): RouteOptions<RouteGeneric> => ({
       newInvocation.status === 'failed'
     ) {
       await Promise.all([
-        handleTestInvocation(this, newInvocation, token),
+        rotateInvocations(this, newInvocation.functionName),
         token.issuer !== INVOKER_ISSUER
           ? helmsman.deleteInvocationPods(params.invocationId)
           : null,
@@ -94,6 +109,21 @@ export default (): RouteOptions<RouteGeneric> => ({
     return { invocation: newInvocation }
   },
 })
+
+function getRuntime(
+  invocationId: string,
+  body: RouteGeneric['Body'],
+): FnRuntime {
+  const runtime: any = Object(Object(body.result).runtime)
+  if (body.status === 'completed' && typeof runtime.type === 'string') {
+    return runtime
+  } else {
+    return {
+      type: 'Unknown',
+      invocationId,
+    }
+  }
+}
 
 function updateInvocation(
   invocation: Invocation,
@@ -132,4 +162,26 @@ function updateInvocation(
     }
     return Result.ok(runInvocation(invocation))
   }
+}
+
+async function rotateInvocations(
+  { log, store }: FastifyInstance,
+  functionName: string,
+) {
+  const fn = await getFunctionByName(store, functionName)
+
+  await store.invocations
+    .filter({
+      _design: 'default',
+      _view: 'history',
+      startkey: [functionName, {}],
+      endkey: [functionName, null],
+    })
+    .tap(i => log.debug({ invocationId: i._id }, 'purge invocation'))
+    .delete()
+    .unwrap({
+      descending: true,
+      purge: true,
+      skip: fn ? fn.historyLimit || 10 : 0,
+    })
 }

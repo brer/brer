@@ -83,8 +83,8 @@ async function spawnPlugin(
   })
 
   // Init currently pending Invocations at startup
-  fastify.addHook('onReady', () =>
-    store.invocations
+  fastify.addHook('onReady', async () => {
+    await store.invocations
       .filter({
         _design: 'default',
         _view: 'alive',
@@ -93,8 +93,8 @@ async function spawnPlugin(
         // do not wait the Promise
         queue.push(doc._id)
       })
-      .consume(),
-  )
+      .consume()
+  })
 
   fastify.addHook('onClose', async () => {
     closed = true
