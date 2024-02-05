@@ -57,6 +57,8 @@ Create a `.env` file with the following envs:
 | K8S_NAMESPACE     | Expected kubeconfig namespace.
 | API_URL           |
 | INVOKER_URL       |
+| K8S_LIMIT_CPU     | Default `.resources.limits.cpu` value.
+| K8S_LIMIT_MEMORY  | Default `.resources.limits.memory` value.
 
 #### Registry
 
@@ -110,17 +112,18 @@ Brer is able to authenticate only the `admin` User. To authentication other User
 - [x] Docker Registry integration
 - [x] Stop Invocations
 - [x] Progress update
-- [ ] Max running Invocations limit
-- [ ] Swagger/OpenAPI
-- [ ] Configure pod resources (cpu and memory)
+- [x] Configure pod resources (cpu and memory)
+- [ ] Max global concurrent Invocations limit (enqueue pending Invocations)
+- [ ] Swagger/OpenAPI (partial)
 - [ ] Helm chart
-- [ ] Invocation attempts (retry)
-- [ ] Callback URL
+- [ ] Retry Invocation on error (retry attempts)
+- [ ] Webhooks
 - [ ] Go bindings
 - [ ] Rust bindings
 - [ ] CLI
 - [ ] Play/Pause Invocations
-- [ ] Invocation max running time (with global default)
+- [ ] Invocation max running time
+- [ ] Kill stuck Invocations (heartbeats)
 
 ## Acknowledgements
 

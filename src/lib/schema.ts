@@ -56,6 +56,8 @@ function v1Function() {
         .description('Invocation failure reason.'),
     )
     .prop('historyLimit', S.integer())
+    .prop('resources', resources())
+    .description('Job resources configuration.')
     .prop('createdAt', S.string().format('date-time'))
     .required()
     .prop('updatedAt', S.string().format('date-time'))
@@ -103,6 +105,8 @@ function v1Invocation() {
     )
     .description('List of status change phases.')
     .required()
+    .prop('resources', resources())
+    .description('Configured job resources.')
     .prop('result')
     .description('Progress or completition result value.')
     .prop('reason')
@@ -138,4 +142,29 @@ function v1Project() {
     .required()
     .prop('updatedAt', S.string().format('date-time'))
     .required()
+}
+
+function resources() {
+  return S.object()
+    .additionalProperties(false)
+    .prop(
+      'requests',
+      S.object()
+        .additionalProperties(false)
+        .prop('cpu')
+        .description('Follows Kubernetes notation.')
+        .prop('memory')
+        .description('Follows Kubernetes notation.'),
+    )
+    .description('Requested free resources before startup.')
+    .prop(
+      'limits',
+      S.object()
+        .additionalProperties(false)
+        .prop('cpu')
+        .description('Follows Kubernetes notation.')
+        .prop('memory')
+        .description('Follows Kubernetes notation.'),
+    )
+    .description('Resources upper limits.')
 }

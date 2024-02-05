@@ -26,7 +26,7 @@ export function createFunction(fnName: string): Fn {
 
 export function updateFunction(
   fn: Fn,
-  options: Pick<Fn, 'env' | 'historyLimit' | 'image' | 'project'>,
+  options: Pick<Fn, 'env' | 'historyLimit' | 'image' | 'project' | 'resources'>,
 ): Fn {
   const update: Fn = {
     ...fn,
@@ -34,6 +34,7 @@ export function updateFunction(
     historyLimit: options.historyLimit,
     image: options.image,
     project: options.project,
+    resources: options.resources,
   }
   if (
     !isSameImage(fn.image, update.image) ||

@@ -23,9 +23,15 @@ export interface Fn extends BrerDocument {
    */
   project: string
   /**
+   * Number of completed/failed Invocations to keep.
+   *
    * @default 10
    */
   historyLimit?: number
+  /**
+   * Kubernetes resources configuration.
+   */
+  resources?: FnResources
 }
 
 export type FnImage = ContainerImage
@@ -50,4 +56,15 @@ export interface FnEnv {
   value?: string
   secretName?: string
   secretKey?: string
+}
+
+export interface FnResources {
+  requests?: {
+    cpu?: string
+    memory?: string
+  }
+  limits?: {
+    cpu?: string
+    memory?: string
+  }
 }

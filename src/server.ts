@@ -27,6 +27,7 @@ export default function createServer() {
     bodyLimit: 2097152, // 2 MiB (bytes)
     caseSensitive: true,
     ignoreTrailingSlash: false,
+    requestTimeout: 60000,
     logger: {
       level: process.env.LOG_LEVEL || 'info',
       transport:

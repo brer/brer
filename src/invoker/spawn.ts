@@ -19,8 +19,12 @@ async function spawnPlugin(
   let closed = false
 
   const handler = async (invocationId: string) => {
+    if (closed) {
+      return
+    }
+
     const invocation = await store.invocations.find(invocationId).unwrap()
-    if (!invocation || closed) {
+    if (!invocation) {
       return
     }
 
