@@ -48,15 +48,19 @@ Create a `.env` file with the following envs:
 
 #### Invoker
 
-| Name              | Description
-| ----------------- | -----------------
-| K8S_FILE          | Kubeconfig filepath. Defaults to Current User's (OS) kubeconfig filepath.
-| K8S_CONTEXT       | Kubeconfig context to use.
-| K8S_CLUSTER       | Expected context's cluster.
-| K8S_USER          | Expected context's user.
-| K8S_NAMESPACE     | Expected kubeconfig namespace.
-| API_URL           |
-| INVOKER_URL       |
+| Name                | Description
+| ------------------- | -----------------
+| K8S_FILE            | Kubeconfig filepath. Defaults to Current User's (OS) kubeconfig filepath.
+| K8S_CONTEXT         | Kubeconfig context to use.
+| K8S_CLUSTER         | Expected context's cluster.
+| K8S_USER            | Expected context's user.
+| K8S_NAMESPACE       | Expected kubeconfig namespace.
+| API_URL             |
+| INVOKER_URL         |
+| K8S_CPU_LIMIT       | Default Pod's `.resources.limits.cpu` value.
+| K8S_CPU_REQUEST     | Default Pod's `.resources.requests.cpu` value.
+| K8S_MEMORY_LIMIT    | Default Pod's `.resources.limits.memory` value.
+| K8S_MEMORY_REQUEST  | Default Pod's `.resources.requests.memory` value.
 
 #### Registry
 
@@ -110,17 +114,18 @@ Brer is able to authenticate only the `admin` User. To authentication other User
 - [x] Docker Registry integration
 - [x] Stop Invocations
 - [x] Progress update
-- [ ] Max running Invocations limit
-- [ ] Swagger/OpenAPI
-- [ ] Configure pod resources (cpu and memory)
+- [x] Configure pod resources (cpu and memory)
+- [ ] Max global concurrent Invocations limit (enqueue pending Invocations)
+- [ ] Swagger/OpenAPI (partial)
 - [ ] Helm chart
-- [ ] Invocation attempts (retry)
-- [ ] Callback URL
+- [ ] Retry Invocation on error (retry attempts)
+- [ ] Webhooks
 - [ ] Go bindings
 - [ ] Rust bindings
 - [ ] CLI
 - [ ] Play/Pause Invocations
-- [ ] Invocation max running time (with global default)
+- [ ] Invocation max running time
+- [ ] Kill stuck Invocations (heartbeats)
 
 ## Acknowledgements
 

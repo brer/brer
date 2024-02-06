@@ -1,5 +1,5 @@
 import type { FastifyRequest, RouteOptions } from '@brer/fastify'
-import type { FnEnv } from '@brer/function'
+import type { FnEnv, FnResources } from '@brer/function'
 import S from 'fluent-json-schema-es'
 import Result from 'ultres'
 
@@ -30,6 +30,16 @@ export interface RouteGeneric {
     image: string | ContainerImage
     project?: string
     historyLimit?: number
+    resources?: {
+      requests?: {
+        cpu?: string
+        memory?: string
+      }
+      limits?: {
+        cpu?: string
+        memory?: string
+      }
+    }
   }
   Params: {
     functionName: string
@@ -107,7 +117,26 @@ export default (): RouteOptions<RouteGeneric> => ({
           .maxLength(128)
           .pattern(/^[a-zA-Z0-9_\-]+$/),
       )
-      .prop('historyLimit', S.integer().minimum(0)),
+      .prop('historyLimit', S.integer().minimum(0))
+      .prop(
+        'resources',
+        S.object()
+          .additionalProperties(false)
+          .prop(
+            'requests',
+            S.object()
+              .additionalProperties(false)
+              .prop('cpu', S.string())
+              .prop('memory', S.string()),
+          )
+          .prop(
+            'limits',
+            S.object()
+              .additionalProperties(false)
+              .prop('cpu', S.string())
+              .prop('memory', S.string()),
+          ),
+      ),
     response: {
       '2xx': S.object()
         .prop('function', S.ref('https://brer.io/schema/v1/function.json'))
@@ -206,6 +235,7 @@ interface ParsedRequest {
   image: ContainerImage
   name: string
   project: string
+  resources: FnResources
 }
 
 function parseRequest({
@@ -266,6 +296,10 @@ function parseRequest({
     image,
     name: params.functionName,
     project: body.project || 'default',
+    resources: {
+      limits: body.resources?.limits || {},
+      requests: body.resources?.requests || {},
+    },
   })
 }
 

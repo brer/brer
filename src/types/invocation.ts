@@ -1,5 +1,5 @@
 import type { BrerDocument } from './couchdb.js'
-import type { FnEnv, FnImage } from './function.js'
+import type { FnEnv, FnImage, FnResources } from './function.js'
 
 export interface Invocation extends BrerDocument {
   /**
@@ -43,6 +43,10 @@ export interface Invocation extends BrerDocument {
    *
    */
   runtimeTest?: boolean
+  /**
+   *
+   */
+  resources?: FnResources
 }
 
 export type InvocationImage = FnImage

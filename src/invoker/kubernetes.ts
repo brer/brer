@@ -65,6 +65,19 @@ export function getPodTemplate(
     )
   }
 
+  const resources: any = {
+    requests: {
+      cpu: process.env.K8S_CPU_REQUEST,
+      memory: process.env.K8S_MEMORY_REQUEST,
+      ...invocation.resources?.requests,
+    },
+    limits: {
+      cpu: process.env.K8S_CPU_LIMIT,
+      memory: process.env.K8S_MEMORY_LIMIT,
+      ...invocation.resources?.limits,
+    },
+  }
+
   return {
     apiVersion: 'v1',
     kind: 'Pod',
@@ -87,17 +100,7 @@ export function getPodTemplate(
           imagePullPolicy:
             invocation.image.tag === 'latest' ? 'Always' : 'IfNotPresent',
           env,
-          // TODO: make editable
-          resources: {
-            requests: {
-              cpu: '10m',
-              memory: '64Mi',
-            },
-            limits: {
-              cpu: '500m',
-              memory: '512Mi',
-            },
-          },
+          resources,
         },
       ],
     },

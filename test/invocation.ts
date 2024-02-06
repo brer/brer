@@ -55,6 +55,12 @@ test('happy path', async t => {
           value: 'Emphasis on Scat',
         },
       ],
+      resources: {
+        limits: {
+          cpu: '100m',
+          memory: '128Mi',
+        },
+      },
     },
   })
   t.like(resCreate, {
@@ -76,6 +82,13 @@ test('happy path', async t => {
           value: undefined,
         },
       ],
+      resources: {
+        requests: {},
+        limits: {
+          cpu: '100m',
+          memory: '128Mi',
+        },
+      },
     },
     invocation: {
       functionName,

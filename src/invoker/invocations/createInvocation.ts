@@ -20,10 +20,17 @@ export interface RouteGeneric {
      * Payload's content type.
      */
     contentType?: string
-    /**
-     *
-     */
     runtimeTest?: boolean
+    resources?: {
+      requests?: {
+        cpu?: string
+        memory?: string
+      }
+      limits?: {
+        cpu?: string
+        memory?: string
+      }
+    }
   }
 }
 
@@ -55,7 +62,26 @@ export default (): RouteOptions<RouteGeneric> => ({
       .required()
       .prop('payload', S.string())
       .prop('contentType', S.string())
-      .prop('runtimeTest', S.boolean()),
+      .prop('runtimeTest', S.boolean())
+      .prop(
+        'resources',
+        S.object()
+          .additionalProperties(false)
+          .prop(
+            'requests',
+            S.object()
+              .additionalProperties(false)
+              .prop('cpu', S.string())
+              .prop('memory', S.string()),
+          )
+          .prop(
+            'limits',
+            S.object()
+              .additionalProperties(false)
+              .prop('cpu', S.string())
+              .prop('memory', S.string()),
+          ),
+      ),
   },
   async handler(request, reply) {
     const { events, store } = this
@@ -90,6 +116,7 @@ export default (): RouteOptions<RouteGeneric> => ({
         functionName: body.functionName,
         project: body.project,
         createdAt: now.toISOString(),
+        resources: body.resources,
       })
       .unwrap()
 

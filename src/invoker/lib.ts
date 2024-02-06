@@ -1,6 +1,6 @@
 import type { FastifyInstance } from '@brer/fastify'
 import type { FnRuntime } from '@brer/function'
-import type { Invocation } from '@brer/invocation'
+import type { Invocation, InvocationImage } from '@brer/invocation'
 
 import {
   failInvocation,
@@ -47,71 +47,73 @@ export async function failWithReason(
   fastify: FastifyInstance,
   invocation: Invocation,
   reason: unknown,
-  token?: Token,
-) {
+): Promise<Invocation> {
   const { log, store } = fastify
 
+  if (invocation.status === 'failed') {
+    log.trace({ inovcationId: invocation._id }, 'invocation already failed')
+    return invocation
+  }
+  if (invocation.status === 'completed') {
+    log.warn(
+      { inovcationId: invocation._id },
+      'cannot fail a completed invocation',
+    )
+    return invocation
+  }
+
   log.debug({ invocationId: invocation._id, reason }, 'invocation has failed')
+  if (invocation.runtimeTest) {
+    const token = await fastify.token.signInvocationToken(invocation._id, 60)
+
+    await setFunctionRuntime(
+      fastify,
+      token,
+      invocation.functionName,
+      invocation.image,
+      {
+        type: 'Unknown',
+        invocationId: invocation._id,
+      },
+    )
+  }
+
   return store.invocations
     .from(invocation)
     .update(doc => failInvocation(doc, reason))
-    .commit()
-    .tap(doc => handleTestInvocation(fastify, doc, token))
     .unwrap()
 }
 
-export async function handleTestInvocation(
-  { log, token: { signInvocationToken }, pools }: FastifyInstance,
-  invocation: Invocation,
-  token?: Token,
+export async function setFunctionRuntime(
+  { log, pools }: FastifyInstance,
+  token: Token,
+  functionName: string,
+  image: InvocationImage,
+  runtime: FnRuntime,
 ) {
-  if (!invocation.runtimeTest) {
-    return
-  }
-  if (!token) {
-    token = await signInvocationToken(invocation._id, 60)
-  }
-
   const response = await pools.get('api').request({
     method: 'PUT',
-    path: `/api/v1/functions/${invocation.functionName}/runtime`,
+    path: `/api/v1/functions/${functionName}/runtime`,
     headers: {
       accept: 'application/json',
       authorization: `Bearer ${token.raw}`,
       'content-type': 'application/json; charset=utf-8',
     },
     body: JSON.stringify({
-      image: invocation.image,
-      runtime: getRuntime(invocation),
+      image,
+      runtime,
     }),
   })
 
   const data: any = await response.body.json()
   if (response.statusCode === 200) {
-    log.debug(
-      { functionName: invocation.functionName },
-      'image runtime updated',
-    )
+    log.debug({ functionName }, 'image runtime updated')
   } else if (response.statusCode === 404) {
-    log.warn({ functionName: invocation.functionName }, 'function not found')
+    log.debug({ functionName }, 'function not found')
+  } else if (response.statusCode === 409) {
+    // Function was updated before the test-invocation finish
+    log.debug({ functionName }, 'function image mismatch')
   } else {
-    log.error(
-      { functionName: invocation.functionName, response: data },
-      'runtime update failed',
-    )
-  }
-}
-
-function getRuntime(invocation: Invocation): FnRuntime {
-  if (
-    invocation.status === 'completed' &&
-    typeof invocation.result?.runtime?.type === 'string'
-  ) {
-    return invocation.result.runtime
-  } else {
-    return {
-      type: 'Unknown',
-      invocationId: invocation._id,
-    }
+    log.error({ functionName, response: data }, 'runtime update failed')
   }
 }

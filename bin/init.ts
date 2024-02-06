@@ -91,6 +91,14 @@ const mapAliveInvocations = `
   }
 `
 
+const mapInvocationsHistory = `
+  function (doc) {
+    if (doc.status === 'completed' || doc.status === 'failed') {
+      emit([doc.functionName, doc.createdAt], null)
+    }
+  }
+`
+
 console.log('write invocations views')
 await design(store.invocations, {
   _id: '_design/default',
@@ -100,6 +108,9 @@ await design(store.invocations, {
     },
     alive: {
       map: mapAliveInvocations,
+    },
+    history: {
+      map: mapInvocationsHistory,
     },
   },
 })

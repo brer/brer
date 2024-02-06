@@ -19,8 +19,12 @@ async function spawnPlugin(
   let closed = false
 
   const handler = async (invocationId: string) => {
+    if (closed) {
+      return
+    }
+
     const invocation = await store.invocations.find(invocationId).unwrap()
-    if (!invocation || closed) {
+    if (!invocation) {
       return
     }
 
@@ -83,8 +87,8 @@ async function spawnPlugin(
   })
 
   // Init currently pending Invocations at startup
-  fastify.addHook('onReady', () =>
-    store.invocations
+  fastify.addHook('onReady', async () => {
+    await store.invocations
       .filter({
         _design: 'default',
         _view: 'alive',
@@ -93,8 +97,8 @@ async function spawnPlugin(
         // do not wait the Promise
         queue.push(doc._id)
       })
-      .consume(),
-  )
+      .consume()
+  })
 
   fastify.addHook('onClose', async () => {
     closed = true
