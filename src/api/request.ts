@@ -51,6 +51,7 @@ export async function invoke(
       project: fn.project,
       payload: options.payload?.toString('base64'),
       contentType: options?.contentType,
+      resources: fn.resources,
     }),
   })
 
