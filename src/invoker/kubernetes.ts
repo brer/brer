@@ -66,10 +66,14 @@ export function getPodTemplate(
   }
 
   const resources: any = {
-    requests: invocation.resources?.requests,
+    requests: {
+      cpu: process.env.K8S_CPU_REQUEST,
+      memory: process.env.K8S_MEMORY_REQUEST,
+      ...invocation.resources?.requests,
+    },
     limits: {
-      cpu: process.env.K8S_LIMIT_CPU,
-      memory: process.env.K8S_LIMIT_MEMORY,
+      cpu: process.env.K8S_CPU_LIMIT,
+      memory: process.env.K8S_MEMORY_LIMIT,
       ...invocation.resources?.limits,
     },
   }

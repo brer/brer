@@ -48,17 +48,19 @@ Create a `.env` file with the following envs:
 
 #### Invoker
 
-| Name              | Description
-| ----------------- | -----------------
-| K8S_FILE          | Kubeconfig filepath. Defaults to Current User's (OS) kubeconfig filepath.
-| K8S_CONTEXT       | Kubeconfig context to use.
-| K8S_CLUSTER       | Expected context's cluster.
-| K8S_USER          | Expected context's user.
-| K8S_NAMESPACE     | Expected kubeconfig namespace.
-| API_URL           |
-| INVOKER_URL       |
-| K8S_LIMIT_CPU     | Default `.resources.limits.cpu` value.
-| K8S_LIMIT_MEMORY  | Default `.resources.limits.memory` value.
+| Name                | Description
+| ------------------- | -----------------
+| K8S_FILE            | Kubeconfig filepath. Defaults to Current User's (OS) kubeconfig filepath.
+| K8S_CONTEXT         | Kubeconfig context to use.
+| K8S_CLUSTER         | Expected context's cluster.
+| K8S_USER            | Expected context's user.
+| K8S_NAMESPACE       | Expected kubeconfig namespace.
+| API_URL             |
+| INVOKER_URL         |
+| K8S_CPU_LIMIT       | Default Pod's `.resources.limits.cpu` value.
+| K8S_CPU_REQUEST     | Default Pod's `.resources.requests.cpu` value.
+| K8S_MEMORY_LIMIT    | Default Pod's `.resources.limits.memory` value.
+| K8S_MEMORY_REQUEST  | Default Pod's `.resources.requests.memory` value.
 
 #### Registry
 
