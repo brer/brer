@@ -17,7 +17,7 @@ echo "wait for couchdb to become available"
 sleep 5
 
 echo "init database"
-npm run init -- --url=http://127.0.0.1:$COUCHDB_PORT/ --username=$COUCHDB_USERNAME --password=$COUCHDB_PASSWORD 1> /dev/null
+npm run init -- --no-input --couchdb-url=http://127.0.0.1:$COUCHDB_PORT/ --couchdb-username=$COUCHDB_USERNAME --couchdb-password=$COUCHDB_PASSWORD 1> /dev/null
 
 npx ava
 

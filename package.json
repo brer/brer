@@ -5,7 +5,7 @@
   "description": "A simple Kubernetes task runner",
   "type": "module",
   "scripts": {
-    "init": "chmod +x ./bin/init.ts && ./bin/init.ts",
+    "init": "chmod +x ./bin/init.mjs && ./bin/init.mjs",
     "clean": "rimraf *.tsbuildinfo build",
     "build": "npm run clean && tsc -p ./tsconfig.build.json",
     "start": "npm run clean && npm run watch:build && npm run watch:start",
@@ -49,6 +49,7 @@
     "nodemon": "^3.0.3",
     "pino-pretty": "^10.3.1",
     "prettier": "^3.2.4",
+    "read": "^3.0.1",
     "rimraf": "^5.0.5",
     "source-map-support": "^0.5.21",
     "tsx": "^4.7.0",

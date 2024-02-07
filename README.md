@@ -22,41 +22,45 @@ Create a `.env` file with the following envs:
 
 #### Common
 
-| Name              | Description
-| ----------------- | -----------------
-| NODE_ENV          |
-| SERVER_HOST       | Listening host. Defaults to `127.0.0.1`.
-| SERVER_PORT       | Server's post. Defaults to `3000`.
-| SERVER_MODE       | Comma-separated values: `api`, `registry`, `controller`. Defaults to `api`.
-| LOG_LEVEL         | [Pino](https://github.com/pinojs/pino) log level. Defaults to `info`.
-| COUCHDB_URL       | CouchDB URL. Defaults to `http://127.0.0.1:5984/`.
-| COUCHDB_USERNAME  |
-| COUCHDB_PASSWORD  |
-| **JWT_SECRET**    |
-| PUBLIC_URL        | Defaults to local server.
+| Name                | Description
+| ------------------- | -------------------
+| NODE_ENV            | Must be `"production"` for non-toy envs.
+| SERVER_HOST         | Listening host. Defaults to `127.0.0.1`.
+| SERVER_PORT         | Server's post. Defaults to `3000`.
+| SERVER_MODE         | Comma-separated values: `api`, `registry`, `controller`. Defaults to `api`.
+| LOG_LEVEL           | [Pino](https://github.com/pinojs/pino) log level. Defaults to `info`.
+| COUCHDB_URL         | CouchDB URL. Defaults to `http://127.0.0.1:5984/`.
+| COUCHDB_USERNAME    |
+| COUCHDB_PASSWORD    |
+| PUBLIC_URL          | The public URL where Brer is exposed. Defaults to localhost (this) server.
+| JWT_SECRET          | Secred used to sign JWT tokens, may be omitted if `JWT_PRIVATE_KEY` is defined.
+| JWT_PRIVATE_KEY     | Filepath of a PEM-encoded RSA SHA-256 secret key, may be omitted if `JWT_SECRET` is defined.
+| API_PUBLIC_KEY      | Filepath of a PEM-encoded RSA SHA-256 public key.
+| INVOKER_PUBLIC_KEY  | Filepath of a PEM-encoded RSA SHA-256 public key.
+| REGISTRY_PUBLIC_KEY | Filepath of a PEM-encoded RSA SHA-256 public key.
 
 #### API
 
-| Name              | Description
-| ----------------- | -----------------
-| K8S_NAMESPACE     |
-| INVOKER_URL       |
-| COOKIE_NAME       | Defaults to `brer_session`.
-| COOKIE_DOMAIN     |
-| ADMIN_PASSWORD    | User's password for `admin`. Optional if `GATEWAY_URL` is defined.
-| GATEWAY_URL       | Authentication gateway URL. Optional if `ADMIN_PASSWORD` is defined.
+| Name                | Description
+| ------------------- | -------------------
+| K8S_NAMESPACE       |
+| INVOKER_URL         | Defaults to `PUBLIC_URL`.
+| COOKIE_NAME         | Defaults to `brer_session`.
+| COOKIE_DOMAIN       |
+| ADMIN_PASSWORD      | User's password for `admin`. Optional if `GATEWAY_URL` is defined.
+| GATEWAY_URL         | Authentication gateway URL. Optional if `ADMIN_PASSWORD` is defined.
 
 #### Invoker
 
 | Name                | Description
-| ------------------- | -----------------
+| ------------------- | -------------------
 | K8S_FILE            | Kubeconfig filepath. Defaults to Current User's (OS) kubeconfig filepath.
 | K8S_CONTEXT         | Kubeconfig context to use.
 | K8S_CLUSTER         | Expected context's cluster.
 | K8S_USER            | Expected context's user.
 | K8S_NAMESPACE       | Expected kubeconfig namespace.
-| API_URL             |
-| INVOKER_URL         |
+| API_URL             | Defaults to `PUBLIC_URL`.
+| INVOKER_URL         | Defaults to `PUBLIC_URL`.
 | K8S_CPU_LIMIT       | Default Pod's `.resources.limits.cpu` value.
 | K8S_CPU_REQUEST     | Default Pod's `.resources.requests.cpu` value.
 | K8S_MEMORY_LIMIT    | Default Pod's `.resources.limits.memory` value.
@@ -64,21 +68,19 @@ Create a `.env` file with the following envs:
 
 #### Registry
 
-| Name              | Description
-| ----------------- | -----------------
-| **REGISTRY_URL**  |
-| REGISTRY_USERNAME |
-| REGISTRY_PASSWORD |
-| K8S_NAMESPACE     |
-| API_URL           |
-| PUBLIC_URL        |
+| Name                | Description
+| ------------------- | -------------------
+| REGISTRY_URL        |
+| REGISTRY_USERNAME   |
+| REGISTRY_PASSWORD   |
+| API_URL             | Defaults to `PUBLIC_URL`.
 
 ### Start
 
 Initialize the database:
 
 ```
-npm run init -- --url=couchdb_url --username=couchdb_username --password=couchdb_username
+npm run init
 ```
 
 Start the server:
