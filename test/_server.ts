@@ -1,25 +1,20 @@
-import type { FastifyInstance } from '@brer/fastify'
 import Fastify from 'fastify'
 import noAdditionalProperties from 'fastify-no-additional-properties'
 import { v4 as uuid } from 'uuid'
 
 import error from '../src/lib/error.js'
-import events from '../src/lib/events.js'
-import { basicAuthorization } from '../src/lib/header.js'
 import { addSchema } from '../src/lib/schema.js'
 import store from '../src/lib/store.js'
-import token from '../src/lib/token.js'
-import { noop } from '../src/lib/util.js'
+import token from '../src/lib/tokens.js'
 
 import api from '../src/api/plugin.js'
 import invokerController from '../src/invoker/controller.js'
 import invokerRouter from '../src/invoker/router.js'
-import invokerSpawn from '../src/invoker/spawn.js'
 
 /**
  * See `package.json` for test envs.
  */
-export default function createTestServer() {
+export default function createTestServer(adminPassword: string) {
   const fastify = Fastify.default({
     ajv: {
       customOptions: {
@@ -47,27 +42,14 @@ export default function createTestServer() {
 
   addSchema(fastify)
 
-  // Just a random password
-  const adminPassword = uuid()
-
-  // Authorization header
-  const authorization = basicAuthorization('admin', adminPassword)
-
   fastify.register(token, { secret: uuid() })
   fastify.register(error)
-  fastify.register(events)
   fastify.register(noAdditionalProperties, {
     body: true,
     headers: false,
     params: true,
     query: true,
     response: true,
-  })
-
-  fastify.decorate('kubernetes', {
-    getter() {
-      throw new Error('Kubernetes plugin not available')
-    },
   })
 
   // Super Power Ninja Turbo Neo Ultra Hyper Mega Multi Alpha Meta Extra Uber Prefix __HACK__
@@ -95,19 +77,6 @@ export default function createTestServer() {
     set: () => pool,
   })
 
-  const asyncNoop = () => Promise.resolve()
-  const helmsman: FastifyInstance['helmsman'] = {
-    namespace: 'default',
-    createPod: pod => Promise.resolve(pod),
-    deleteInvocationPods: asyncNoop,
-    deletePod: asyncNoop,
-    getPodByInvocationId: () => Promise.resolve(null),
-    pushFunctionSecrets: asyncNoop,
-    watchPods: () => noop,
-  }
-
-  fastify.decorate('helmsman', helmsman)
-
   fastify.decorate('tasks', {
     getter() {
       throw new Error('Tasks plugin not available')
@@ -125,9 +94,10 @@ export default function createTestServer() {
     adminPassword,
     invokerUrl: url,
   })
-  fastify.register(invokerController)
-  fastify.register(invokerRouter)
-  fastify.register(invokerSpawn, {
+  fastify.register(invokerController, {
+    invokerUrl: url,
+  })
+  fastify.register(invokerRouter, {
     invokerUrl: url,
   })
 
@@ -136,5 +106,5 @@ export default function createTestServer() {
     await fastify.store.nano.info()
   })
 
-  return { adminPassword, authorization, fastify }
+  return fastify
 }

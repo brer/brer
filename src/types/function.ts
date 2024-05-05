@@ -32,6 +32,10 @@ export interface Fn extends BrerDocument {
    * Kubernetes resources configuration.
    */
   resources?: FnResources
+  /**
+   * When `true` the Function will allow only one active Invocation.
+   */
+  sequential?: boolean
 }
 
 export type FnImage = ContainerImage

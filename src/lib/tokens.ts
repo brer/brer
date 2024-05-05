@@ -184,7 +184,7 @@ async function signRegistryAccessToken(
 
 declare module 'fastify' {
   interface FastifyInstance {
-    token: {
+    tokens: {
       signApiToken(username: string): Promise<SignedToken>
       signInvocationToken(
         invocationId: string,
@@ -222,7 +222,7 @@ export interface PluginOptions {
 async function tokenPlugin(fastify: FastifyInstance, options: PluginOptions) {
   const { privateKey, publicKeys } = await createKeys(options)
 
-  const decorator: FastifyInstance['token'] = {
+  const decorator: FastifyInstance['tokens'] = {
     signApiToken(username) {
       return signApiToken(privateKey, username)
     },

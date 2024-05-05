@@ -29,7 +29,10 @@ export interface ErrorOptions {
   code?: string
   message?: string
   info?: Record<string, unknown>
-  status?: number
+  /**
+   * @default 500
+   */
+  statusCode?: number
 }
 
 export type RequestResult<T = unknown> = IResult<T, ErrorOptions>
@@ -46,13 +49,13 @@ async function errorPlugin(fastify: FastifyInstance) {
         code: 'VALIDATION_ERROR',
         info: { errors: err.validation },
         message: 'Some request parameters are not valid.',
-        status: 400,
+        statusCode: 400,
       })
     } else {
       request.log.error({ err }, 'unhandled error')
       reply.sendError({
         message: 'Unknown error.',
-        status: 500,
+        statusCode: 500,
       })
     }
   })
@@ -86,7 +89,7 @@ async function errorPlugin(fastify: FastifyInstance) {
   })
 
   function errorMethod(this: FastifyReply, options: ErrorOptions = {}) {
-    const statusCode = options.status || notOk(this.statusCode)
+    const statusCode = options.statusCode || notOk(this.statusCode)
     if (this.statusCode !== statusCode) {
       this.code(statusCode)
     }
@@ -120,17 +123,23 @@ function getDefaultErrorCode(statusCode: number): string {
     case 400:
       return 'BAD_REQUEST'
     case 401:
-      return 'NOT_AUTHENTICATED'
+      return 'UNAUTHORIZED'
     case 403:
-      return 'ACCESS_DENIED'
+      return 'FORBIDDEN'
     case 404:
-      return 'RESOURCE_NOT_FOUND'
+      return 'NOT_FOUND'
     case 409:
-      return 'CONFLICTING_REQUEST'
+      return 'CONFLICT'
+    case 410:
+      return 'GONE'
     case 412:
       return 'PRECONDITION_FAILED'
+    case 422:
+      return 'UNPROCESSABLE_CONTENT'
+    case 500:
+      return 'INTERNAL_SERVER_ERROR'
     default:
-      return 'INTERNAL_ERROR'
+      return 'UNKNOWN_ERROR'
   }
 }
 

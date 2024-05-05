@@ -7,7 +7,7 @@ import Result from 'ultres'
 import { type RequestResult } from '../lib/error.js'
 import { parseAuthorization } from '../lib/header.js'
 import { getProjectByName } from '../lib/project.js'
-import { API_ISSUER, type Token } from '../lib/token.js'
+import { API_ISSUER, type Token } from '../lib/tokens.js'
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -89,7 +89,7 @@ async function authPlugin(
           role: userRole,
           project: projectName,
         },
-        status: 403,
+        statusCode: 403,
       })
     }
   }
@@ -115,7 +115,7 @@ async function authPlugin(
 
     return projects.length
       ? Result.ok(projects)
-      : Result.err({ message: 'Insufficient permissions.', status: 403 })
+      : Result.err({ message: 'Insufficient permissions.', statusCode: 403 })
   }
 
   /**
@@ -137,7 +137,7 @@ async function authPlugin(
       // Other services will not accept raw credentials
       request.session = {
         type: 'basic',
-        token: await fastify.token.signApiToken(authorization.username),
+        token: await fastify.tokens.signApiToken(authorization.username),
       }
       return
     }
@@ -161,7 +161,7 @@ async function authPlugin(
         try {
           request.session = {
             type,
-            token: await fastify.token.verifyToken(
+            token: await fastify.tokens.verifyToken(
               token,
               API_ISSUER,
               request.routeOptions.config.admin
@@ -233,7 +233,7 @@ function adminOnly(
     } else {
       return Result.err({
         message: 'Invalid credentials',
-        status: 401,
+        statusCode: 401,
       })
     }
   }
@@ -274,7 +274,7 @@ function useGateway(
     } else if (response.statusCode === 401 || response.statusCode === 403) {
       return Result.err({
         message: 'Invalid credentials',
-        status: 401,
+        statusCode: 401,
       })
     } else {
       fastify.log.error(
@@ -287,7 +287,7 @@ function useGateway(
       return Result.err({
         message: 'Unexpected authentication gateway response. See logs.',
         info: { statusCode: response.statusCode },
-        status: 409,
+        statusCode: 409,
       })
     }
   }

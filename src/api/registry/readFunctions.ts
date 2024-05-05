@@ -1,7 +1,7 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
-import { REGISTRY_ISSUER } from '../../lib/token.js'
+import { REGISTRY_ISSUER } from '../../lib/tokens.js'
 
 interface PartialFn {
   name: string

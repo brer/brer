@@ -2,9 +2,9 @@ import type { FastifyInstance } from '@brer/fastify'
 import type { Fn, FnEnv } from '@brer/function'
 import Result from 'ultres'
 
-import type { ErrorOptions, RequestResult } from '../lib/error.js'
+import type { RequestResult } from '../lib/error.js'
 import { getFunctionSecretName } from '../lib/function.js'
-import { type Token } from '../lib/token.js'
+import { type Token } from '../lib/tokens.js'
 
 export interface InvokeOptions {
   /**
@@ -57,11 +57,11 @@ export async function invoke(
 
   const body: any = await response.body.json()
   if (response.statusCode === 201) {
-    return Result.ok<{ _id: string }>(body.invocation)
+    return Result.ok(body.invocation)
   } else {
-    return Result.err<ErrorOptions>({
+    return Result.err({
       ...body.error,
-      status: response.statusCode,
+      statusCode: response.statusCode,
     })
   }
 }
@@ -122,9 +122,9 @@ export async function pushFunctionSecrets(
     return Result.ok(null)
   } else {
     const data: any = await response.body.json()
-    return Result.err<ErrorOptions>({
+    return Result.err({
       ...data.error,
-      status: response.statusCode,
+      statusCode: response.statusCode,
     })
   }
 }
@@ -149,9 +149,9 @@ export async function pullFunctionSecrets(
     return Result.ok(null)
   } else {
     const data: any = await response.body.json()
-    return Result.err<ErrorOptions>({
+    return Result.err({
       ...data.error,
-      status: response.statusCode,
+      statusCode: response.statusCode,
     })
   }
 }
@@ -179,9 +179,9 @@ export async function deleteInvocation(
     log.debug({ invocationId }, 'invocation deleted')
     return Result.ok()
   } else {
-    return Result.err<ErrorOptions>({
+    return Result.err({
       ...body.error,
-      status: response.statusCode,
+      statusCode: response.statusCode,
     })
   }
 }
@@ -209,11 +209,11 @@ export async function stopInvocation(
   if (response.statusCode === 200) {
     return Result.ok()
   } else if (response.statusCode === 404) {
-    return Result.err({ status: 404 })
+    return Result.err({ statusCode: 404 })
   } else {
-    return Result.err<ErrorOptions>({
+    return Result.err({
       ...data.error,
-      status: response.statusCode,
+      statusCode: response.statusCode,
     })
   }
 }

@@ -1,10 +1,11 @@
 import type { FastifyRequest, RouteOptions } from '@brer/fastify'
-import type { FnEnv, FnResources } from '@brer/function'
+import type { FnEnv } from '@brer/function'
 import S from 'fluent-json-schema-es'
 import Result from 'ultres'
 
 import type { RequestResult } from '../../lib/error.js'
 import {
+  type UpdateFunctionOptions,
   createFunction,
   getFunctionByName,
   updateFunction,
@@ -30,6 +31,7 @@ export interface RouteGeneric {
     image: string | ContainerImage
     project?: string
     historyLimit?: number
+    sequential?: boolean
     resources?: {
       requests?: {
         cpu?: string
@@ -118,6 +120,7 @@ export default (): RouteOptions<RouteGeneric> => ({
           .pattern(/^[a-zA-Z0-9_\-]+$/),
       )
       .prop('historyLimit', S.integer().minimum(0))
+      .prop('sequential', S.boolean())
       .prop(
         'resources',
         S.object()
@@ -188,6 +191,11 @@ export default (): RouteOptions<RouteGeneric> => ({
       .update(fn => updateFunction(fn, body))
       .unwrap()
 
+    if (!newFn) {
+      // This shouldn't be possible
+      throw new Error('Expected Function document')
+    }
+
     const reference = await getFunctionByName(
       store,
       params.functionName,
@@ -229,19 +237,10 @@ export default (): RouteOptions<RouteGeneric> => ({
   },
 })
 
-interface ParsedRequest {
-  env: FnEnv[]
-  historyLimit?: number
-  image: ContainerImage
-  name: string
-  project: string
-  resources: FnResources
-}
-
 function parseRequest({
   body,
   params,
-}: FastifyRequest<RouteGeneric>): RequestResult<ParsedRequest> {
+}: FastifyRequest<RouteGeneric>): RequestResult<UpdateFunctionOptions> {
   const image =
     typeof body.image === 'string' ? parseImagePath(body.image) : body.image
   if (!image) {
@@ -300,6 +299,7 @@ function parseRequest({
       limits: body.resources?.limits || {},
       requests: body.resources?.requests || {},
     },
+    sequential: body.sequential === true,
   })
 }
 

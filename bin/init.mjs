@@ -111,8 +111,13 @@ const mapInvocationsByProject = `
 
 const mapAliveInvocations = `
   function (doc) {
-    if (doc.status === 'pending' || doc.status === 'initializing' || doc.status === 'running') {
-      emit(doc.createdAt, null)
+    if (
+      doc.status === 'pending' ||
+      doc.status === 'initializing' ||
+      doc.status === 'running' ||
+      (doc.status === 'failed' && doc.retries)
+    ) {
+      emit([doc.createdAt, doc.functionName], null)
     }
   }
 `

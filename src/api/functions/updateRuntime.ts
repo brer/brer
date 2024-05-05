@@ -4,7 +4,7 @@ import S from 'fluent-json-schema-es'
 
 import { getFunctionByName } from '../../lib/function.js'
 import { isSameImage, type ContainerImage } from '../../lib/image.js'
-import { INVOKER_ISSUER } from '../../lib/token.js'
+import { INVOKER_ISSUER } from '../../lib/tokens.js'
 
 export interface RouteGeneric {
   Body: {
@@ -68,7 +68,7 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.code(403).error({ message: 'Foreign Function write.' })
     }
     if (!isSameImage(oldFn.image, body.image, true)) {
-      return reply.code(409).error({ message: 'Image mismatch.' })
+      return reply.code(422).error({ message: 'Image mismatch.' })
     }
 
     const newFn = await store.functions

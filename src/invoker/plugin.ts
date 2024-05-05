@@ -3,9 +3,8 @@ import kubernetes, { type FastifyKubernetesOptions } from 'fastify-kubernetes'
 import plugin from 'fastify-plugin'
 
 import controller from './controller.js'
-import helmsman from './helmsman.js'
+import events from './events.js'
 import router from './router.js'
-import spawn from './spawn.js'
 
 export interface PluginOptions {
   apiUrl: URL
@@ -16,10 +15,9 @@ export interface PluginOptions {
 async function invokerPlugin(fastify: FastifyInstance, options: PluginOptions) {
   fastify.pools.set('api', options.apiUrl)
 
+  fastify.register(events)
   fastify.register(kubernetes, options.kubernetes)
-  fastify.register(helmsman)
-  fastify.register(controller)
-  fastify.register(spawn, { invokerUrl: options.invokerUrl })
+  fastify.register(controller, { invokerUrl: options.invokerUrl })
   fastify.register(router)
 }
 

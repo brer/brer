@@ -4,7 +4,7 @@ import S from 'fluent-json-schema-es'
 import { type CouchDocumentAttachment } from 'mutent-couchdb'
 import { v4 as uuid } from 'uuid'
 
-import { API_ISSUER, REGISTRY_ISSUER } from '../../lib/token.js'
+import { API_ISSUER, REGISTRY_ISSUER } from '../../lib/tokens.js'
 
 export interface RouteGeneric {
   Body: {
@@ -20,6 +20,7 @@ export interface RouteGeneric {
      * Payload's content type.
      */
     contentType?: string
+    retries?: number
     runtimeTest?: boolean
     resources?: {
       requests?: {
@@ -60,8 +61,9 @@ export default (): RouteOptions<RouteGeneric> => ({
       .required()
       .prop('project', S.string().minLength(1))
       .required()
-      .prop('payload', S.string())
+      .prop('payload', S.string().pattern(/^[A-Za-z0-9+/]*={0,3}$/))
       .prop('contentType', S.string())
+      .prop('retries', S.integer().minimum(0).maximum(10).default(0))
       .prop('runtimeTest', S.boolean())
       .prop(
         'resources',
@@ -87,11 +89,10 @@ export default (): RouteOptions<RouteGeneric> => ({
     const { events, store } = this
     const { body } = request
 
-    const invocationId = uuid()
+    const attachments: Record<string, CouchDocumentAttachment> = {}
     const now = new Date()
     const status = 'pending'
 
-    const attachments: Record<string, CouchDocumentAttachment> = {}
     if (body.payload?.length) {
       attachments.payload = {
         content_type: body.contentType || 'application/octet-stream',
@@ -101,7 +102,7 @@ export default (): RouteOptions<RouteGeneric> => ({
 
     const invocation = await store.invocations
       .create({
-        _id: invocationId,
+        _id: uuid(),
         _attachments: attachments,
         status,
         phases: [
@@ -110,17 +111,18 @@ export default (): RouteOptions<RouteGeneric> => ({
             status,
           },
         ],
-        runtimeTest: body.runtimeTest,
         env: body.env,
         image: body.image,
         functionName: body.functionName,
         project: body.project,
         createdAt: now.toISOString(),
         resources: body.resources,
+        retries: body.retries || 0,
+        runtimeTest: body.runtimeTest,
       })
       .unwrap()
 
-    events.emit('brer.io/invoker/invocations/created', { invocation })
+    events.emit('brer.io/invocations/created', invocation._id)
 
     reply.code(201)
     return { invocation }

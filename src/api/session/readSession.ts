@@ -1,7 +1,7 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
-import { API_ISSUER, REGISTRY_ISSUER } from '../../lib/token.js'
+import { API_ISSUER, REGISTRY_ISSUER } from '../../lib/tokens.js'
 
 export default (): RouteOptions => ({
   method: 'GET',

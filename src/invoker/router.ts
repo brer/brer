@@ -1,8 +1,10 @@
 import type { FastifyContext, FastifyInstance } from '@brer/fastify'
+import type { V1Secret } from '@kubernetes/client-node'
+import plugin from 'fastify-plugin'
 import S from 'fluent-json-schema-es'
 
 import { getFunctionSecretName } from '../lib/function.js'
-import { API_ISSUER } from '../lib/token.js'
+import { API_ISSUER } from '../lib/tokens.js'
 
 import createInvocationV1 from './invocations/createInvocation.js'
 import deleteInvocationV1 from './invocations/deleteInvocation.js'
@@ -12,7 +14,7 @@ import readPayloadV1 from './invocations/readPayload.js'
 import updateInvocationV1 from './invocations/updateInvocation.js'
 import auth from './auth.js'
 
-export default async function routerPlugin(fastify: FastifyInstance) {
+async function routerPlugin(fastify: FastifyInstance) {
   fastify.register(auth)
 
   interface RouteGeneric {
@@ -36,11 +38,40 @@ export default async function routerPlugin(fastify: FastifyInstance) {
       },
     },
     async handler(request, reply) {
-      const { helmsman } = this
+      const { kubernetes } = this
       const { body, params } = request
 
-      // TODO: handle errors
-      await helmsman.pushFunctionSecrets(params.functionName, body)
+      const secretName = getFunctionSecretName(params.functionName)
+
+      const template: V1Secret = {
+        apiVersion: 'v1',
+        kind: 'Secret',
+        type: 'Opaque',
+        metadata: {
+          name: secretName,
+          labels: {
+            'app.kubernetes.io/managed-by': 'brer.io',
+            'brer.io/function-name': params.functionName,
+          },
+        },
+        stringData: body,
+      }
+
+      await kubernetes.api.CoreV1Api.patchNamespacedSecret(
+        secretName,
+        kubernetes.namespace,
+        template,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        {
+          headers: {
+            'Content-Type': 'application/apply-patch+yaml',
+          },
+        },
+      )
 
       return reply.code(204).send()
     },
@@ -81,3 +112,9 @@ export default async function routerPlugin(fastify: FastifyInstance) {
     .route(readPayloadV1())
     .route(updateInvocationV1())
 }
+
+export default plugin(routerPlugin, {
+  decorators: {
+    fastify: ['events', 'invoker', 'kubernetes'],
+  },
+})

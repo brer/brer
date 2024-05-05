@@ -3,7 +3,7 @@ import S from 'fluent-json-schema-es'
 
 import { getContinueToken, parseContinueToken } from '../../lib/pagination.js'
 import { asInteger } from '../../lib/qs.js'
-import { API_ISSUER } from '../../lib/token.js'
+import { API_ISSUER } from '../../lib/tokens.js'
 
 export interface RouteGeneric {
   Querystring: {

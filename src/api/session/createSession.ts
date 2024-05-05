@@ -51,7 +51,7 @@ export default (
     },
   },
   async handler(request, reply) {
-    const { auth } = this
+    const { auth, tokens } = this
     const { body } = request
 
     const result = await this.auth.authenticate(body.username, body.password)
@@ -60,7 +60,7 @@ export default (
     }
 
     const [token, projects] = await Promise.all([
-      this.token.signApiToken(body.username),
+      tokens.signApiToken(body.username),
       auth.getProjects(body.username),
     ])
     if (projects.isErr) {

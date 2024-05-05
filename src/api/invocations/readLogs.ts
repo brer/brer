@@ -3,7 +3,7 @@ import type { Invocation } from '@brer/invocation'
 import S from 'fluent-json-schema-es'
 import { Readable } from 'node:stream'
 
-import { API_ISSUER } from '../../lib/token.js'
+import { API_ISSUER } from '../../lib/tokens.js'
 
 export interface RouteGeneric {
   Params: {

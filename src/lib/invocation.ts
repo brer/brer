@@ -3,10 +3,9 @@ import type {
   InvocationLog,
   InvocationStatus,
 } from '@brer/invocation'
+import { randomBytes } from 'node:crypto'
 
-import { isOlderThan } from './util.js'
-
-function pushInvocationStatus(
+function pushStatus(
   invocation: Invocation,
   status: InvocationStatus,
 ): Invocation {
@@ -24,31 +23,61 @@ function pushInvocationStatus(
 }
 
 /**
- * Move Invocation from "pending" to "initializing" status.
+ * From `pending` (or `failed`) to `initializing`.
  */
 export function handleInvocation(invocation: Invocation): Invocation {
-  if (invocation.status !== 'pending') {
-    throw new Error('Invocation must be pending to init')
+  if (invocation.status !== 'failed' && invocation.status !== 'pending') {
+    throw new Error('Expected failed or pending Invocation')
   }
-  return pushInvocationStatus(invocation, 'initializing')
+
+  let retries = invocation.retries || 0
+  if (invocation.status === 'failed') {
+    retries--
+  }
+  if (retries < 0) {
+    throw new Error('Unexpected Invocation retry')
+  }
+
+  const suffix = invocation.suffix || randomBytes(4).toString('hex')
+
+  const _attachments = { ...invocation._attachments }
+  if (invocation.logs) {
+    for (const log of invocation.logs) {
+      delete _attachments[log.attachment]
+    }
+  }
+
+  return pushStatus(
+    {
+      ...invocation,
+      _attachments,
+      logs: [],
+      retries,
+      suffix,
+    },
+    'initializing',
+  )
 }
 
 /**
- * Move Invocation from "initializing" to "running" status.
+ * From `initializing` (or `failed`) to `running`.
  */
 export function runInvocation(invocation: Invocation): Invocation {
   if (invocation.status !== 'initializing') {
-    throw new Error('Invocation must be initializing to run')
+    throw new Error('Expected initializing Invocation')
   }
-  return pushInvocationStatus(invocation, 'running')
+  return pushStatus(invocation, 'running')
 }
 
+/**
+ * Set a "partial result" during the `running` status.
+ */
 export function progressInvocation(
   invocation: Invocation,
   result: unknown = null,
 ): Invocation {
   if (invocation.status !== 'running') {
-    throw new Error('Invocation must be running to progress')
+    throw new Error('Expected running Invocation')
   }
 
   const phases = invocation.phases.filter(p => p.status !== 'progress')
@@ -73,9 +102,9 @@ export function completeInvocation(
   result: unknown = null,
 ): Invocation {
   if (invocation.status !== 'running') {
-    throw new Error('Invocation must be running to complete')
+    throw new Error('Expected running Invocation')
   }
-  return pushInvocationStatus({ ...invocation, result }, 'completed')
+  return pushStatus({ ...invocation, result }, 'completed')
 }
 
 /**
@@ -83,44 +112,19 @@ export function completeInvocation(
  */
 export function failInvocation(
   invocation: Invocation,
-  reason: unknown = 'unknown error',
+  reason: unknown,
 ): Invocation {
-  switch (invocation.status) {
-    case 'failed':
-      return invocation
-    case 'initializing':
-    case 'pending':
-    case 'running':
-      return pushInvocationStatus(
-        {
-          ...invocation,
-          reason,
-          result: undefined, // clean last progress update
-        },
-        'failed',
-      )
-    default:
-      throw new Error(
-        `Cannot fail Invocation ${invocation._id} (status is ${invocation.status})`,
-      )
+  if (invocation.status === 'completed') {
+    throw new Error('Unexpected Invocation status')
+  }
+  return {
+    ...invocation,
+    reason,
+    result: undefined, // clean last progress update
   }
 }
 
-/**
- * invocation has reached "init timeout"
- */
-export function hasTimedOut(invocation: Invocation): boolean {
-  if (invocation.status === 'initializing') {
-    const phase = invocation.phases.find(item => item.status === 'initializing')
-    if (phase) {
-      // TODO: should be a env var
-      return isOlderThan(phase.date, 600) // 10 minutes (seconds)
-    }
-  }
-  return false
-}
-
-export function putLogPage(
+export function pushLogPage(
   doc: Invocation,
   buffer: Buffer,
   index: number,
@@ -158,18 +162,5 @@ export function putLogPage(
     },
     logs,
     updatedAt: now.toISOString(),
-  }
-}
-
-export function setTokenId(
-  invocation: Invocation,
-  tokenId: string,
-): Invocation {
-  if (invocation.status !== 'initializing') {
-    throw new Error(`Expected Invocation ${invocation._id} to be initializing`)
-  }
-  return {
-    ...invocation,
-    tokenId,
   }
 }

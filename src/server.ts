@@ -2,13 +2,12 @@ import Fastify from 'fastify'
 import noAdditionalProperties from 'fastify-no-additional-properties'
 
 import error from './lib/error.js'
-import events from './lib/events.js'
 import pools from './lib/pools.js'
 import probes from './lib/probes.js'
 import { addSchema } from './lib/schema.js'
 import store from './lib/store.js'
 import tasks from './lib/tasks.js'
-import token from './lib/token.js'
+import tokens from './lib/tokens.js'
 
 import api from './api/plugin.js'
 import invoker from './invoker/plugin.js'
@@ -49,7 +48,7 @@ export default function createServer() {
 
   addSchema(fastify)
 
-  fastify.register(token, {
+  fastify.register(tokens, {
     secret: process.env.JWT_SECRET,
     privateKey: process.env.JWT_PRIVATE_KEY,
     publicKeys: pickDefined(
@@ -60,8 +59,8 @@ export default function createServer() {
   })
 
   fastify.register(error)
-  fastify.register(events)
   fastify.register(tasks)
+  fastify.register(pools)
   fastify.register(noAdditionalProperties, {
     body: true,
     headers: false,
@@ -70,19 +69,19 @@ export default function createServer() {
     response: true,
   })
 
-  fastify.register(store, {
-    url: process.env.COUCHDB_URL,
-    username: process.env.COUCHDB_USERNAME,
-    password: process.env.COUCHDB_PASSWORD,
-  })
+  const modes = process.env.SERVER_MODE?.split(',') || ['api']
+  if (modes.includes('api') || modes.includes('invoker')) {
+    fastify.register(store, {
+      url: process.env.COUCHDB_URL,
+      username: process.env.COUCHDB_USERNAME,
+      password: process.env.COUCHDB_PASSWORD,
+    })
+  }
 
   fastify.register(probes)
-  fastify.register(pools)
 
   const k8s = !!process.env.KUBERNETES_SERVICE_HOST
   const namespace = process.env.K8S_NAMESPACE || 'default'
-
-  const modes = process.env.SERVER_MODE?.split(',') || ['api']
 
   const serverPort = parseInt(process.env.SERVER_PORT || '3000')
   const publicUrl = process.env.PUBLIC_URL || `http://127.0.0.1:${serverPort}/`

@@ -24,10 +24,12 @@ export function createFunction(fnName: string): Fn {
   }
 }
 
-export function updateFunction(
-  fn: Fn,
-  options: Pick<Fn, 'env' | 'historyLimit' | 'image' | 'project' | 'resources'>,
-): Fn {
+export type UpdateFunctionOptions = Pick<
+  Fn,
+  'env' | 'historyLimit' | 'image' | 'project' | 'resources' | 'sequential'
+>
+
+export function updateFunction(fn: Fn, options: UpdateFunctionOptions): Fn {
   const update: Fn = {
     ...fn,
     env: options.env.map(stripSecretValue),
@@ -35,6 +37,7 @@ export function updateFunction(
     image: options.image,
     project: options.project,
     resources: options.resources,
+    sequential: options.sequential,
   }
   if (
     !isSameImage(fn.image, update.image) ||

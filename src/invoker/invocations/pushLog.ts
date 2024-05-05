@@ -1,7 +1,7 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
-import { putLogPage } from '../../lib/invocation.js'
+import { pushLogPage } from '../../lib/invocation.js'
 import { asInteger } from '../../lib/qs.js'
 
 export interface RouteGeneric {
@@ -28,26 +28,24 @@ export default (): RouteOptions<RouteGeneric> => ({
   },
   async handler(request, reply) {
     const { store } = this
-    const { body, params, token } = request
-
-    const buffer = Buffer.from(body, 'utf-8')
+    const { body, params } = request
 
     const invocation = await store.invocations
       .find(params.invocationId)
-      .update(doc =>
-        doc.tokenId === token.id && doc.status === 'running'
-          ? putLogPage(doc, buffer, params.pageIndex)
-          : doc,
-      )
       .unwrap()
 
     if (!invocation) {
       return reply.code(404).error()
-    } else if (invocation.tokenId !== token.id) {
-      return reply.code(403).error({ message: 'Token invalidated.' })
     } else if (invocation.status !== 'running') {
-      return reply.code(409).error({ message: 'Invalid Invocation status.' })
+      return reply.code(422).error({ message: 'Invalid Invocation status.' })
     }
+
+    await store.invocations
+      .from(invocation)
+      .update(doc =>
+        pushLogPage(doc, Buffer.from(body, 'utf-8'), params.pageIndex),
+      )
+      .unwrap()
 
     return reply.code(204).send()
   },

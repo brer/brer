@@ -4,7 +4,7 @@ import { parse as parseQS } from 'node:querystring'
 import type { Readable } from 'node:stream'
 
 import { basicAuthorization, parseAuthorization } from '../lib/header.js'
-import { REGISTRY_ISSUER } from '../lib/token.js'
+import { REGISTRY_ISSUER } from '../lib/tokens.js'
 import postOauth from './oauth.js'
 import { getFunctionsList, patchImageTag } from './request.js'
 import getToken from './token.js'
@@ -79,7 +79,7 @@ async function registryPlugin(
       }
 
       try {
-        request.token = await fastify.token.verifyToken(
+        request.token = await fastify.tokens.verifyToken(
           authorization.token,
           REGISTRY_ISSUER,
           REGISTRY_ISSUER,

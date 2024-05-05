@@ -17,6 +17,9 @@ export interface Invocation extends BrerDocument {
    * Available when status is "failed".
    */
   reason?: any
+  /**
+   * List of past statuses.
+   */
   phases: InvocationPhase[]
   /**
    * Source Function's name.
@@ -27,10 +30,6 @@ export interface Invocation extends BrerDocument {
    * Test runs are flagged here.
    */
   env: FnEnv[]
-  /**
-   * JWT identifier.
-   */
-  tokenId?: string
   /**
    * Internal property. List of received log pages.
    */
@@ -44,9 +43,20 @@ export interface Invocation extends BrerDocument {
    */
   runtimeTest?: boolean
   /**
-   *
+   * Allowed resources.
    */
   resources?: FnResources
+  /**
+   * Number of retries after a failure.
+   * This value will be decreased.
+   *
+   * @default 0
+   */
+  retries?: number
+  /**
+   * Random bytes (hex) suffixed to Pod's names.
+   */
+  suffix?: string
 }
 
 export type InvocationImage = FnImage

@@ -1,101 +1,142 @@
 import type { FastifyInstance } from '@brer/fastify'
-import type { Invocation } from '@brer/invocation'
-import type { V1Pod } from '@kubernetes/client-node'
-import Queue from 'fastq'
+import { Watch } from '@kubernetes/client-node'
+import plugin from 'fastify-plugin'
 
-import { noop } from '../lib/util.js'
-import { type WatchPhase, getPodStatus } from './kubernetes.js'
-import { failWithReason } from './lib.js'
+import {
+  getActiveInvocationIds,
+  getPodInvocationId,
+  reconcileByInvocationId,
+} from './reconcile.js'
 
-interface QueueItem {
-  pod: V1Pod
-  phase: WatchPhase
+export interface PluginOptions {
+  invokerUrl: URL
 }
 
-export default async function controllerPlugin(fastify: FastifyInstance) {
-  const { helmsman, log } = fastify
+async function controllerPlugin(
+  fastify: FastifyInstance,
+  { invokerUrl }: PluginOptions,
+) {
+  const { events, kubernetes, log } = fastify
 
-  const queue = Queue.promise(
-    ({ phase, pod }: QueueItem) => handlePodEvent(fastify, pod, phase),
-    1,
-  )
+  const watcher = new Watch(kubernetes.config)
 
-  // Start the queue when the server is ready
-  queue.pause()
+  // Watcher's request object
+  let request: any
 
-  const onEvent = (phase: WatchPhase, pod: V1Pod) => {
-    log.trace({ pod: pod.metadata?.name, phase }, 'received pod event')
-    queue
-      .push({ phase, pod })
-      .catch(err =>
-        log.error({ pod: pod.metadata?.name, phase, err }, 'pod sync error'),
-      )
+  // Queued Invocations' identifiers
+  const queue: string[] = []
 
-    // TODO: retry after X seconds on error?
+  // Number of reconciliation attempts done for a single Inovocation
+  let attempts = 0
+
+  // Server is closing
+  let closed = false
+
+  // Current queue process
+  let promise: Promise<void> = Promise.resolve()
+
+  const worker = async () => {
+    while (!closed && queue.length > 0) {
+      const invocationId = queue[0]
+
+      attempts++
+      try {
+        await reconcileByInvocationId(fastify, invokerUrl, invocationId)
+        attempts = 0
+        queue.shift()
+      } catch (err) {
+        log.error(
+          { invocationId, attempts, err },
+          'error during the reconciliation',
+        )
+      }
+    }
   }
 
-  let stop = noop
+  const push = (invocationId: string) => {
+    if (!closed) {
+      if (queue.push(invocationId) === 1) {
+        promise = worker()
+      }
+    }
+  }
+
+  const watchPods = async (done: (err: any) => void) => {
+    request = await watcher.watch(
+      `/api/v1/namespaces/${kubernetes.namespace}/pods`,
+      { labelSelector: 'app.kubernetes.io/managed-by=brer.io' },
+      (phase: any, pod: any) => {
+        if (!closed) {
+          const invocationId = getPodInvocationId(pod)
+          if (!invocationId) {
+            log.warn({ podName: pod.metadata.name }, 'found an extraneous pod')
+          } else {
+            push(invocationId)
+          }
+        }
+      },
+      done,
+    )
+  }
+
+  const keepWatching = () => {
+    const callback = (err: unknown) => {
+      if (!closed) {
+        log.warn({ err }, 'pods watcher has been closed')
+        process.nextTick(keepWatching)
+      }
+    }
+
+    watchPods(callback).catch(callback)
+  }
+
+  const spawnAll = async () => {
+    if (!closed) {
+      const invocationIds = await getActiveInvocationIds(fastify)
+      for (const invocationId of invocationIds) {
+        push(invocationId)
+      }
+    }
+  }
 
   fastify.addHook('onReady', async () => {
-    stop = helmsman.watchPods(onEvent)
-    queue.resume()
+    log.debug('watch pods')
+    await watchPods(err => {
+      log.warn({ err }, 'pods watcher has been closed')
+      process.nextTick(keepWatching)
+    })
+
+    log.debug('initialize pending invocations')
+    await spawnAll()
   })
+
+  events
+    .on('brer.io/invocations/created', push)
+    .on('brer.io/invocations/updated', push)
+    .on('brer.io/invocations/deleted', push)
+
+  events.on('brer.io/invocations/died', () =>
+    spawnAll().catch(err =>
+      log.error({ err }, "couldn't spawn next invocations"),
+    ),
+  )
 
   fastify.addHook('onClose', async () => {
-    stop()
+    // Prevent new events to be pushed
+    closed = true
 
-    // Empty the queue
-    queue.kill()
+    // Close current watch request
+    if (request) {
+      request.destroy()
+    }
 
-    // wait for current jobs to close
-    await queue.drained()
+    // Wait for queue to be drained
+    await promise
   })
 }
 
-async function handlePodEvent(
-  fastify: FastifyInstance,
-  pod: V1Pod,
-  phase: WatchPhase,
-) {
-  const invocationId = pod.metadata?.labels?.['brer.io/invocation-id']
-  if (!invocationId) {
-    // Not managed by Brer, just ignore
-    return
-  }
-
-  const { helmsman, store } = fastify
-
-  const invocation = await store.invocations.find(invocationId).unwrap()
-  let deletePod = false
-
-  if (phase === 'DELETED') {
-    if (
-      invocation &&
-      invocation.status !== 'completed' &&
-      invocation.status !== 'failed'
-    ) {
-      // Pod was manually deleted (fail its Invocation)
-      await failWithReason(fastify, invocation, 'pod deletion')
-    }
-  } else {
-    deletePod = shouldDeletePod(pod, invocation)
-  }
-
-  if (deletePod) {
-    await helmsman.deletePod(pod)
-  }
-}
-
-function shouldDeletePod(pod: V1Pod, invocation: Invocation | null): boolean {
-  if (
-    invocation &&
-    (invocation.status === 'completed' || invocation.status === 'failed') &&
-    getPodStatus(pod) === 'Succeeded'
-  ) {
-    // Both Invocation and Pod closed correctly
-    return true
-  } else {
-    // Debug needed :)
-    return false
-  }
-}
+export default plugin(controllerPlugin, {
+  decorators: {
+    fastify: ['events', 'kubernetes'],
+  },
+})

@@ -2,15 +2,6 @@ import { type BrerDocument } from '@brer/couchdb'
 import { type Entity } from 'mutent'
 
 /**
- * Get last item of an array
- */
-export function tail<T>(items: T[] | undefined): T | undefined {
-  if (items?.length) {
-    return items[items.length - 1]
-  }
-}
-
-/**
  * date is older than seconds
  */
 export function isOlderThan(
@@ -61,8 +52,4 @@ export async function* fixDuplicates<T extends BrerDocument>(
 
 export function pickFirst(value: unknown, index: number) {
   return index === 0
-}
-
-export function noop() {
-  // nothing to do
 }

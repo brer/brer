@@ -68,7 +68,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     if (reference?._id !== project._id) {
       return reply.error({
         message: 'This operation conflicted with another.',
-        status: 409,
+        statusCode: 409,
       })
     }
 

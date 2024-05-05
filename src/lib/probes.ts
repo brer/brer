@@ -10,18 +10,10 @@ async function probesPlugin(fastify: FastifyInstance) {
     logLevel,
     async handler(request, reply) {
       // TODO: ping pools?
-      const [couchdb] = await Promise.all([
-        this.store.nano.info(),
+      await Promise.all([
         this.kubernetes ? this.kubernetes.api.CoreApi.getAPIVersions() : null,
+        this.store ? this.store.nano.info() : null,
       ])
-      if (couchdb.couchdb !== 'Welcome') {
-        request.log.warn({ response: couchdb }, 'unexpected couchdb response')
-        return reply.error({
-          code: 'PROBE_FAILURE',
-          message: 'Database connection error.',
-          status: 500,
-        })
-      }
 
       return reply.code(204).send()
     },
@@ -40,7 +32,4 @@ async function probesPlugin(fastify: FastifyInstance) {
 
 export default plugin(probesPlugin, {
   name: 'probes',
-  decorators: {
-    fastify: ['store'],
-  },
 })

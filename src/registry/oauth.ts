@@ -64,6 +64,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
+    const { tokens } = this
     const { body } = request
 
     if (body.service !== 'brer.io') {
@@ -81,7 +82,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     }
 
     const username = result.unwrap()
-    const accessToken = await this.token.signRegistryAccessToken(
+    const accessToken = await tokens.signRegistryAccessToken(
       username,
       getRepository(body.scope),
     )
@@ -91,7 +92,7 @@ export default (): RouteOptions<RouteGeneric> => ({
       if (body.grant_type === 'refresh_token') {
         refreshToken = body.refresh_token
       } else {
-        const obj = await this.token.signRegistryRefreshToken(username)
+        const obj = await tokens.signRegistryRefreshToken(username)
         refreshToken = obj.raw
       }
     }

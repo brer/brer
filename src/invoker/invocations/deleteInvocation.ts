@@ -1,7 +1,7 @@
 import type { RouteOptions } from '@brer/fastify'
 import S from 'fluent-json-schema-es'
 
-import { API_ISSUER } from '../../lib/token.js'
+import { API_ISSUER } from '../../lib/tokens.js'
 
 export interface RouteGeneric {
   Params: {
@@ -25,7 +25,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     },
   },
   async handler(request, reply) {
-    const { helmsman, store } = this
+    const { events, store } = this
     const { params } = request
 
     const invocation = await store.invocations
@@ -36,10 +36,9 @@ export default (): RouteOptions<RouteGeneric> => ({
       return reply.code(404).error()
     }
 
-    await Promise.all([
-      store.invocations.from(invocation).delete().consume({ purge: true }),
-      helmsman.deleteInvocationPods(params.invocationId),
-    ])
+    await store.invocations.from(invocation).delete().consume({ purge: true })
+
+    events.emit('brer.io/invocations/deleted', invocation._id)
 
     return reply.code(204).send()
   },

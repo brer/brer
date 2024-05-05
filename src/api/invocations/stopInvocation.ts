@@ -42,7 +42,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     }
 
     if (invocation.status === 'completed' || invocation.status === 'failed') {
-      return reply.code(409).error({ message: 'Invocation not running.' })
+      return reply.code(422).error({ message: 'Invocation not running.' })
     }
 
     const resStop = await stopInvocation(
@@ -51,7 +51,7 @@ export default (): RouteOptions<RouteGeneric> => ({
       params.invocationId,
     )
     if (resStop.isErr) {
-      return reply.code(409).error(resAuth.unwrapErr())
+      return reply.code(422).error(resAuth.unwrapErr())
     }
 
     return { invocation: resStop.unwrap() }

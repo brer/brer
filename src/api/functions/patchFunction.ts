@@ -4,7 +4,7 @@ import S from 'fluent-json-schema-es'
 
 import { getFunctionByName } from '../../lib/function.js'
 import { isSameImage } from '../../lib/image.js'
-import { REGISTRY_ISSUER } from '../../lib/token.js'
+import { REGISTRY_ISSUER } from '../../lib/tokens.js'
 import { invoke } from '../request.js'
 
 export interface RouteGeneric {
@@ -67,7 +67,7 @@ export default (): RouteOptions<RouteGeneric> => ({
       oldFn.image.host !== body.image.host ||
       oldFn.image.name !== body.image.name
     ) {
-      return reply.code(409).error({ message: 'Image mismatch.' })
+      return reply.code(422).error({ message: 'Image mismatch.' })
     }
     if (isSameImage(oldFn.image, body.image)) {
       return { function: oldFn }

@@ -2,7 +2,7 @@ import type { FastifyInstance } from '@brer/fastify'
 import type { FnImage } from '@brer/function'
 import Result from 'ultres'
 
-import type { ErrorOptions, RequestResult } from '../lib/error.js'
+import type { RequestResult } from '../lib/error.js'
 
 /**
  * Resolve with the username.
@@ -24,14 +24,14 @@ export async function authenticate(
   const data: any = await response.body.json()
   if (response.statusCode === 200) {
     if (data.authenticated === true) {
-      return Result.ok<string>(data.user.username)
+      return Result.ok(data.user.username)
     } else {
-      return Result.err({ status: 401 })
+      return Result.err({ statusCode: 401 })
     }
   } else {
-    return Result.err<ErrorOptions>({
+    return Result.err({
       ...data.error,
-      status: response.statusCode,
+      statusCode: response.statusCode,
     })
   }
 }
@@ -51,11 +51,11 @@ export async function getFunctionsList(
 
   const data: any = await response.body.json()
   if (response.statusCode === 200) {
-    return Result.ok<string[]>(data.functions)
+    return Result.ok(data.functions)
   } else {
-    return Result.err<ErrorOptions>({
+    return Result.err({
       ...data.error,
-      status: response.statusCode,
+      statusCode: response.statusCode,
     })
   }
 }

@@ -89,6 +89,25 @@ export default async function plugin(fastify: FastifyInstance) {
         }
       }
 
+      if (fn.sequential) {
+        const found = await store.invocations
+          .find({
+            _design: 'default',
+            _view: 'alive',
+            startkey: [null, params.functionName],
+            endkey: [{}, params.functionName],
+          })
+          .consume()
+
+        if (found) {
+          return reply.error({
+            code: 'SEQUENTIAL_FUNCTION',
+            message: 'Cannot spawn concurrent Invocations for this Function.',
+            statusCode: 422,
+          })
+        }
+      }
+
       const resInvoke = await invoke(this, session.token, fn, {
         contentType: headers['content-type'],
         env,

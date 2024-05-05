@@ -3,7 +3,7 @@ import S from 'fluent-json-schema-es'
 
 import { parseAuthorization } from '../lib/header.js'
 import { asBoolean } from '../lib/qs.js'
-import { REGISTRY_ISSUER, type SignedToken } from '../lib/token.js'
+import { REGISTRY_ISSUER, type SignedToken } from '../lib/tokens.js'
 import { authenticate } from './request.js'
 import { getRepository } from './oauth.js'
 
@@ -57,6 +57,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     request.query.offline_token = asBoolean(request.query.offline_token)
   },
   async handler(request, reply) {
+    const { tokens } = this
     const { log, query } = request
 
     if (query.service !== 'brer.io') {
@@ -72,7 +73,7 @@ export default (): RouteOptions<RouteGeneric> => ({
 
     if (authorization.type === 'bearer') {
       try {
-        await this.token.verifyToken(
+        await tokens.verifyToken(
           authorization.token,
           REGISTRY_ISSUER,
           REGISTRY_ISSUER,
@@ -89,7 +90,7 @@ export default (): RouteOptions<RouteGeneric> => ({
     }
 
     const username = result.unwrap()
-    const accessToken = await this.token.signRegistryAccessToken(
+    const accessToken = await tokens.signRegistryAccessToken(
       username,
       getRepository(query.scope),
     )
@@ -97,10 +98,10 @@ export default (): RouteOptions<RouteGeneric> => ({
     let refreshToken: SignedToken | undefined
     if (query.offline_token) {
       if (authorization.type === 'basic') {
-        refreshToken = await this.token.signRegistryRefreshToken(username)
+        refreshToken = await tokens.signRegistryRefreshToken(username)
       } else {
         return reply
-          .code(409)
+          .code(403)
           .error({ message: 'Refresh token expects basic authorization.' })
       }
     }

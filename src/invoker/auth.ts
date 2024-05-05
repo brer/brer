@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from '@brer/fastify'
 import plugin from 'fastify-plugin'
 
 import { parseAuthorization } from '../lib/header.js'
-import { INVOKER_ISSUER, type Token } from '../lib/token.js'
+import { INVOKER_ISSUER, type Token } from '../lib/tokens.js'
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -27,7 +27,7 @@ async function authPlugin(fastify: FastifyInstance) {
     }
 
     try {
-      request.token = await fastify.token.verifyToken(
+      request.token = await fastify.tokens.verifyToken(
         authorization.token,
         INVOKER_ISSUER,
         request.routeOptions.config.tokenIssuer || INVOKER_ISSUER,
@@ -45,7 +45,7 @@ async function authPlugin(fastify: FastifyInstance) {
   }
 
   /**
-   * Enfore token scope for Invoker's tokens.
+   * Enforce token scope for Invoker's tokens.
    */
   fastify.addHook(
     'preHandler',
@@ -55,7 +55,10 @@ async function authPlugin(fastify: FastifyInstance) {
         request.token.issuer === INVOKER_ISSUER &&
         request.token.subject !== request.params.invocationId
       ) {
-        return reply.sendError({ status: 404 })
+        return reply.sendError({
+          message: 'Resource not found.',
+          statusCode: 404,
+        })
       }
     },
   )

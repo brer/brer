@@ -1,8 +1,12 @@
 import test from 'ava'
 
+import { basicAuthorization } from '../src/lib/header.js'
 import createTestServer from './_server.js'
 
-const { adminPassword, authorization, fastify } = createTestServer()
+const adminPassword = 'auth_test'
+const authorization = basicAuthorization('admin', adminPassword)
+
+const fastify = createTestServer(adminPassword)
 test.before(() => fastify.ready())
 test.after(() => fastify.close())
 
