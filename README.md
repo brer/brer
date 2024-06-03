@@ -8,98 +8,21 @@ Brer is a simple task runner that uses some core Kubernetes features for process
 
 The whole point of this project is to be a simple and effective task runner without doing other similar things (like a serverless framework). The goal is to schedule and manage multiple isolated tasks and be able to monitor them with ease. Unlike other similar projects, Pod images are left untouched, leaving full freedom to the developers. Small dependencies will be available for the major languages to integrate with Brer.
 
-## Setup
+## Overview
 
-### Dependencies
+![Brer happy path](docs/flow_chart.jpg)
 
-- [Node.js](https://nodejs.org/) v20.6.0 or later
-- [CouchDB](https://couchdb.apache.org/) v3.x.x
-- A Kubernetes cluster (any non-ancient version, [minikube](https://minikube.sigs.k8s.io/docs/) is ok)
+### Components
 
-### Envs
+- [API server](https://github.com/brer/brer-api)
+- [Invoker](https://github.com/brer/brer-invoker)
+- [Controller](https://github.com/brer/brer-controller)
+- [Web UI](https://github.com/brer/brer-web)
+- [CLI](https://github.com/brer/brer-cli)
 
-Create a `.env` file with the following envs:
+### Runtimes
 
-#### Common
-
-| Name                | Description
-| ------------------- | -------------------
-| NODE_ENV            | Must be `"production"` for non-toy envs.
-| SERVER_HOST         | Listening host. Defaults to `127.0.0.1`.
-| SERVER_PORT         | Server's post. Defaults to `3000`.
-| SERVER_MODE         | Comma-separated values: `api`, `registry`, `controller`. Defaults to `api`.
-| LOG_LEVEL           | [Pino](https://github.com/pinojs/pino) log level. Defaults to `info`.
-| COUCHDB_URL         | CouchDB URL. Defaults to `http://127.0.0.1:5984/`.
-| COUCHDB_USERNAME    |
-| COUCHDB_PASSWORD    |
-| PUBLIC_URL          | The public URL where Brer is exposed. Defaults to localhost (this) server.
-| JWT_SECRET          | Secred used to sign JWT tokens, may be omitted if `JWT_PRIVATE_KEY` is defined.
-| JWT_PRIVATE_KEY     | Filepath of a PEM-encoded RSA SHA-256 secret key, may be omitted if `JWT_SECRET` is defined.
-| API_PUBLIC_KEY      | Filepath of a PEM-encoded RSA SHA-256 public key.
-| INVOKER_PUBLIC_KEY  | Filepath of a PEM-encoded RSA SHA-256 public key.
-| REGISTRY_PUBLIC_KEY | Filepath of a PEM-encoded RSA SHA-256 public key.
-
-#### API
-
-| Name                | Description
-| ------------------- | -------------------
-| K8S_NAMESPACE       |
-| INVOKER_URL         | Defaults to `PUBLIC_URL`.
-| COOKIE_NAME         | Defaults to `brer_session`.
-| COOKIE_DOMAIN       |
-| ADMIN_PASSWORD      | User's password for `admin`. Optional if `GATEWAY_URL` is defined.
-| GATEWAY_URL         | Authentication gateway URL. Optional if `ADMIN_PASSWORD` is defined.
-
-#### Invoker
-
-| Name                | Description
-| ------------------- | -------------------
-| K8S_FILE            | Kubeconfig filepath. Defaults to Current User's (OS) kubeconfig filepath.
-| K8S_CONTEXT         | Kubeconfig context to use.
-| K8S_CLUSTER         | Expected context's cluster.
-| K8S_USER            | Expected context's user.
-| K8S_NAMESPACE       | Expected kubeconfig namespace.
-| API_URL             | Defaults to `PUBLIC_URL`.
-| INVOKER_URL         | Defaults to `PUBLIC_URL`.
-| K8S_CPU_LIMIT       | Default Pod's `.resources.limits.cpu` value.
-| K8S_CPU_REQUEST     | Default Pod's `.resources.requests.cpu` value.
-| K8S_MEMORY_LIMIT    | Default Pod's `.resources.limits.memory` value.
-| K8S_MEMORY_REQUEST  | Default Pod's `.resources.requests.memory` value.
-
-#### Registry
-
-| Name                | Description
-| ------------------- | -------------------
-| REGISTRY_URL        |
-| REGISTRY_USERNAME   |
-| REGISTRY_PASSWORD   |
-| API_URL             | Defaults to `PUBLIC_URL`.
-
-### Start
-
-Initialize the database:
-
-```
-npm run init
-```
-
-Start the server:
-
-```
-npm run watch
-```
-
-### Test
-
-Install Docker Engine (the `docker` command) and run:
-
-```
-npm test
-```
-
-## Authentication for other Users
-
-Brer is able to authenticate only the `admin` User. To authentication other Users add the `GATEWAY_URL` env. When an authentication is required, Brer will `POST` that URL with a JSON body containing `{ "username": "my.user", "password": "SuperS3cr3t" }`.
+- [Node.js](https://github.com/brer/brer-nodejs)
 
 ## Roadmap
 
@@ -113,21 +36,20 @@ Brer is able to authenticate only the `admin` User. To authentication other User
 - [x] [Node.js bindings](https://github.com/brer/brer-nodejs)
 - [x] Previous Invocations history limit
 - [x] Authentication and authorization
-- [x] Docker Registry integration
 - [x] Stop Invocations
 - [x] Progress update
 - [x] Configure pod resources (cpu and memory)
-- [ ] Max global concurrent Invocations limit (enqueue pending Invocations)
+- [x] Max global concurrent Invocations limit (enqueue pending Invocations)
+- [x] Retry Invocation on error (retry attempts)
+- [x] Pending Pod timeout
 - [ ] Swagger/OpenAPI (partial)
 - [ ] Helm chart
-- [ ] Retry Invocation on error (retry attempts)
 - [ ] Webhooks
 - [ ] Go bindings
 - [ ] Rust bindings
 - [ ] CLI
 - [ ] Play/Pause Invocations
 - [ ] Invocation max running time
-- [ ] Kill stuck Invocations (heartbeats)
 
 ## Acknowledgements
 
